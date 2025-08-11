@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
+import OpenAI from 'openai'
+
+// Initialize OpenAI client
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+}) : null
 
 export async function POST(request: NextRequest) {
   try {
     const { message, context } = await request.json()
     
-    // In production, you would use OpenAI API here
+    // Use real OpenAI if API key is available, otherwise use intelligent fallback
     const response = await generateAIResponse(message, context)
     
     return NextResponse.json({ 
       response,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      source: process.env.OPENAI_API_KEY ? 'openai' : 'intelligent-fallback'
     })
   } catch (error) {
     console.error('Error in AI chat:', error)
@@ -21,30 +28,42 @@ export async function POST(request: NextRequest) {
 }
 
 async function generateAIResponse(message: string, context?: any) {
-  // In production, you would use OpenAI API like this:
-  /*
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  })
+  // Use real OpenAI if API key is available
+  if (openai && process.env.OPENAI_API_KEY) {
+    try {
+      const systemPrompt = `You are an expert code assistant with full knowledge of the user's codebase. 
+You can analyze code, explain functions, identify bugs, suggest improvements, and answer questions about software architecture.
+You are helping with a Next.js 14 application that uses TypeScript, Tailwind CSS, and modern React patterns.
+
+Context about the current project:
+- Framework: Next.js 14 with App Router
+- Language: TypeScript
+- Styling: Tailwind CSS
+- Database: Supabase (PostgreSQL)
+- AI: OpenAI GPT-4
+- Authentication: NextAuth.js
+
+User's repositories context: ${JSON.stringify(context?.repositories || [])}`
+      
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: message }
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
+      })
+      
+      return completion.choices[0].message.content || 'Sorry, I could not generate a response.'
+    } catch (error) {
+      console.error('OpenAI API error:', error)
+      // Fall back to intelligent responses if OpenAI fails
+      return generateIntelligentResponse(message, context)
+    }
+  }
   
-  const systemPrompt = `You are an expert code assistant with full knowledge of the user's codebase. 
-  You can analyze code, explain functions, identify bugs, suggest improvements, and answer questions about software architecture.
-  
-  Context: ${JSON.stringify(context)}`
-  
-  const response = await openai.chat.completions.create({
-    model: "gpt-4",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: message }
-    ],
-    temperature: 0.7,
-  })
-  
-  return response.choices[0].message.content
-  */
-  
-  // For now, generate intelligent responses based on the message content
+  // Fallback to intelligent pattern-based responses
   return generateIntelligentResponse(message, context)
 }
 

@@ -2,6 +2,37 @@
 
 A complete, modern clone of Greptile's AI code review platform built with **Next.js 14**, **TypeScript**, and **Tailwind CSS**. Features functional AI chat, dashboard management, and a beautiful responsive UI.
 
+## 🔧 **Environment Setup**
+
+Create a `.env.local` file in your project root with these variables:
+
+```bash
+# OpenAI Integration
+OPENAI_API_KEY=sk-your-openai-api-key-here
+
+# Supabase Database
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-key
+
+# GitHub Integration (Optional - for private repos)
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+
+# NextAuth (Required for authentication)
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-random-secret-string
+
+# Webhooks (Optional)
+WEBHOOK_SECRET=your-webhook-secret
+```
+
+### **How to Get These Keys:**
+
+1. **OpenAI API Key**: [OpenAI Platform](https://platform.openai.com/api-keys)
+2. **Supabase**: [Supabase Dashboard](https://supabase.com/dashboard)
+3. **GitHub OAuth**: [GitHub Developer Settings](https://github.com/settings/developers)
+
 ## ✨ Features
 
 ### 🤖 **AI-Powered Code Reviews**
@@ -46,13 +77,17 @@ A complete, modern clone of Greptile's AI code review platform built with **Next
    - Paste your GitHub repository URL
    - Click "Import from GitHub"
 
-3. **Run the Project:**
+3. **Set Environment Variables in Replit:**
+   - Go to Replit Secrets (lock icon in sidebar)
+   - Add all the environment variables listed above
+
+4. **Run the Project:**
    ```bash
    npm install
    npm run dev
    ```
 
-4. **Access Your App:**
+5. **Access Your App:**
    - Your app will be available at the Replit URL
    - All features are fully functional!
 
@@ -65,12 +100,16 @@ A complete, modern clone of Greptile's AI code review platform built with **Next
    npm install
    ```
 
-2. **Run Development Server:**
+2. **Set Environment Variables:**
+   - Create `.env.local` file with the variables above
+   - Add your actual API keys and credentials
+
+3. **Run Development Server:**
    ```bash
    npm run dev
    ```
 
-3. **Open in Browser:**
+4. **Open in Browser:**
    - Visit `http://localhost:3000`
    - Start exploring the AI-powered features!
 
@@ -102,6 +141,9 @@ A complete, modern clone of Greptile's AI code review platform built with **Next
 - **Framework:** Next.js 14 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
+- **Database:** Supabase (PostgreSQL)
+- **AI:** OpenAI GPT-4
+- **Authentication:** NextAuth.js
 - **UI Components:** Headless UI, Radix UI
 - **Icons:** Heroicons, Lucide React
 - **Animations:** Framer Motion
@@ -144,23 +186,26 @@ A complete, modern clone of Greptile's AI code review platform built with **Next
 - One-click deployment from GitHub
 - Automatic HTTPS and custom domains
 - Built-in collaboration tools
+- Environment variables via Secrets
 
 ### **2. Vercel**
 ```bash
 npm i -g vercel
 vercel --prod
 ```
+- Add environment variables in Vercel dashboard
 
 ### **3. Netlify**
 ```bash
 npm run build
 # Deploy the 'out' folder
 ```
+- Add environment variables in Netlify dashboard
 
 ## 🔮 Future Enhancements
 
 ### **Backend Integration Ready:**
-- Database schema planned (Prisma ORM)
+- Database schema planned (Supabase)
 - API routes structure in place
 - Authentication flow designed
 - Payment integration prepared (Stripe)
