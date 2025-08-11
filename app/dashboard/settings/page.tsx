@@ -17,6 +17,41 @@ export default function Settings() {
       languages: ['typescript', 'python', 'javascript']
     }
   })
+  
+  const [verificationStatus, setVerificationStatus] = useState<{
+    status: 'idle' | 'checking' | 'success' | 'error'
+    message?: string
+    details?: any
+  }>({ status: 'idle' })
+
+  const verifyOpenAIKey = async () => {
+    setVerificationStatus({ status: 'checking' })
+    
+    try {
+      const response = await fetch('/api/ai/verify')
+      const data = await response.json()
+      
+      if (data.success) {
+        setVerificationStatus({
+          status: 'success',
+          message: data.message,
+          details: data.details
+        })
+      } else {
+        setVerificationStatus({
+          status: 'error',
+          message: data.error,
+          details: data.details
+        })
+      }
+    } catch (error) {
+      setVerificationStatus({
+        status: 'error',
+        message: 'Failed to verify OpenAI connection',
+        details: 'Network error or server unavailable'
+      })
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -257,7 +292,62 @@ export default function Settings() {
             {activeTab === 'reviews' && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div className="p-6 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900">AI Review Settings</h2>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold text-gray-900">AI Review Settings</h2>
+                    <button
+                      onClick={verifyOpenAIKey}
+                      disabled={verificationStatus.status === 'checking'}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        verificationStatus.status === 'success'
+                          ? 'bg-green-100 text-green-800 border border-green-200'
+                          : verificationStatus.status === 'error'
+                          ? 'bg-red-100 text-red-800 border border-red-200'
+                          : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                      }`}
+                    >
+                      {verificationStatus.status === 'checking' && '🔄 Verifying OpenAI...'}
+                      {verificationStatus.status === 'success' && '✅ OpenAI Connected'}
+                      {verificationStatus.status === 'error' && '❌ OpenAI Failed'}
+                      {verificationStatus.status === 'idle' && '🔍 Test OpenAI Connection'}
+                    </button>
+                  </div>
+                  
+                  {/* Verification Status Details */}
+                  {verificationStatus.status !== 'idle' && (
+                    <div className={`mt-4 p-4 rounded-md ${
+                      verificationStatus.status === 'success'
+                        ? 'bg-green-50 border border-green-200'
+                        : 'bg-red-50 border border-red-200'
+                    }`}>
+                      <div className={`text-sm ${
+                        verificationStatus.status === 'success' ? 'text-green-700' : 'text-red-700'
+                      }`}>
+                        <p className="font-medium">{verificationStatus.message}</p>
+                        {verificationStatus.details && (
+                          <div className="mt-2 text-xs space-y-1">
+                            {typeof verificationStatus.details === 'string' ? (
+                              <p>{verificationStatus.details}</p>
+                            ) : (
+                              <>
+                                {verificationStatus.details.model && (
+                                  <p><strong>Model:</strong> {verificationStatus.details.model}</p>
+                                )}
+                                {verificationStatus.details.keyPrefix && (
+                                  <p><strong>API Key:</strong> {verificationStatus.details.keyPrefix}</p>
+                                )}
+                                {verificationStatus.details.response && (
+                                  <p><strong>Test Response:</strong> "{verificationStatus.details.response}"</p>
+                                )}
+                                {verificationStatus.details.usage && (
+                                  <p><strong>Tokens Used:</strong> {verificationStatus.details.usage.total_tokens} (Prompt: {verificationStatus.details.usage.prompt_tokens}, Completion: {verificationStatus.details.usage.completion_tokens})</p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="p-6 space-y-6">
                   <div className="flex items-center justify-between">
