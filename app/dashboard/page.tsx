@@ -3,39 +3,19 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
+interface Repository {
+  id: number
+  name: string
+  fullName: string
+  language: string
+  lastReview: string
+  status: string
+  reviews: number
+  bugs: number
+}
+
 export default function Dashboard() {
-  const [repositories] = useState([
-    {
-      id: 1,
-      name: 'my-awesome-project',
-      fullName: 'johndoe/my-awesome-project',
-      language: 'TypeScript',
-      lastReview: '2 hours ago',
-      status: 'active',
-      reviews: 24,
-      bugs: 8
-    },
-    {
-      id: 2,
-      name: 'api-service',
-      fullName: 'johndoe/api-service',
-      language: 'Python',
-      lastReview: '1 day ago',
-      status: 'active',
-      reviews: 156,
-      bugs: 23
-    },
-    {
-      id: 3,
-      name: 'frontend-app',
-      fullName: 'company/frontend-app',
-      language: 'JavaScript',
-      lastReview: '3 days ago',
-      status: 'pending',
-      reviews: 89,
-      bugs: 12
-    }
-  ])
+  const [repositories] = useState<Repository[]>([])
 
   const [messages, setMessages] = useState([
     {
@@ -218,7 +198,7 @@ export default function Dashboard() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Active Repos</p>
-                <p className="text-2xl font-bold text-gray-900">3</p>
+                <p className="text-2xl font-bold text-gray-900">{repositories.length}</p>
               </div>
             </div>
           </div>
@@ -238,7 +218,20 @@ export default function Dashboard() {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                {repositories.map((repo) => (
+                {repositories.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                    </div>
+                    <p className="text-gray-500 mb-4">No repositories connected yet</p>
+                    <Link href="/dashboard/repositories" className="btn-primary text-sm">
+                      Connect Repository
+                    </Link>
+                  </div>
+                ) : (
+                  repositories.map((repo) => (
                   <div key={repo.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
@@ -264,7 +257,7 @@ export default function Dashboard() {
                       <p className="text-sm text-gray-500 mt-1">Last: {repo.lastReview}</p>
                     </div>
                   </div>
-                ))}
+                )))}
               </div>
             </div>
           </div>

@@ -10,13 +10,21 @@ export async function POST(request: NextRequest) {
   try {
     const { message, context } = await request.json()
     
+    // Debug: Log environment variable status
+    console.log('OpenAI API Key available:', !!process.env.OPENAI_API_KEY)
+    console.log('OpenAI API Key length:', process.env.OPENAI_API_KEY?.length || 0)
+    
     // Use real OpenAI if API key is available, otherwise use intelligent fallback
     const response = await generateAIResponse(message, context)
     
     return NextResponse.json({ 
       response,
       timestamp: new Date().toISOString(),
-      source: process.env.OPENAI_API_KEY ? 'openai' : 'intelligent-fallback'
+      source: process.env.OPENAI_API_KEY ? 'openai' : 'intelligent-fallback',
+      debug: {
+        hasApiKey: !!process.env.OPENAI_API_KEY,
+        keyLength: process.env.OPENAI_API_KEY?.length || 0
+      }
     })
   } catch (error) {
     console.error('Error in AI chat:', error)

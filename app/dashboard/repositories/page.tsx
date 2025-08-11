@@ -51,59 +51,79 @@ export default function Repositories() {
   }
 
   const handleConnectRepository = async () => {
-    if (!repoUrl.trim()) return
+    if (!repoUrl.trim()) {
+      alert('Please enter a repository URL')
+      return
+    }
+
+    console.log('Connecting repository:', repoUrl)
 
     try {
       // Extract username and repo name from GitHub URL
       const urlMatch = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/)
       if (!urlMatch) {
-        alert('Please enter a valid GitHub repository URL')
+        alert('Please enter a valid GitHub repository URL (e.g., https://github.com/username/repo)')
         return
       }
 
       const [, owner, repo] = urlMatch
+      console.log('Extracted owner:', owner, 'repo:', repo)
       
       // Fetch the specific repository
-      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      const apiUrl = `https://api.github.com/repos/${owner}/${repo}`
+      console.log('Fetching from:', apiUrl)
+      
+      const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'Greptile-Clone'
         }
       })
 
+      console.log('Response status:', response.status)
+
       if (!response.ok) {
-        alert('Repository not found or is private')
+        const errorText = await response.text()
+        console.error('GitHub API error:', errorText)
+        alert(`Repository not found or is private. Status: ${response.status}`)
         return
       }
 
       const repoData = await response.json()
+      console.log('Repository data received:', repoData.name, repoData.full_name)
 
       // Add to repositories list
-      const newRepo = {
-        id: repositories.length + 1,
+      const newRepo: Repository = {
+        id: Date.now(), // Use timestamp for unique ID
         name: repoData.name,
         fullName: repoData.full_name,
         language: repoData.language || 'Unknown',
         lastReview: 'Never',
-        status: 'pending' as const,
+        status: 'pending',
         reviews: 0,
         bugs: 0,
-        stars: repoData.stargazers_count,
-        forks: repoData.forks_count,
-        isPrivate: repoData.private,
-        description: repoData.description,
+        stars: repoData.stargazers_count || 0,
+        forks: repoData.forks_count || 0,
+        isPrivate: repoData.private || false,
+        description: repoData.description || 'No description',
         updatedAt: repoData.updated_at,
         htmlUrl: repoData.html_url
       }
 
-      setRepositories(prev => [newRepo, ...prev])
+      console.log('Adding new repo:', newRepo)
+      setRepositories(prev => {
+        const updated = [newRepo, ...prev]
+        console.log('Updated repositories list:', updated)
+        return updated
+      })
+      
       setRepoUrl('')
       setShowAddRepo(false)
       
-      alert(`Successfully connected ${repoData.full_name}!`)
+      alert(`✅ Successfully connected ${repoData.full_name}!`)
     } catch (error) {
       console.error('Error connecting repository:', error)
-      alert('Failed to connect repository. Please try again.')
+      alert(`❌ Failed to connect repository: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
