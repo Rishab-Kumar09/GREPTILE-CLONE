@@ -1,0 +1,297 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+
+export default function Repositories() {
+  const [repositories] = useState([
+    {
+      id: 1,
+      name: 'my-awesome-project',
+      fullName: 'johndoe/my-awesome-project',
+      language: 'TypeScript',
+      lastReview: '2 hours ago',
+      status: 'active',
+      reviews: 24,
+      bugs: 8,
+      stars: 156,
+      forks: 23,
+      isPrivate: false
+    },
+    {
+      id: 2,
+      name: 'api-service',
+      fullName: 'johndoe/api-service',
+      language: 'Python',
+      lastReview: '1 day ago',
+      status: 'active',
+      reviews: 156,
+      bugs: 23,
+      stars: 89,
+      forks: 12,
+      isPrivate: true
+    },
+    {
+      id: 3,
+      name: 'frontend-app',
+      fullName: 'company/frontend-app',
+      language: 'JavaScript',
+      lastReview: '3 days ago',
+      status: 'pending',
+      reviews: 89,
+      bugs: 12,
+      stars: 234,
+      forks: 45,
+      isPrivate: false
+    },
+    {
+      id: 4,
+      name: 'mobile-app',
+      fullName: 'company/mobile-app',
+      language: 'Swift',
+      lastReview: '1 week ago',
+      status: 'inactive',
+      reviews: 45,
+      bugs: 5,
+      stars: 67,
+      forks: 8,
+      isPrivate: true
+    }
+  ])
+
+  const [showAddRepo, setShowAddRepo] = useState(false)
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <Link href="/" className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">🦎</span>
+                </div>
+                <span className="text-xl font-bold text-gray-900">Greptile Clone</span>
+              </Link>
+            </div>
+            
+            <nav className="flex items-center space-x-8">
+              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
+                Dashboard
+              </Link>
+              <Link href="/dashboard/repositories" className="text-primary-600 font-medium">
+                Repositories
+              </Link>
+              <Link href="/dashboard/reviews" className="text-gray-600 hover:text-gray-900">
+                Reviews
+              </Link>
+              <Link href="/dashboard/settings" className="text-gray-600 hover:text-gray-900">
+                Settings
+              </Link>
+            </nav>
+
+            <div className="flex items-center space-x-4">
+              <button className="p-2 text-gray-600 hover:text-gray-900">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                </svg>
+              </button>
+              <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Repositories</h1>
+            <p className="text-gray-600">Manage your connected repositories and their AI review settings</p>
+          </div>
+          <button 
+            onClick={() => setShowAddRepo(true)}
+            className="btn-primary"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Add Repository
+          </button>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Repositories</p>
+                <p className="text-2xl font-bold text-gray-900">{repositories.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Active</p>
+                <p className="text-2xl font-bold text-gray-900">{repositories.filter(r => r.status === 'active').length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Pending Setup</p>
+                <p className="text-2xl font-bold text-gray-900">{repositories.filter(r => r.status === 'pending').length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Reviews</p>
+                <p className="text-2xl font-bold text-gray-900">{repositories.reduce((sum, repo) => sum + repo.reviews, 0)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Repository List */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Your Repositories</h2>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {repositories.map((repo) => (
+              <div key={repo.id} className="p-6 hover:bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{repo.name}</h3>
+                        {repo.isPrivate && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                            Private
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600">{repo.fullName}</p>
+                      <div className="flex items-center space-x-4 mt-2">
+                        <span className="text-sm text-gray-500">
+                          <span className="inline-block w-3 h-3 rounded-full bg-blue-500 mr-1"></span>
+                          {repo.language}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          ⭐ {repo.stars}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          🍴 {repo.forks}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-6">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-gray-900">{repo.reviews}</p>
+                      <p className="text-sm text-gray-600">Reviews</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-red-600">{repo.bugs}</p>
+                      <p className="text-sm text-gray-600">Bugs Found</p>
+                    </div>
+                    <div className="text-center">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                        repo.status === 'active' 
+                          ? 'bg-green-100 text-green-800' 
+                          : repo.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {repo.status}
+                      </span>
+                      <p className="text-xs text-gray-500 mt-1">Last: {repo.lastReview}</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button className="p-2 text-gray-600 hover:text-gray-900">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </button>
+                      <button className="p-2 text-gray-600 hover:text-red-600">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Add Repository Modal */}
+        {showAddRepo && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Repository</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Repository URL</label>
+                  <input
+                    type="text"
+                    placeholder="https://github.com/username/repo"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowAddRepo(false)}
+                    className="btn-outline"
+                  >
+                    Cancel
+                  </button>
+                  <button className="btn-primary">
+                    Connect Repository
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  )
+} 
