@@ -59,7 +59,7 @@ export default function Reviews() {
     }
   ])
 
-  const [selectedReview, setSelectedReview] = useState(null)
+  const [selectedReview, setSelectedReview] = useState<typeof reviews[0] | null>(null)
 
   return (
     <div className="min-h-screen bg-gray-50">
