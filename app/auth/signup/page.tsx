@@ -1,6 +1,24 @@
+'use client'
+
 import Link from 'next/link'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function SignUp() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    
+    // Simulate signup process
+    setTimeout(() => {
+      // In a real app, you'd handle actual signup here
+      // For now, just redirect to dashboard
+      router.push('/dashboard')
+    }, 1500)
+  }
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -36,7 +54,7 @@ export default function SignUp() {
           </div>
         </div>
 
-        <form className="mt-8 space-y-6">
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
               <label htmlFor="full-name" className="block text-sm font-medium text-gray-700">
@@ -114,9 +132,10 @@ export default function SignUp() {
           <div>
             <button
               type="submit"
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              disabled={isLoading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Start free trial
+              {isLoading ? 'Creating Account...' : 'Start free trial'}
             </button>
           </div>
 
