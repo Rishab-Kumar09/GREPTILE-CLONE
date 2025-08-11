@@ -72,17 +72,41 @@ export default function Dashboard() {
     setInputMessage('')
     setIsLoading(true)
 
-    // Simulate AI response delay
-    setTimeout(() => {
+    try {
+      // Call our real AI API
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: inputMessage.trim(),
+          context: { repositories: repositories }
+        }),
+      })
+
+      const data = await response.json()
+      
       const aiResponse = {
         id: messages.length + 2,
         type: 'ai',
-        content: aiResponses[Math.floor(Math.random() * aiResponses.length)],
+        content: data.response || 'Sorry, I encountered an error processing your request.',
         timestamp: new Date()
       }
+      
       setMessages(prev => [...prev, aiResponse])
+    } catch (error) {
+      console.error('Error calling AI API:', error)
+      const errorResponse = {
+        id: messages.length + 2,
+        type: 'ai',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorResponse])
+    } finally {
       setIsLoading(false)
-    }, 1500)
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

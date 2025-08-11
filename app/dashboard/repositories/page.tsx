@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 
 export default function Repositories() {
-  const [repositories] = useState([
+  const [repositories, setRepositories] = useState([
     {
       id: 1,
       name: 'my-awesome-project',
@@ -58,8 +58,33 @@ export default function Repositories() {
       isPrivate: true
     }
   ])
+  const [loading, setLoading] = useState(false)
+  const [username, setUsername] = useState('octocat')
 
   const [showAddRepo, setShowAddRepo] = useState(false)
+
+  const fetchRepositories = async (githubUsername: string) => {
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/github/repos?username=${githubUsername}`)
+      if (response.ok) {
+        const repos = await response.json()
+        setRepositories(repos)
+      } else {
+        console.error('Failed to fetch repositories')
+      }
+    } catch (error) {
+      console.error('Error fetching repositories:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFetchRepos = () => {
+    if (username.trim()) {
+      fetchRepositories(username.trim())
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -111,15 +136,38 @@ export default function Repositories() {
             <h1 className="text-2xl font-bold text-gray-900">Repositories</h1>
             <p className="text-gray-600">Manage your connected repositories and their AI review settings</p>
           </div>
-          <button 
-            onClick={() => setShowAddRepo(true)}
-            className="btn-primary"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Add Repository
-          </button>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="GitHub username"
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleFetchRepos()
+                  }
+                }}
+              />
+              <button 
+                onClick={handleFetchRepos}
+                disabled={loading}
+                className="btn-primary disabled:opacity-50"
+              >
+                {loading ? 'Loading...' : 'Fetch Repos'}
+              </button>
+            </div>
+            <button 
+              onClick={() => setShowAddRepo(true)}
+              className="btn-outline"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Repository
+            </button>
+          </div>
         </div>
 
         {/* Stats */}
