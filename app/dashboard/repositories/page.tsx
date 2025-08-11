@@ -60,8 +60,8 @@ export default function Repositories() {
   ])
   const [loading, setLoading] = useState(false)
   const [username, setUsername] = useState('octocat')
-
   const [showAddRepo, setShowAddRepo] = useState(false)
+  const [repoUrl, setRepoUrl] = useState('')
 
   const fetchRepositories = async (githubUsername: string) => {
     setLoading(true)
@@ -83,6 +83,63 @@ export default function Repositories() {
   const handleFetchRepos = () => {
     if (username.trim()) {
       fetchRepositories(username.trim())
+    }
+  }
+
+  const handleConnectRepository = async () => {
+    if (!repoUrl.trim()) return
+
+    try {
+      // Extract username and repo name from GitHub URL
+      const urlMatch = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/)
+      if (!urlMatch) {
+        alert('Please enter a valid GitHub repository URL')
+        return
+      }
+
+      const [, owner, repo] = urlMatch
+      
+      // Fetch the specific repository
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Greptile-Clone'
+        }
+      })
+
+      if (!response.ok) {
+        alert('Repository not found or is private')
+        return
+      }
+
+      const repoData = await response.json()
+
+      // Add to repositories list
+      const newRepo = {
+        id: repositories.length + 1,
+        name: repoData.name,
+        fullName: repoData.full_name,
+        language: repoData.language || 'Unknown',
+        lastReview: 'Never',
+        status: 'pending' as const,
+        reviews: 0,
+        bugs: 0,
+        stars: repoData.stargazers_count,
+        forks: repoData.forks_count,
+        isPrivate: repoData.private,
+        description: repoData.description,
+        updatedAt: repoData.updated_at,
+        htmlUrl: repoData.html_url
+      }
+
+      setRepositories(prev => [newRepo, ...prev])
+      setRepoUrl('')
+      setShowAddRepo(false)
+      
+      alert(`Successfully connected ${repoData.full_name}!`)
+    } catch (error) {
+      console.error('Error connecting repository:', error)
+      alert('Failed to connect repository. Please try again.')
     }
   }
 
@@ -320,8 +377,15 @@ export default function Repositories() {
                   <label className="block text-sm font-medium text-gray-700">Repository URL</label>
                   <input
                     type="text"
+                    value={repoUrl}
+                    onChange={(e) => setRepoUrl(e.target.value)}
                     placeholder="https://github.com/username/repo"
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleConnectRepository()
+                      }
+                    }}
                   />
                 </div>
                 <div className="flex justify-end space-x-3">
@@ -331,7 +395,10 @@ export default function Repositories() {
                   >
                     Cancel
                   </button>
-                  <button className="btn-primary">
+                  <button 
+                    onClick={handleConnectRepository}
+                    className="btn-primary"
+                  >
                     Connect Repository
                   </button>
                 </div>
