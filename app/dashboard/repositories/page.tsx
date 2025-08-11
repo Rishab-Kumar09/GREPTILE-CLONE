@@ -3,61 +3,25 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
+interface Repository {
+  id: number
+  name: string
+  fullName: string
+  language: string
+  lastReview: string
+  status: 'active' | 'inactive' | 'pending'
+  reviews: number
+  bugs: number
+  stars: number
+  forks: number
+  isPrivate: boolean
+  description?: string
+  updatedAt?: string
+  htmlUrl?: string
+}
+
 export default function Repositories() {
-  const [repositories, setRepositories] = useState([
-    {
-      id: 1,
-      name: 'my-awesome-project',
-      fullName: 'johndoe/my-awesome-project',
-      language: 'TypeScript',
-      lastReview: '2 hours ago',
-      status: 'active',
-      reviews: 24,
-      bugs: 8,
-      stars: 156,
-      forks: 23,
-      isPrivate: false
-    },
-    {
-      id: 2,
-      name: 'api-service',
-      fullName: 'johndoe/api-service',
-      language: 'Python',
-      lastReview: '1 day ago',
-      status: 'active',
-      reviews: 156,
-      bugs: 23,
-      stars: 89,
-      forks: 12,
-      isPrivate: true
-    },
-    {
-      id: 3,
-      name: 'frontend-app',
-      fullName: 'company/frontend-app',
-      language: 'JavaScript',
-      lastReview: '3 days ago',
-      status: 'pending',
-      reviews: 89,
-      bugs: 12,
-      stars: 234,
-      forks: 45,
-      isPrivate: false
-    },
-    {
-      id: 4,
-      name: 'mobile-app',
-      fullName: 'company/mobile-app',
-      language: 'Swift',
-      lastReview: '1 week ago',
-      status: 'inactive',
-      reviews: 45,
-      bugs: 5,
-      stars: 67,
-      forks: 8,
-      isPrivate: true
-    }
-  ])
+  const [repositories, setRepositories] = useState<Repository[]>([])
   const [loading, setLoading] = useState(false)
   const [username, setUsername] = useState('octocat')
   const [showAddRepo, setShowAddRepo] = useState(false)
@@ -292,7 +256,47 @@ export default function Repositories() {
             <h2 className="text-lg font-semibold text-gray-900">Your Repositories</h2>
           </div>
           <div className="divide-y divide-gray-200">
-            {repositories.map((repo) => (
+            {repositories.length === 0 ? (
+              <div className="p-12 text-center">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No repositories connected</h3>
+                <p className="text-gray-500 mb-6">Get started by connecting your first repository or fetching repos from a GitHub user.</p>
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={() => setShowAddRepo(true)}
+                    className="btn-primary"
+                  >
+                    Add Repository
+                  </button>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="GitHub username"
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          handleFetchRepos()
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={handleFetchRepos}
+                      disabled={loading}
+                      className="btn-outline text-sm"
+                    >
+                      {loading ? 'Loading...' : 'Fetch Repos'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              repositories.map((repo) => (
               <div key={repo.id} className="p-6 hover:bg-gray-50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
@@ -363,7 +367,7 @@ export default function Repositories() {
                   </div>
                 </div>
               </div>
-            ))}
+            )))}
           </div>
         </div>
 
