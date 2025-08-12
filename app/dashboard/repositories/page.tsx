@@ -200,11 +200,12 @@ export default function Repositories() {
           hasMoreBatches = batchData.hasMoreBatches
           batchIndex = batchData.nextBatchIndex || batchIndex + 1
           
-          // Update UI with current progress
-          console.log(`📊 BATCH ${batchIndex + 1} UPDATE: Setting bugs to ${totalBugs} for ${repo.fullName}`)
+          // Update UI with current progress (use TOTAL issues, not just bugs)
+          const currentTotalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
+          console.log(`📊 BATCH ${batchIndex + 1} UPDATE: Setting total issues to ${currentTotalIssues} (${totalBugs} bugs + ${totalSecurityIssues} security + ${totalCodeSmells} smells) for ${repo.fullName}`)
           setRepositories(prev => prev.map(r => 
             r.fullName === repo.fullName 
-              ? { ...r, bugs: totalBugs, reviews: totalFilesProcessed, status: 'active' as const }
+              ? { ...r, bugs: currentTotalIssues, reviews: totalFilesProcessed, status: 'active' as const }
               : r
           ))
           
@@ -258,14 +259,15 @@ export default function Repositories() {
             `🎯 TOTAL ISSUES: ${totalIssues}\n` +
             `${totalIssues > 0 ? '🔥 Issues detected in your code!' : '✨ Clean code - no issues found!'}`)
       
-      // CRITICAL: Final UI update AFTER alert is dismissed
+      // CRITICAL: Final UI update AFTER alert is dismissed (use TOTAL issues)
+      const finalTotalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
       setRepositories(prev => prev.map(r => 
         r.fullName === repo.fullName 
-          ? { ...r, bugs: totalBugs, reviews: totalFilesProcessed, status: 'active' as const }
+          ? { ...r, bugs: finalTotalIssues, reviews: totalFilesProcessed, status: 'active' as const }
           : r
       ))
       
-      console.log(`🔒 FINAL UPDATE: Setting bugs to ${totalBugs} for ${repo.fullName}`)
+      console.log(`🔒 FINAL UPDATE: Setting total issues to ${finalTotalIssues} (${totalBugs} bugs + ${totalSecurityIssues} security + ${totalCodeSmells} smells) for ${repo.fullName}`)
             
     } catch (error) {
       console.error('Batch analysis error:', error)
@@ -505,7 +507,7 @@ export default function Repositories() {
                     </div>
                     <div className="text-center">
                       <p className="text-2xl font-bold text-red-600">{repo.bugs}</p>
-                      <p className="text-sm text-gray-600">Bugs Found</p>
+                      <p className="text-sm text-gray-600">Issues Found</p>
                     </div>
                     <div className="text-center">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${

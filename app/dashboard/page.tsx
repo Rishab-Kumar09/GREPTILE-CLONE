@@ -203,7 +203,7 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Bugs Found</p>
+                <p className="text-sm font-medium text-gray-600">Issues Found</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {repositories.reduce((total, repo) => total + (repo.bugs || 0), 0)}
                 </p>
