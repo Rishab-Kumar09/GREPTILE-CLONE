@@ -167,12 +167,16 @@ export default function Repositories() {
         })
 
         if (!response.ok) {
-          if (response.status === 504) {
-            console.log(`⏰ Batch ${batchIndex + 1} timeout - continuing with next batch...`)
+          if (response.status === 504 || response.status === 502) {
+            console.log(`⏰ Batch ${batchIndex + 1} timeout (${response.status}) - continuing with next batch...`)
             batchIndex++
+            // Small delay before retrying next batch
+            await new Promise(resolve => setTimeout(resolve, 1000))
             continue
           }
-          throw new Error(`❌ Batch ${batchIndex + 1} failed: ${response.status}`)
+          console.error(`❌ Batch ${batchIndex + 1} failed with status ${response.status}`)
+          batchIndex++
+          continue // Continue with next batch instead of throwing error
         }
 
         let batchData

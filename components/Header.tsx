@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
+import Link from 'next/link'
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -31,8 +31,8 @@ export default function Header() {
             <Link href="#pricing" className="text-gray-600 hover:text-gray-900 transition-colors">
               Pricing
             </Link>
-            <Link href="/docs" className="text-gray-600 hover:text-gray-900 transition-colors">
-              Docs
+            <Link href="/demo" className="text-gray-600 hover:text-gray-900 transition-colors">
+              Demo
             </Link>
           </nav>
 
@@ -73,8 +73,8 @@ export default function Header() {
             <Link href="#pricing" className="block px-3 py-2 text-gray-600 hover:text-gray-900">
               Pricing
             </Link>
-            <Link href="/docs" className="block px-3 py-2 text-gray-600 hover:text-gray-900">
-              Docs
+            <Link href="/demo" className="block px-3 py-2 text-gray-600 hover:text-gray-900">
+              Demo
             </Link>
             <div className="pt-4 pb-2 border-t border-gray-200">
               <Link href="/auth/signin" className="block px-3 py-2 text-gray-600 hover:text-gray-900">
