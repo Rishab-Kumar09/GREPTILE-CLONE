@@ -276,11 +276,12 @@ async function analyzeSingleChunk(filePath: string, code: string, chunkNum: numb
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "bugs": [{"line": 1, "severity": "high", "type": "Logic Error", "description": "...", "suggestion": "..."}],
-  "securityIssues": [{"line": 1, "severity": "critical", "type": "SQL Injection", "description": "...", "suggestion": "..."}],
-  "codeSmells": [{"line": 1, "type": "Complex Function", "description": "...", "suggestion": "..."}]
+  "bugs": [{"line": 1, "severity": "high", "type": "Logic Error", "description": "...", "suggestion": "...", "codeSnippet": "actual code line"}],
+  "securityIssues": [{"line": 1, "severity": "critical", "type": "SQL Injection", "description": "...", "suggestion": "...", "codeSnippet": "actual code line"}],
+  "codeSmells": [{"line": 1, "type": "Complex Function", "description": "...", "suggestion": "...", "codeSnippet": "actual code line"}]
 }
 
+IMPORTANT: Include the "codeSnippet" field with the actual line of code that has the issue.
 Severity levels: critical, high, medium, low`
         },
         {

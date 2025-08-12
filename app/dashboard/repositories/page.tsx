@@ -135,14 +135,6 @@ export default function Repositories() {
       ...prev,
       [repoFullName]: !prev[repoFullName]
     }))
-    
-    // Log to console for complete results
-    if (!expandedResults[repoFullName]) {
-      const results = analysisResults[repoFullName]
-      if (results) {
-        console.log(`🔍 COMPLETE ANALYSIS RESULTS FOR ${repoFullName}:`, results)
-      }
-    }
   }
 
   const analyzeRepository = async (repo: Repository) => {
@@ -645,8 +637,8 @@ export default function Repositories() {
                       {analysisResults[repo.fullName].results && analysisResults[repo.fullName].results.length > 0 && (
                         <div className="space-y-3">
                           <h5 className="font-medium text-gray-900">🔍 Issues Found:</h5>
-                          <div className="max-h-96 overflow-y-auto space-y-3">
-                            {analysisResults[repo.fullName].results.slice(0, 5).map((fileResult: any, index: number) => (
+                                                     <div className="max-h-96 overflow-y-auto space-y-3">
+                             {analysisResults[repo.fullName].results.map((fileResult: any, index: number) => (
                               <div key={index} className="bg-white p-3 rounded-lg border border-gray-200">
                                 <div className="font-medium text-gray-900 mb-2">📁 {fileResult.file}</div>
                                 
@@ -654,22 +646,27 @@ export default function Repositories() {
                                 {fileResult.securityIssues?.length > 0 && (
                                   <div className="mb-2">
                                     <div className="text-sm font-medium text-orange-700 mb-1">🔒 Security Issues ({fileResult.securityIssues.length}):</div>
-                                    {fileResult.securityIssues.slice(0, 2).map((issue: any, issueIndex: number) => (
+                                                                         {fileResult.securityIssues.map((issue: any, issueIndex: number) => (
                                       <div key={issueIndex} className="text-sm bg-orange-50 p-2 rounded border-l-2 border-orange-200 mb-1">
-                                        <div className="font-medium text-orange-800">Line {issue.line}: {issue.type} 
-                                          <span className={`ml-2 px-2 py-0.5 text-xs rounded ${
-                                            issue.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                                            issue.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                                            issue.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                            'bg-blue-100 text-blue-800'
-                                          }`}>
-                                            {issue.severity}
-                                          </span>
-                                        </div>
-                                        <div className="text-orange-700 mt-1">{issue.description}</div>
-                                        {issue.suggestion && (
-                                          <div className="text-orange-600 text-xs mt-1 italic">💡 {issue.suggestion}</div>
-                                        )}
+                                                                                 <div className="font-medium text-orange-800">Line {issue.line}: {issue.type} 
+                                           <span className={`ml-2 px-2 py-0.5 text-xs rounded ${
+                                             issue.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                                             issue.severity === 'high' ? 'bg-orange-100 text-orange-800' :
+                                             issue.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                             'bg-blue-100 text-blue-800'
+                                           }`}>
+                                             {issue.severity}
+                                           </span>
+                                         </div>
+                                         {issue.codeSnippet && (
+                                           <div className="bg-gray-900 text-gray-100 p-2 rounded text-xs font-mono mt-1 overflow-x-auto">
+                                             <span className="text-gray-400">Line {issue.line}:</span> {issue.codeSnippet}
+                                           </div>
+                                         )}
+                                         <div className="text-orange-700 mt-1">{issue.description}</div>
+                                         {issue.suggestion && (
+                                           <div className="text-orange-600 text-xs mt-1 italic">💡 {issue.suggestion}</div>
+                                         )}
                                       </div>
                                     ))}
                                   </div>
@@ -679,13 +676,18 @@ export default function Repositories() {
                                 {fileResult.codeSmells?.length > 0 && (
                                   <div className="mb-2">
                                     <div className="text-sm font-medium text-yellow-700 mb-1">💡 Code Smells ({fileResult.codeSmells.length}):</div>
-                                    {fileResult.codeSmells.slice(0, 2).map((smell: any, smellIndex: number) => (
+                                                                         {fileResult.codeSmells.map((smell: any, smellIndex: number) => (
                                       <div key={smellIndex} className="text-sm bg-yellow-50 p-2 rounded border-l-2 border-yellow-200 mb-1">
-                                        <div className="font-medium text-yellow-800">Line {smell.line}: {smell.type}</div>
-                                        <div className="text-yellow-700 mt-1">{smell.description}</div>
-                                        {smell.suggestion && (
-                                          <div className="text-yellow-600 text-xs mt-1 italic">💡 {smell.suggestion}</div>
-                                        )}
+                                                                                 <div className="font-medium text-yellow-800">Line {smell.line}: {smell.type}</div>
+                                         {smell.codeSnippet && (
+                                           <div className="bg-gray-900 text-gray-100 p-2 rounded text-xs font-mono mt-1 overflow-x-auto">
+                                             <span className="text-gray-400">Line {smell.line}:</span> {smell.codeSnippet}
+                                           </div>
+                                         )}
+                                         <div className="text-yellow-700 mt-1">{smell.description}</div>
+                                         {smell.suggestion && (
+                                           <div className="text-yellow-600 text-xs mt-1 italic">💡 {smell.suggestion}</div>
+                                         )}
                                       </div>
                                     ))}
                                   </div>
@@ -695,22 +697,27 @@ export default function Repositories() {
                                 {fileResult.bugs?.length > 0 && (
                                   <div className="mb-2">
                                     <div className="text-sm font-medium text-red-700 mb-1">🐛 Logic Bugs ({fileResult.bugs.length}):</div>
-                                    {fileResult.bugs.slice(0, 2).map((bug: any, bugIndex: number) => (
+                                                                         {fileResult.bugs.map((bug: any, bugIndex: number) => (
                                       <div key={bugIndex} className="text-sm bg-red-50 p-2 rounded border-l-2 border-red-200 mb-1">
-                                        <div className="font-medium text-red-800">Line {bug.line}: {bug.type}
-                                          <span className={`ml-2 px-2 py-0.5 text-xs rounded ${
-                                            bug.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                                            bug.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                                            bug.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                            'bg-blue-100 text-blue-800'
-                                          }`}>
-                                            {bug.severity}
-                                          </span>
-                                        </div>
-                                        <div className="text-red-700 mt-1">{bug.description}</div>
-                                        {bug.suggestion && (
-                                          <div className="text-red-600 text-xs mt-1 italic">💡 {bug.suggestion}</div>
-                                        )}
+                                                                                 <div className="font-medium text-red-800">Line {bug.line}: {bug.type}
+                                           <span className={`ml-2 px-2 py-0.5 text-xs rounded ${
+                                             bug.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                                             bug.severity === 'high' ? 'bg-orange-100 text-orange-800' :
+                                             bug.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                             'bg-blue-100 text-blue-800'
+                                           }`}>
+                                             {bug.severity}
+                                           </span>
+                                         </div>
+                                         {bug.codeSnippet && (
+                                           <div className="bg-gray-900 text-gray-100 p-2 rounded text-xs font-mono mt-1 overflow-x-auto">
+                                             <span className="text-gray-400">Line {bug.line}:</span> {bug.codeSnippet}
+                                           </div>
+                                         )}
+                                         <div className="text-red-700 mt-1">{bug.description}</div>
+                                         {bug.suggestion && (
+                                           <div className="text-red-600 text-xs mt-1 italic">💡 {bug.suggestion}</div>
+                                         )}
                                       </div>
                                     ))}
                                   </div>
@@ -718,12 +725,7 @@ export default function Repositories() {
                               </div>
                             ))}
                             
-                            {analysisResults[repo.fullName].results.length > 5 && (
-                              <div className="text-center py-2 text-gray-500 text-sm">
-                                ... and {analysisResults[repo.fullName].results.length - 5} more files with issues. 
-                                Check console for complete results.
-                              </div>
-                            )}
+                            
                           </div>
                         </div>
                       )}
