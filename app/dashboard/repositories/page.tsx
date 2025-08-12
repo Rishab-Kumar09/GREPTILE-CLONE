@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import React from 'react' // Added for RepoChat component
 
 interface Repository {
   id: number
@@ -408,7 +409,7 @@ export default function Repositories() {
             <div className="flex items-center">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
               </div>
               <div className="ml-4">
@@ -729,6 +730,12 @@ export default function Repositories() {
                           </div>
                         </div>
                       )}
+
+                      {/* Repo Q&A */}
+                      <div className="mt-6 border-t pt-4">
+                        <h5 className="font-semibold text-gray-900 mb-2">💬 Ask a question about this repository</h5>
+                        <RepoChat repoFullName={repo.fullName} />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -777,6 +784,71 @@ export default function Repositories() {
           </div>
         )}
       </main>
+    </div>
+  )
+} 
+
+// Lightweight repo chat widget
+function RepoChat({ repoFullName }: { repoFullName: string }) {
+  const [question, setQuestion] = React.useState('')
+  const [loading, setLoading] = React.useState(false)
+  const [answer, setAnswer] = React.useState<string | null>(null)
+  const [citations, setCitations] = React.useState<any[]>([])
+
+  const ask = async () => {
+    if (!question.trim()) return
+    setLoading(true)
+    setAnswer(null)
+    setCitations([])
+    try {
+      const res = await fetch('/api/github/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoFullName, question }),
+      })
+      const data = await res.json()
+      setAnswer(data.answer || 'No answer')
+      setCitations(Array.isArray(data.citations) ? data.citations : [])
+    } catch (e) {
+      setAnswer('Failed to get answer. Check your OpenAI key and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <input
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="Ask anything about this repo (e.g., How does auth work?)"
+          className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+          onKeyDown={(e) => { if (e.key === 'Enter') ask() }}
+        />
+        <button onClick={ask} disabled={loading} className={`px-3 py-2 rounded-md text-white ${loading ? 'bg-blue-300' : 'bg-blue-600 hover:bg-blue-700'}`}>{loading ? 'Thinking…' : 'Ask'}</button>
+      </div>
+
+      {answer && (
+        <div className="bg-white border rounded-md p-3 space-y-2">
+          <div className="prose prose-sm max-w-none">
+            <p>{answer}</p>
+          </div>
+          {citations.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-gray-900">Sources:</div>
+              {citations.map((c, i) => (
+                <div key={i} className="bg-gray-50 border rounded p-2">
+                  <div className="text-xs text-gray-600">{c.file}{Array.isArray(c.lines) ? ` (lines ${c.lines[0]}-${c.lines[1]})` : ''}</div>
+                  {c.snippet && (
+                    <pre className="mt-1 bg-gray-900 text-gray-100 text-xs p-2 rounded overflow-x-auto"><code>{c.snippet}</code></pre>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 } 
