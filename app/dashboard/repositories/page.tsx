@@ -150,8 +150,21 @@ export default function Repositories() {
         }),
       })
 
-      const data = await response.json()
-      console.log('Analysis results:', data)
+      if (!response.ok) {
+        if (response.status === 504) {
+          throw new Error(`⏰ Analysis timeout - repository too large. Try a smaller repository.`)
+        }
+        throw new Error(`❌ HTTP error! status: ${response.status}`)
+      }
+
+      let data
+      try {
+        data = await response.json()
+        console.log('Analysis results:', data)
+      } catch (jsonError) {
+        console.error('JSON parsing error:', jsonError)
+        throw new Error(`⏰ Analysis timeout - response was incomplete. The repository might be too large.`)
+      }
 
       if (data.success) {
         setAnalysisResults(prev => ({

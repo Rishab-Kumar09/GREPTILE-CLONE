@@ -30,14 +30,18 @@ interface AnalysisResult {
 }
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+  const TIMEOUT_MS = 25000 // 25 seconds (safe for Netlify's 30s limit)
+  
   try {
     const { repoUrl, owner, repo } = await request.json()
     
-    console.log(`Starting analysis for ${owner}/${repo}`)
+    console.log(`🚀 Starting analysis for ${owner}/${repo} with ${TIMEOUT_MS/1000}s timeout`)
     
     if (!openai) {
       return NextResponse.json({ 
-        error: 'OpenAI API key not configured',
+        success: false,
+        error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to your environment variables.',
         totalBugs: 0,
         results: []
       })
@@ -108,8 +112,9 @@ export async function POST(request: NextRequest) {
        return (a.size || 0) - (b.size || 0)
      })
      
-     // ANALYZE EVERY SINGLE FILE - NO LIMITS!
-     const filesToAnalyze = sortedFiles // Process ALL files found
+     // Smart batching to avoid timeouts while still analyzing many files
+     const maxFiles = Math.min(sortedFiles.length, 50) // Reasonable limit for Netlify functions
+     const filesToAnalyze = sortedFiles.slice(0, maxFiles)
 
     console.log(`Found ${codeFiles.length} code files, analyzing ${filesToAnalyze.length} files`)
 
@@ -119,8 +124,14 @@ export async function POST(request: NextRequest) {
     let totalCodeSmells = 0
     let filesProcessed = 0
 
-    // Analyze each code file
+    // Analyze each code file with timeout protection
     for (const file of filesToAnalyze) {
+      // Check timeout
+      if (Date.now() - startTime > TIMEOUT_MS) {
+        console.log(`⏰ Timeout reached, stopping analysis. Processed ${filesProcessed}/${filesToAnalyze.length} files`)
+        break
+      }
+      
       filesProcessed++
       console.log(`Processing file ${filesProcessed}/${filesToAnalyze.length}: ${file.path}`)
       try {
@@ -155,7 +166,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Minimal delay to avoid overwhelming OpenAI API
-        await new Promise(resolve => setTimeout(resolve, 200))
+        await new Promise(resolve => setTimeout(resolve, 100))
         
       } catch (error) {
         console.error(`Error analyzing file ${file.path}:`, error)
