@@ -201,6 +201,7 @@ export default function Repositories() {
           batchIndex = batchData.nextBatchIndex || batchIndex + 1
           
           // Update UI with current progress
+          console.log(`📊 BATCH ${batchIndex + 1} UPDATE: Setting bugs to ${totalBugs} for ${repo.fullName}`)
           setRepositories(prev => prev.map(r => 
             r.fullName === repo.fullName 
               ? { ...r, bugs: totalBugs, reviews: totalFilesProcessed, status: 'active' as const }
@@ -241,15 +242,10 @@ export default function Repositories() {
         [repoKey]: finalResults
       }))
       
-      // Final UI update
-      setRepositories(prev => prev.map(r => 
-        r.fullName === repo.fullName 
-          ? { ...r, bugs: totalBugs, reviews: totalFilesProcessed, status: 'active' as const }
-          : r
-      ))
-      
       const coverage = finalResults.coverage ? `${finalResults.coverage.percentage}%` : '100%'
       const totalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
+      
+      // Show results dialog
       alert(`🚀 UNLIMITED BATCH ANALYSIS COMPLETE!\n\n` +
             `📊 Repository: ${finalResults.repository}\n` +
             `📁 Total Files: ${totalFilesInRepo}\n` +
@@ -261,6 +257,15 @@ export default function Repositories() {
             `💡 Code Smells: ${totalCodeSmells}\n\n` +
             `🎯 TOTAL ISSUES: ${totalIssues}\n` +
             `${totalIssues > 0 ? '🔥 Issues detected in your code!' : '✨ Clean code - no issues found!'}`)
+      
+      // CRITICAL: Final UI update AFTER alert is dismissed
+      setRepositories(prev => prev.map(r => 
+        r.fullName === repo.fullName 
+          ? { ...r, bugs: totalBugs, reviews: totalFilesProcessed, status: 'active' as const }
+          : r
+      ))
+      
+      console.log(`🔒 FINAL UPDATE: Setting bugs to ${totalBugs} for ${repo.fullName}`)
             
     } catch (error) {
       console.error('Batch analysis error:', error)
