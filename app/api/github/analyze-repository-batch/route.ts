@@ -31,10 +31,10 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  const TIMEOUT_MS = 20000 // 20 seconds per batch
+  const TIMEOUT_MS = 18000 // 18 seconds per batch (safer margin)
   
   try {
-    const { repoUrl, owner, repo, batchIndex = 0, batchSize = 30 } = await request.json()
+    const { repoUrl, owner, repo, batchIndex = 0, batchSize = 15 } = await request.json()
     
     console.log(`🚀 BATCH ${batchIndex + 1} - Analyzing ${owner}/${repo}`)
     
@@ -96,12 +96,23 @@ export async function POST(request: NextRequest) {
       return true
     })
     
-    // Sort files for optimal processing
+    // Sort files for optimal processing (prioritize small, important files)
     const sortedFiles = codeFiles.sort((a: any, b: any) => {
+      // Prioritize smaller files first (they process faster)
+      const sizeA = a.size || 0
+      const sizeB = b.size || 0
+      
+      // Skip very large files that might cause timeouts
+      if (sizeA > 50000) return 1  // Push large files to end
+      if (sizeB > 50000) return -1 // Push large files to end
+      
+      // Prioritize root level files
       const aDepth = a.path.split('/').length
       const bDepth = b.path.split('/').length
       if (aDepth !== bDepth) return aDepth - bDepth
-      return (a.size || 0) - (b.size || 0)
+      
+      // Then by size (smaller first for speed)
+      return sizeA - sizeB
     })
 
     // Calculate batch boundaries
@@ -163,8 +174,8 @@ export async function POST(request: NextRequest) {
           console.log(`✅ ${file.path}: ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security issues`)
         }
 
-        // Minimal delay
-        await new Promise(resolve => setTimeout(resolve, 50))
+        // Ultra-minimal delay for speed
+        await new Promise(resolve => setTimeout(resolve, 25))
         
       } catch (error) {
         console.error(`❌ Error processing ${file.path}:`, error)
@@ -235,7 +246,7 @@ async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: 
         allSecurityIssues.push(...chunkResult.securityIssues)
         allCodeSmells.push(...chunkResult.codeSmells)
       }
-      await new Promise(resolve => setTimeout(resolve, 50))
+      await new Promise(resolve => setTimeout(resolve, 25))
     }
     
     return {

@@ -162,7 +162,7 @@ export default function Repositories() {
             owner: owner,
             repo: repoName,
             batchIndex: batchIndex,
-            batchSize: 30
+            batchSize: 15  // Smaller batches = faster completion
           }),
         })
 
@@ -219,9 +219,9 @@ export default function Repositories() {
           if (batchIndex > 20) break // Safety limit
         }
         
-        // Small delay between batches
+        // Shorter delay between batches for faster processing
         if (hasMoreBatches) {
-          await new Promise(resolve => setTimeout(resolve, 500))
+          await new Promise(resolve => setTimeout(resolve, 200))
         }
       }
       
