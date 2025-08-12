@@ -166,7 +166,16 @@ export default function Repositories() {
             : r
         ))
         
-        alert(`✅ Analysis complete! Found ${data.totalBugs} bugs in ${data.filesAnalyzed} files`)
+        const coverage = data.coverage ? `${data.coverage.percentage}%` : 'N/A'
+        alert(`🎉 ANALYSIS COMPLETE!\n\n` +
+              `📊 Repository: ${data.repository}\n` +
+              `📁 Files Found: ${data.totalFilesFound || data.filesAnalyzed}\n` +
+              `🔍 Files Analyzed: ${data.filesAnalyzed}\n` +
+              `📈 Coverage: ${coverage}\n\n` +
+              `🐛 Bugs Found: ${data.totalBugs}\n` +
+              `🔒 Security Issues: ${data.totalSecurityIssues || 0}\n` +
+              `💡 Code Smells: ${data.totalCodeSmells || 0}\n\n` +
+              `🎯 Total Issues: ${data.totalBugs + (data.totalSecurityIssues || 0) + (data.totalCodeSmells || 0)}`)
       } else {
         alert(`❌ Analysis failed: ${data.error}`)
       }

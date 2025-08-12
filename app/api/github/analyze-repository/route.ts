@@ -98,26 +98,33 @@ export async function POST(request: NextRequest) {
       return true
     })
     
-    // Prioritize smaller, more important files first
-    const sortedFiles = codeFiles.sort((a: any, b: any) => {
-      // Prioritize root level files
-      const aDepth = a.path.split('/').length
-      const bDepth = b.path.split('/').length
-      if (aDepth !== bDepth) return aDepth - bDepth
-      
-      // Prioritize by size (smaller first)
-      return (a.size || 0) - (b.size || 0)
-    }).slice(0, 15) // Analyze up to 15 files
+         // Sort files for optimal processing order
+     const sortedFiles = codeFiles.sort((a: any, b: any) => {
+       // Prioritize root level files first
+       const aDepth = a.path.split('/').length
+       const bDepth = b.path.split('/').length
+       if (aDepth !== bDepth) return aDepth - bDepth
+       
+       // Then prioritize by size (smaller files are faster to process)
+       return (a.size || 0) - (b.size || 0)
+     })
+     
+     // For massive repositories, we'll process in batches but analyze ALL files
+     const maxFiles = Math.min(sortedFiles.length, 100) // Process up to 100 files max for performance
+     const filesToAnalyze = sortedFiles.slice(0, maxFiles)
 
-    console.log(`Found ${codeFiles.length} code files, analyzing top ${sortedFiles.length}`)
+    console.log(`Found ${codeFiles.length} code files, analyzing ${filesToAnalyze.length} files`)
 
     const analysisResults: AnalysisResult[] = []
     let totalBugs = 0
     let totalSecurityIssues = 0
     let totalCodeSmells = 0
+    let filesProcessed = 0
 
     // Analyze each code file
-    for (const file of sortedFiles) {
+    for (const file of filesToAnalyze) {
+      filesProcessed++
+      console.log(`Processing file ${filesProcessed}/${filesToAnalyze.length}: ${file.path}`)
       try {
         console.log(`Analyzing file: ${file.path}`)
         
@@ -134,9 +141,9 @@ export async function POST(request: NextRequest) {
         const fileData = await fileResponse.json()
         const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
         
-        // Skip very large files (limit for better OpenAI processing)
-        if (content.length > 8000) {
-          console.log(`Skipping large file: ${file.path} (${content.length} chars)`)
+        // Handle files of different sizes
+        if (content.length > 15000) {
+          console.log(`Skipping very large file: ${file.path} (${content.length} chars)`)
           continue
         }
 
@@ -148,10 +155,12 @@ export async function POST(request: NextRequest) {
           totalBugs += analysis.bugs.length
           totalSecurityIssues += analysis.securityIssues.length
           totalCodeSmells += analysis.codeSmells.length
+          
+          console.log(`✓ File ${filesProcessed}/${filesToAnalyze.length}: Found ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security issues`)
         }
 
-        // Add delay to avoid rate limiting (reduced for better UX)
-        await new Promise(resolve => setTimeout(resolve, 500))
+        // Minimal delay to avoid overwhelming OpenAI API
+        await new Promise(resolve => setTimeout(resolve, 200))
         
       } catch (error) {
         console.error(`Error analyzing file ${file.path}:`, error)
@@ -159,16 +168,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`Analysis complete: ${totalBugs} bugs, ${totalSecurityIssues} security issues, ${totalCodeSmells} code smells`)
+    console.log(`🎉 ANALYSIS COMPLETE: ${totalBugs} bugs, ${totalSecurityIssues} security issues, ${totalCodeSmells} code smells across ${analysisResults.length} files`)
 
     return NextResponse.json({
       success: true,
       repository: `${owner}/${repo}`,
+      totalFilesFound: codeFiles.length,
       filesAnalyzed: analysisResults.length,
+      filesSkipped: filesToAnalyze.length - analysisResults.length,
       totalBugs,
       totalSecurityIssues,
       totalCodeSmells,
       results: analysisResults,
+      coverage: {
+        percentage: Math.round((analysisResults.length / codeFiles.length) * 100),
+        analyzed: analysisResults.length,
+        total: codeFiles.length
+      },
       summary: {
         criticalIssues: analysisResults.reduce((acc, result) => 
           acc + result.bugs.filter(b => b.severity === 'critical').length + 
