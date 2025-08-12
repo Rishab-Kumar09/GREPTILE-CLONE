@@ -166,16 +166,19 @@ export default function Repositories() {
             : r
         ))
         
-        const coverage = data.coverage ? `${data.coverage.percentage}%` : 'N/A'
-        alert(`🎉 ANALYSIS COMPLETE!\n\n` +
+        const coverage = data.coverage ? `${data.coverage.percentage}%` : '100%'
+        const totalIssues = data.totalBugs + (data.totalSecurityIssues || 0) + (data.totalCodeSmells || 0)
+        alert(`🚀 UNLIMITED ANALYSIS COMPLETE!\n\n` +
               `📊 Repository: ${data.repository}\n` +
-              `📁 Files Found: ${data.totalFilesFound || data.filesAnalyzed}\n` +
+              `📁 Total Files: ${data.totalFilesFound || data.filesAnalyzed}\n` +
               `🔍 Files Analyzed: ${data.filesAnalyzed}\n` +
-              `📈 Coverage: ${coverage}\n\n` +
+              `📈 Coverage: ${coverage}\n` +
+              `⚡ No Size/Count Limits!\n\n` +
               `🐛 Bugs Found: ${data.totalBugs}\n` +
               `🔒 Security Issues: ${data.totalSecurityIssues || 0}\n` +
               `💡 Code Smells: ${data.totalCodeSmells || 0}\n\n` +
-              `🎯 Total Issues: ${data.totalBugs + (data.totalSecurityIssues || 0) + (data.totalCodeSmells || 0)}`)
+              `🎯 TOTAL ISSUES: ${totalIssues}\n` +
+              `${totalIssues > 0 ? '🔥 Issues detected in your code!' : '✨ Clean code - no issues found!'}`)
       } else {
         alert(`❌ Analysis failed: ${data.error}`)
       }

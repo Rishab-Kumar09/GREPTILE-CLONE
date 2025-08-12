@@ -92,8 +92,7 @@ export async function POST(request: NextRequest) {
       )
       if (isExcluded) return false
       
-      // Skip very large files (GitHub API limitation)
-      if (item.size && item.size > 100000) return false
+      // NO SIZE LIMITS! Accept ALL files regardless of size
       
       return true
     })
@@ -109,9 +108,8 @@ export async function POST(request: NextRequest) {
        return (a.size || 0) - (b.size || 0)
      })
      
-     // For massive repositories, we'll process in batches but analyze ALL files
-     const maxFiles = Math.min(sortedFiles.length, 100) // Process up to 100 files max for performance
-     const filesToAnalyze = sortedFiles.slice(0, maxFiles)
+     // ANALYZE EVERY SINGLE FILE - NO LIMITS!
+     const filesToAnalyze = sortedFiles // Process ALL files found
 
     console.log(`Found ${codeFiles.length} code files, analyzing ${filesToAnalyze.length} files`)
 
@@ -141,14 +139,11 @@ export async function POST(request: NextRequest) {
         const fileData = await fileResponse.json()
         const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
         
-        // Handle files of different sizes
-        if (content.length > 15000) {
-          console.log(`Skipping very large file: ${file.path} (${content.length} chars)`)
-          continue
-        }
+        // NO FILE SIZE LIMITS! Handle ANY size file
+        console.log(`Processing file: ${file.path} (${content.length} chars)`)
 
-        // Analyze with OpenAI
-        const analysis = await analyzeCodeWithAI(file.path, content)
+        // For massive files, chunk them and analyze each chunk
+        const analysis = await analyzeCodeWithAI(file.path, content, content.length > 10000)
         
         if (analysis) {
           analysisResults.push(analysis)
@@ -212,8 +207,44 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function analyzeCodeWithAI(filePath: string, code: string): Promise<AnalysisResult | null> {
+async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: boolean = false): Promise<AnalysisResult | null> {
   if (!openai) return null
+
+  // For massive files, analyze in chunks and combine results
+  if (needsChunking && code.length > 10000) {
+    console.log(`🔄 Chunking large file: ${filePath} (${code.length} chars)`)
+    
+    const chunkSize = 8000
+    const chunks = []
+    for (let i = 0; i < code.length; i += chunkSize) {
+      chunks.push(code.slice(i, i + chunkSize))
+    }
+    
+    console.log(`📊 Processing ${chunks.length} chunks for ${filePath}`)
+    
+    const allBugs: any[] = []
+    const allSecurityIssues: any[] = []
+    const allCodeSmells: any[] = []
+    
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkResult = await analyzeSingleChunk(filePath, chunks[i], i + 1, chunks.length)
+      if (chunkResult) {
+        allBugs.push(...chunkResult.bugs)
+        allSecurityIssues.push(...chunkResult.securityIssues)
+        allCodeSmells.push(...chunkResult.codeSmells)
+      }
+      
+      // Small delay between chunks
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    
+    return {
+      file: filePath,
+      bugs: allBugs,
+      securityIssues: allSecurityIssues,
+      codeSmells: allCodeSmells
+    }
+  }
 
   try {
     const completion = await openai.chat.completions.create({
@@ -259,6 +290,55 @@ Severity levels: critical, high, medium, low`
 
   } catch (error) {
     console.error(`AI analysis error for ${filePath}:`, error)
+    return null
+  }
+}
+
+async function analyzeSingleChunk(filePath: string, code: string, chunkNum: number, totalChunks: number): Promise<AnalysisResult | null> {
+  if (!openai) return null
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert code reviewer. Analyze the provided code for:
+1. BUGS: Logic errors, null pointer exceptions, infinite loops, type errors
+2. SECURITY ISSUES: SQL injection, XSS, insecure data handling, authentication issues
+3. CODE SMELLS: Poor naming, duplicated code, complex functions, performance issues
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "bugs": [{"line": 1, "severity": "high", "type": "Logic Error", "description": "...", "suggestion": "..."}],
+  "securityIssues": [{"line": 1, "severity": "critical", "type": "SQL Injection", "description": "...", "suggestion": "..."}],
+  "codeSmells": [{"line": 1, "type": "Complex Function", "description": "...", "suggestion": "..."}]
+}
+
+Severity levels: critical, high, medium, low`
+        },
+        {
+          role: "user",
+          content: `Analyze this ${filePath} file${totalChunks > 1 ? ` (chunk ${chunkNum}/${totalChunks})` : ''}:\n\n${code}`
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1500,
+    })
+
+    const response = completion.choices[0].message.content
+    if (!response) return null
+
+    const analysis = JSON.parse(response)
+    return {
+      file: filePath,
+      bugs: analysis.bugs || [],
+      securityIssues: analysis.securityIssues || [],
+      codeSmells: analysis.codeSmells || []
+    }
+
+  } catch (error) {
+    console.error(`Error analyzing ${filePath} chunk ${chunkNum}:`, error)
     return null
   }
 } 
