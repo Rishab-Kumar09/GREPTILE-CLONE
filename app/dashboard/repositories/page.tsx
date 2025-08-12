@@ -134,70 +134,137 @@ export default function Repositories() {
     setAnalyzing(repoKey)
     
     try {
-      console.log('Starting repository analysis for:', repo.fullName)
+      console.log('🚀 Starting UNLIMITED batch analysis for:', repo.fullName)
       
       const [owner, repoName] = repo.fullName.split('/')
       
-      const response = await fetch('/api/github/analyze-repository', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          repoUrl: repo.htmlUrl,
-          owner: owner,
-          repo: repoName
-        }),
-      })
+      // Initialize batch processing
+      let batchIndex = 0
+      let allResults: any[] = []
+      let totalBugs = 0
+      let totalSecurityIssues = 0
+      let totalCodeSmells = 0
+      let totalFilesInRepo = 0
+      let totalFilesProcessed = 0
+      let hasMoreBatches = true
+      
+      // Process all batches until complete
+      while (hasMoreBatches) {
+        console.log(`📊 Processing BATCH ${batchIndex + 1}...`)
+        
+        const response = await fetch('/api/github/analyze-repository-batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            repoUrl: repo.htmlUrl,
+            owner: owner,
+            repo: repoName,
+            batchIndex: batchIndex,
+            batchSize: 30
+          }),
+        })
 
-      if (!response.ok) {
-        if (response.status === 504) {
-          throw new Error(`⏰ Analysis timeout - repository too large. Try a smaller repository.`)
+        if (!response.ok) {
+          if (response.status === 504) {
+            console.log(`⏰ Batch ${batchIndex + 1} timeout - continuing with next batch...`)
+            batchIndex++
+            continue
+          }
+          throw new Error(`❌ Batch ${batchIndex + 1} failed: ${response.status}`)
         }
-        throw new Error(`❌ HTTP error! status: ${response.status}`)
-      }
 
-      let data
-      try {
-        data = await response.json()
-        console.log('Analysis results:', data)
-      } catch (jsonError) {
-        console.error('JSON parsing error:', jsonError)
-        throw new Error(`⏰ Analysis timeout - response was incomplete. The repository might be too large.`)
-      }
+        let batchData
+        try {
+          batchData = await response.json()
+          console.log(`✅ BATCH ${batchIndex + 1} results:`, batchData)
+        } catch (jsonError) {
+          console.error('JSON parsing error for batch:', jsonError)
+          batchIndex++
+          continue
+        }
 
-      if (data.success) {
-        setAnalysisResults(prev => ({
-          ...prev,
-          [repoKey]: data
-        }))
+        if (batchData.success) {
+          // Accumulate results from this batch
+          allResults.push(...(batchData.results || []))
+          totalBugs += batchData.totalBugs || 0
+          totalSecurityIssues += batchData.totalSecurityIssues || 0
+          totalCodeSmells += batchData.totalCodeSmells || 0
+          totalFilesInRepo = batchData.totalFilesInRepo || 0
+          totalFilesProcessed = batchData.progress?.filesProcessed || 0
+          
+          console.log(`📈 PROGRESS: ${totalFilesProcessed}/${totalFilesInRepo} files (${batchData.progress?.percentage || 0}%)`)
+          
+          // Check if there are more batches
+          hasMoreBatches = batchData.hasMoreBatches
+          batchIndex = batchData.nextBatchIndex || batchIndex + 1
+          
+          // Update UI with current progress
+          setRepositories(prev => prev.map(r => 
+            r.fullName === repo.fullName 
+              ? { ...r, bugs: totalBugs, reviews: totalFilesProcessed, status: 'active' as const }
+              : r
+          ))
+          
+        } else {
+          console.error(`❌ Batch ${batchIndex + 1} failed:`, batchData.error)
+          batchIndex++
+          if (batchIndex > 20) break // Safety limit
+        }
         
-        // Update the repository with real bug counts
-        setRepositories(prev => prev.map(r => 
-          r.fullName === repo.fullName 
-            ? { ...r, bugs: data.totalBugs, reviews: data.filesAnalyzed, status: 'active' as const }
-            : r
-        ))
-        
-        const coverage = data.coverage ? `${data.coverage.percentage}%` : '100%'
-        const totalIssues = data.totalBugs + (data.totalSecurityIssues || 0) + (data.totalCodeSmells || 0)
-        alert(`🚀 UNLIMITED ANALYSIS COMPLETE!\n\n` +
-              `📊 Repository: ${data.repository}\n` +
-              `📁 Total Files: ${data.totalFilesFound || data.filesAnalyzed}\n` +
-              `🔍 Files Analyzed: ${data.filesAnalyzed}\n` +
-              `📈 Coverage: ${coverage}\n` +
-              `⚡ No Size/Count Limits!\n\n` +
-              `🐛 Bugs Found: ${data.totalBugs}\n` +
-              `🔒 Security Issues: ${data.totalSecurityIssues || 0}\n` +
-              `💡 Code Smells: ${data.totalCodeSmells || 0}\n\n` +
-              `🎯 TOTAL ISSUES: ${totalIssues}\n` +
-              `${totalIssues > 0 ? '🔥 Issues detected in your code!' : '✨ Clean code - no issues found!'}`)
-      } else {
-        alert(`❌ Analysis failed: ${data.error}`)
+        // Small delay between batches
+        if (hasMoreBatches) {
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
       }
+      
+      // Store final combined results
+      const finalResults = {
+        success: true,
+        repository: `${owner}/${repoName}`,
+        totalFilesFound: totalFilesInRepo,
+        filesAnalyzed: totalFilesProcessed,
+        totalBugs,
+        totalSecurityIssues,
+        totalCodeSmells,
+        results: allResults,
+        coverage: {
+          percentage: Math.round((totalFilesProcessed / totalFilesInRepo) * 100),
+          analyzed: totalFilesProcessed,
+          total: totalFilesInRepo
+        }
+      }
+      
+      setAnalysisResults(prev => ({
+        ...prev,
+        [repoKey]: finalResults
+      }))
+      
+      // Final UI update
+      setRepositories(prev => prev.map(r => 
+        r.fullName === repo.fullName 
+          ? { ...r, bugs: totalBugs, reviews: totalFilesProcessed, status: 'active' as const }
+          : r
+      ))
+      
+      const coverage = finalResults.coverage ? `${finalResults.coverage.percentage}%` : '100%'
+      const totalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
+      alert(`🚀 UNLIMITED BATCH ANALYSIS COMPLETE!\n\n` +
+            `📊 Repository: ${finalResults.repository}\n` +
+            `📁 Total Files: ${totalFilesInRepo}\n` +
+            `🔍 Files Analyzed: ${totalFilesProcessed}\n` +
+            `📈 Coverage: ${coverage}\n` +
+            `⚡ NO LIMITS - ALL FILES PROCESSED!\n\n` +
+            `🐛 Bugs Found: ${totalBugs}\n` +
+            `🔒 Security Issues: ${totalSecurityIssues}\n` +
+            `💡 Code Smells: ${totalCodeSmells}\n\n` +
+            `🎯 TOTAL ISSUES: ${totalIssues}\n` +
+            `${totalIssues > 0 ? '🔥 Issues detected in your code!' : '✨ Clean code - no issues found!'}`)
+            
     } catch (error) {
-      console.error('Analysis error:', error)
-      alert(`❌ Analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('Batch analysis error:', error)
+      alert(`❌ Batch analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setAnalyzing(null)
     }
