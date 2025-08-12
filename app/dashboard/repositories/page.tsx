@@ -129,6 +129,57 @@ export default function Repositories() {
     }
   }
 
+  const showDetailedResults = (repoFullName: string) => {
+    const results = analysisResults[repoFullName]
+    if (!results || !results.results) {
+      alert('No detailed results available for this repository.')
+      return
+    }
+
+    console.log(`🔍 DETAILED RESULTS FOR ${repoFullName}:`, results)
+    
+    // Create a detailed breakdown
+    let detailsText = `📋 DETAILED ANALYSIS RESULTS\n\n`
+    detailsText += `📊 Repository: ${repoFullName}\n`
+    detailsText += `📁 Files Analyzed: ${results.filesAnalyzed}\n`
+    detailsText += `🎯 Total Issues: ${results.totalBugs + (results.totalSecurityIssues || 0) + (results.totalCodeSmells || 0)}\n\n`
+    
+    detailsText += `🔍 BREAKDOWN BY TYPE:\n`
+    detailsText += `🐛 Logic Bugs: ${results.totalBugs}\n`
+    detailsText += `🔒 Security Issues: ${results.totalSecurityIssues || 0}\n`
+    detailsText += `💡 Code Smells: ${results.totalCodeSmells || 0}\n\n`
+    
+    // Show first few specific issues
+    if (results.results.length > 0) {
+      detailsText += `📋 SAMPLE ISSUES:\n\n`
+      results.results.slice(0, 3).forEach((fileResult: any, index: number) => {
+        detailsText += `📁 File ${index + 1}: ${fileResult.file}\n`
+        
+        if (fileResult.securityIssues?.length > 0) {
+          detailsText += `🔒 Security Issues (${fileResult.securityIssues.length}):\n`
+          fileResult.securityIssues.slice(0, 2).forEach((issue: any) => {
+            detailsText += `  • Line ${issue.line}: ${issue.type} (${issue.severity})\n`
+            detailsText += `    ${issue.description}\n`
+          })
+        }
+        
+        if (fileResult.codeSmells?.length > 0) {
+          detailsText += `💡 Code Smells (${fileResult.codeSmells.length}):\n`
+          fileResult.codeSmells.slice(0, 2).forEach((smell: any) => {
+            detailsText += `  • Line ${smell.line}: ${smell.type}\n`
+            detailsText += `    ${smell.description}\n`
+          })
+        }
+        
+        detailsText += `\n`
+      })
+      
+      detailsText += `\n💡 Check browser console for complete results!`
+    }
+    
+    alert(detailsText)
+  }
+
   const analyzeRepository = async (repo: Repository) => {
     const repoKey = `${repo.fullName}`
     setAnalyzing(repoKey)
@@ -251,17 +302,46 @@ export default function Repositories() {
       const totalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
       
       // Show results dialog
-      alert(`🚀 UNLIMITED BATCH ANALYSIS COMPLETE!\n\n` +
+      // Show detailed results in a better format
+      const detailedResults = `🚀 ANALYSIS COMPLETE!\n\n` +
             `📊 Repository: ${finalResults.repository}\n` +
             `📁 Total Files: ${totalFilesInRepo}\n` +
             `🔍 Files Analyzed: ${totalFilesProcessed}\n` +
-            `📈 Coverage: ${coverage}\n` +
-            `⚡ NO LIMITS - ALL FILES PROCESSED!\n\n` +
-            `🐛 Bugs Found: ${totalBugs}\n` +
+            `📈 Coverage: ${coverage}\n\n` +
+            `🎯 ISSUES BREAKDOWN:\n` +
+            `🐛 Logic Bugs: ${totalBugs}\n` +
             `🔒 Security Issues: ${totalSecurityIssues}\n` +
-            `💡 Code Smells: ${totalCodeSmells}\n\n` +
-            `🎯 TOTAL ISSUES: ${totalIssues}\n` +
-            `${totalIssues > 0 ? '🔥 Issues detected in your code!' : '✨ Clean code - no issues found!'}`)
+            `💡 Code Smells: ${totalCodeSmells}\n` +
+            `📊 TOTAL: ${totalIssues} issues\n\n` +
+            `Click "View Details" to see specific issues!`
+      
+      alert(detailedResults)
+      
+      // Log detailed results to console for inspection
+      console.log('🔍 DETAILED ANALYSIS RESULTS:', {
+        repository: finalResults.repository,
+        totalIssues: totalIssues,
+        breakdown: { bugs: totalBugs, security: totalSecurityIssues, codeSmells: totalCodeSmells },
+        allResults: allResults
+      })
+      
+      // Show first few issues as examples
+      if (allResults.length > 0) {
+        console.log('📋 SAMPLE ISSUES FOUND:')
+        allResults.slice(0, 3).forEach((result: any, index: number) => {
+          console.log(`\n📁 File ${index + 1}: ${result.file}`)
+          if (result.bugs?.length > 0) {
+            console.log('🐛 Bugs:', result.bugs.slice(0, 2))
+          }
+          if (result.securityIssues?.length > 0) {
+            console.log('🔒 Security:', result.securityIssues.slice(0, 2))
+          }
+          if (result.codeSmells?.length > 0) {
+            console.log('💡 Code Smells:', result.codeSmells.slice(0, 2))
+          }
+        })
+        console.log('\n💡 TIP: Check the browser console for detailed issue descriptions!')
+      }
       
       // CRITICAL: Final UI update AFTER alert is dismissed (use TOTAL issues)
       const finalTotalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
@@ -526,17 +606,28 @@ export default function Repositories() {
                       <p className="text-xs text-gray-500 mt-1">Last: {repo.lastReview}</p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => analyzeRepository(repo)}
-                        disabled={analyzing === repo.fullName}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                          analyzing === repo.fullName
-                            ? 'bg-blue-100 text-blue-800 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                      >
-                        {analyzing === repo.fullName ? '🔍 Analyzing...' : '🔍 Analyze Code'}
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => analyzeRepository(repo)}
+                          disabled={analyzing === repo.fullName}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                            analyzing === repo.fullName
+                              ? 'bg-blue-100 text-blue-800 cursor-not-allowed'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
+                        >
+                          {analyzing === repo.fullName ? '🔍 Analyzing...' : '🔍 Analyze Code'}
+                        </button>
+                        
+                        {analysisResults[repo.fullName] && (
+                          <button
+                            onClick={() => showDetailedResults(repo.fullName)}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors"
+                          >
+                            📋 View Details
+                          </button>
+                        )}
+                      </div>
                       <button className="p-2 text-gray-600 hover:text-gray-900">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
