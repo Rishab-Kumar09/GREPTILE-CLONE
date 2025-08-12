@@ -43,8 +43,25 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Get repository file tree
-    const treeResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/main?recursive=1`, {
+    // Get repository info first to find default branch
+    const repoInfoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Greptile-Clone'
+      }
+    })
+
+    if (!repoInfoResponse.ok) {
+      throw new Error('Failed to fetch repository info')
+    }
+
+    const repoInfo = await repoInfoResponse.json()
+    const defaultBranch = repoInfo.default_branch || 'main'
+    
+    console.log(`Using branch: ${defaultBranch}`)
+
+    // Get repository file tree using the correct branch
+    const treeResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`, {
       headers: {
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'Greptile-Clone'
@@ -52,23 +69,47 @@ export async function POST(request: NextRequest) {
     })
 
     if (!treeResponse.ok) {
-      throw new Error('Failed to fetch repository tree')
+      console.error(`Tree fetch failed with status: ${treeResponse.status}`)
+      throw new Error(`Failed to fetch repository tree: ${treeResponse.status} ${treeResponse.statusText}`)
     }
 
     const treeData = await treeResponse.json()
     
     // Filter for code files (common extensions)
-    const codeExtensions = ['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go', '.rust', '.swift', '.kt']
-    const codeFiles = treeData.tree.filter((item: any) => 
-      item.type === 'blob' && 
-      codeExtensions.some(ext => item.path.endsWith(ext)) &&
-      !item.path.includes('node_modules') &&
-      !item.path.includes('.git') &&
-      !item.path.includes('dist') &&
-      !item.path.includes('build')
-    ).slice(0, 10) // Limit to first 10 files for performance
+    const codeExtensions = ['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go', '.rust', '.swift', '.kt', '.html', '.css']
+    const excludePaths = ['node_modules', '.git', 'dist', 'build', 'vendor', 'deps', 'target', 'bin', 'obj', 'out', 'coverage', 'test', 'tests', '__pycache__', '.next', '.nuxt']
+    
+    const codeFiles = treeData.tree.filter((item: any) => {
+      if (item.type !== 'blob') return false
+      
+      // Check if file has a code extension
+      const hasCodeExtension = codeExtensions.some(ext => item.path.toLowerCase().endsWith(ext))
+      if (!hasCodeExtension) return false
+      
+      // Exclude common non-source directories
+      const isExcluded = excludePaths.some(excludePath => 
+        item.path.toLowerCase().includes(excludePath.toLowerCase())
+      )
+      if (isExcluded) return false
+      
+      // Skip very large files (GitHub API limitation)
+      if (item.size && item.size > 100000) return false
+      
+      return true
+    })
+    
+    // Prioritize smaller, more important files first
+    const sortedFiles = codeFiles.sort((a: any, b: any) => {
+      // Prioritize root level files
+      const aDepth = a.path.split('/').length
+      const bDepth = b.path.split('/').length
+      if (aDepth !== bDepth) return aDepth - bDepth
+      
+      // Prioritize by size (smaller first)
+      return (a.size || 0) - (b.size || 0)
+    }).slice(0, 15) // Analyze up to 15 files
 
-    console.log(`Found ${codeFiles.length} code files to analyze`)
+    console.log(`Found ${codeFiles.length} code files, analyzing top ${sortedFiles.length}`)
 
     const analysisResults: AnalysisResult[] = []
     let totalBugs = 0
@@ -76,7 +117,7 @@ export async function POST(request: NextRequest) {
     let totalCodeSmells = 0
 
     // Analyze each code file
-    for (const file of codeFiles) {
+    for (const file of sortedFiles) {
       try {
         console.log(`Analyzing file: ${file.path}`)
         
@@ -93,8 +134,11 @@ export async function POST(request: NextRequest) {
         const fileData = await fileResponse.json()
         const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
         
-        // Skip very large files
-        if (content.length > 10000) continue
+        // Skip very large files (limit for better OpenAI processing)
+        if (content.length > 8000) {
+          console.log(`Skipping large file: ${file.path} (${content.length} chars)`)
+          continue
+        }
 
         // Analyze with OpenAI
         const analysis = await analyzeCodeWithAI(file.path, content)
@@ -106,8 +150,8 @@ export async function POST(request: NextRequest) {
           totalCodeSmells += analysis.codeSmells.length
         }
 
-        // Add delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Add delay to avoid rate limiting (reduced for better UX)
+        await new Promise(resolve => setTimeout(resolve, 500))
         
       } catch (error) {
         console.error(`Error analyzing file ${file.path}:`, error)
