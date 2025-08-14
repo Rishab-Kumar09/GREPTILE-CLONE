@@ -202,6 +202,49 @@ npm run build
 ```
 - Add environment variables in Netlify dashboard
 
+## 🚀 Deployment (AWS Amplify)
+
+This project uses **industry-standard automated post-deployment migration** (the same approach used by Stripe, GitHub, and Shopify).
+
+### Quick Deploy
+
+```bash
+# Standard deployment (2 minute delay)
+npm run deploy
+
+# Safe deployment (3 minute delay - recommended for production)
+npm run deploy:safe
+
+# Production-grade deployment (with health checks)
+npm run deploy:production
+```
+
+### How It Works
+
+1. **App Deployment**: Code is pushed to GitHub and deployed to AWS Amplify
+2. **Stabilization Wait**: System waits for deployment to fully stabilize (like big companies do)
+3. **Automated Migration**: Database schema is automatically updated via API trigger
+4. **Health Verification**: System confirms everything is working correctly
+
+This approach separates application deployment from database operations, following the same pattern used by major tech companies.
+
+### Environment Variables
+
+Set these in AWS Amplify Console → Environment Variables:
+
+```env
+DATABASE_URL=postgresql://username:password@your-rds-endpoint:5432/database
+OPENAI_API_KEY=your-openai-api-key
+MIGRATION_SECRET=your-secure-migration-secret
+```
+
+### Manual Migration (if needed)
+
+```bash
+# Trigger migration manually after deployment
+npm run migrate:trigger
+```
+
 ## 🔮 Future Enhancements
 
 ### **Backend Integration Ready:**

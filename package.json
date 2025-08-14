@@ -8,6 +8,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "migrate:trigger": "powershell -ExecutionPolicy Bypass -File scripts/trigger-migration.ps1",
+    "deploy": "git push && timeout /t 120 && npm run migrate:trigger",
+    "deploy:safe": "git push && timeout /t 180 && npm run migrate:trigger",
+    "deploy:production": "node scripts/deploy-with-migration.js",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {

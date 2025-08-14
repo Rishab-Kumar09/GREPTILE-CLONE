@@ -1,0 +1,58 @@
+name: Post-Deploy Migration
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+  
+  # Webhook from Amplify (when you set it up)
+  repository_dispatch:
+    types: [amplify-deploy-success]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Wait for deployment to be ready
+      run: |
+        echo "⏳ Waiting 30 seconds for deployment to be fully ready..."
+        sleep 30
+        
+    - name: Trigger migration via API
+      run: |
+        echo "🚀 Triggering post-deployment migration..."
+        
+        response=$(curl -s -w "%{http_code}" -X POST \
+          "https://master.d3dp89x98knsw0.amplifyapp.com/api/migrate/trigger" \
+          -H "Authorization: Bearer ${{ secrets.MIGRATION_SECRET }}" \
+          -H "Content-Type: application/json")
+          
+        http_code="${response: -3}"
+        body="${response%???}"
+        
+        echo "HTTP Status: $http_code"
+        echo "Response: $body"
+        
+        if [ "$http_code" = "200" ]; then
+          echo "✅ Migration completed successfully!"
+        else
+          echo "❌ Migration failed with status $http_code"
+          exit 1
+        fi
+        
+    - name: Verify database health
+      run: |
+        echo "🔍 Verifying database health..."
+        
+        for i in {1..5}; do
+          if curl -f -s "https://master.d3dp89x98knsw0.amplifyapp.com/api/health/db"; then
+            echo "✅ Database is healthy!"
+            exit 0
+          else
+            echo "⏳ Attempt $i failed, waiting 10 seconds..."
+            sleep 10
+          fi
+        done
+        
+        echo "❌ Database health check failed after 5 attempts"
+        exit 1 
