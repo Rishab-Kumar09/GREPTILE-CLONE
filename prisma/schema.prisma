@@ -13,4 +13,19 @@ datasource db {
 model HealthCheck {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
+}
+
+model Repository {
+  id          String   @id @default(cuid())
+  name        String
+  fullName    String   @unique
+  description String?
+  stars       Int      @default(0)
+  forks       Int      @default(0)
+  language    String?
+  url         String
+  bugs        Int      @default(0)
+  analyzing   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 } 

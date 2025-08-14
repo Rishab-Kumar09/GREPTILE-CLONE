@@ -5,20 +5,23 @@ import Link from 'next/link'
 import React from 'react' // Added for RepoChat component
 
 interface Repository {
-  id: number
+  id?: string | number
   name: string
   fullName: string
-  language: string
-  lastReview: string
-  status: 'active' | 'inactive' | 'pending'
-  reviews: number
+  language?: string
+  lastReview?: string
+  status?: 'active' | 'inactive' | 'pending'
+  reviews?: number
   bugs: number
   stars: number
   forks: number
-  isPrivate: boolean
+  isPrivate?: boolean
   description?: string
   updatedAt?: string
   htmlUrl?: string
+  url: string
+  analyzing?: boolean
+  createdAt?: string
 }
 
 export default function Repositories() {
@@ -31,13 +34,59 @@ export default function Repositories() {
   const [analysisResults, setAnalysisResults] = useState<{[key: string]: any}>({})
   const [expandedResults, setExpandedResults] = useState<{[key: string]: boolean}>({})
 
+  // Load repositories from database on component mount
+  const loadRepositories = async () => {
+    try {
+      const response = await fetch('/api/repositories')
+      if (response.ok) {
+        const repos = await response.json()
+        setRepositories(repos)
+      } else {
+        console.error('Failed to load repositories from database')
+      }
+    } catch (error) {
+      console.error('Error loading repositories:', error)
+    }
+  }
+
+  // Save repository to database
+  const saveRepository = async (repo: Repository) => {
+    try {
+      const response = await fetch('/api/repositories', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(repo),
+      })
+      if (response.ok) {
+        const savedRepo = await response.json()
+        return savedRepo
+      } else {
+        console.error('Failed to save repository to database')
+      }
+    } catch (error) {
+      console.error('Error saving repository:', error)
+    }
+  }
+
+  // Load repositories on component mount
+  React.useEffect(() => {
+    loadRepositories()
+  }, [])
+
   const fetchRepositories = async (githubUsername: string) => {
     setLoading(true)
     try {
       const response = await fetch(`/api/github/repos?username=${githubUsername}`)
       if (response.ok) {
         const repos = await response.json()
-        setRepositories(repos)
+        // Save each repository to database
+        for (const repo of repos) {
+          await saveRepository(repo)
+        }
+        // Reload from database to get the saved versions
+        await loadRepositories()
       } else {
         console.error('Failed to fetch repositories')
       }
@@ -111,20 +160,24 @@ export default function Repositories() {
         isPrivate: repoData.private || false,
         description: repoData.description || 'No description',
         updatedAt: repoData.updated_at,
-        htmlUrl: repoData.html_url
+        htmlUrl: repoData.html_url,
+        url: repoData.html_url
       }
 
       console.log('Adding new repo:', newRepo)
-      setRepositories(prev => {
-        const updated = [newRepo, ...prev]
-        console.log('Updated repositories list:', updated)
-        return updated
-      })
+      
+      // Save to database
+      const savedRepo = await saveRepository(newRepo)
+      if (savedRepo) {
+        // Reload repositories from database to get the saved version
+        await loadRepositories()
+        alert(`✅ Successfully connected ${repoData.full_name}!`)
+      } else {
+        alert('❌ Failed to save repository to database')
+      }
       
       setRepoUrl('')
       setShowAddRepo(false)
-      
-      alert(`✅ Successfully connected ${repoData.full_name}!`)
     } catch (error) {
       console.error('Error connecting repository:', error)
       alert(`❌ Failed to connect repository: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -456,7 +509,7 @@ export default function Repositories() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Reviews</p>
-                <p className="text-2xl font-bold text-gray-900">{repositories.reduce((sum, repo) => sum + repo.reviews, 0)}</p>
+                <p className="text-2xl font-bold text-gray-900">{repositories.reduce((sum, repo) => sum + (repo.reviews || 0), 0)}</p>
               </div>
             </div>
           </div>

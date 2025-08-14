@@ -17,20 +17,39 @@ export async function POST(request: NextRequest) {
       console.log('🔍 Testing database connection...');
       await prisma.$connect();
       
-      // 2. Create HealthCheck table if it doesn't exist
+      // 2. Create tables if they don't exist
       console.log('🗄️ Setting up database schema...');
+      
+      // Create HealthCheck table
       await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS "HealthCheck" (
-          id SERIAL PRIMARY KEY,
-          status TEXT NOT NULL DEFAULT 'ok',
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
           "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `;
+      
+      // Create Repository table
+      await prisma.$executeRaw`
+        CREATE TABLE IF NOT EXISTS "Repository" (
+          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          name TEXT NOT NULL,
+          "fullName" TEXT UNIQUE NOT NULL,
+          description TEXT,
+          stars INTEGER DEFAULT 0,
+          forks INTEGER DEFAULT 0,
+          language TEXT,
+          url TEXT NOT NULL,
+          bugs INTEGER DEFAULT 0,
+          analyzing BOOLEAN DEFAULT false,
+          "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `;
       
       // 3. Insert a test record
       await prisma.$executeRaw`
-        INSERT INTO "HealthCheck" (status) 
-        VALUES ('migration_successful') 
+        INSERT INTO "HealthCheck" ("createdAt") 
+        VALUES (CURRENT_TIMESTAMP) 
         ON CONFLICT DO NOTHING;
       `;
       
