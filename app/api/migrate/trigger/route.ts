@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       // Create HealthCheck table
       await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS "HealthCheck" (
-          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          id TEXT PRIMARY KEY DEFAULT 'hc_' || substr(md5(random()::text), 0, 25),
           "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `;
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       // Create Repository table
       await prisma.$executeRaw`
         CREATE TABLE IF NOT EXISTS "Repository" (
-          id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          id TEXT PRIMARY KEY DEFAULT 'repo_' || substr(md5(random()::text), 0, 25),
           name TEXT NOT NULL,
           "fullName" TEXT UNIQUE NOT NULL,
           description TEXT,
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       `;
       
       // 4. Verify the setup worked
-      const testQuery = await prisma.$queryRaw`SELECT COUNT(*) as count FROM "HealthCheck"`;
+      const testQuery = await prisma.$queryRaw`SELECT COUNT(*)::int as count FROM "HealthCheck"`;
       console.log('✅ Database setup verified:', testQuery);
       
       await prisma.$disconnect();
