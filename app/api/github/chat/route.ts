@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    const { repoFullName, question, batchLimit = 12, maxFileBytes = 60_000 } = await req.json()
+    const { repoFullName, question, batchLimit = 8, maxFileBytes = 40_000 } = await req.json()
     if (!repoFullName || !question) {
       return NextResponse.json({ error: 'repoFullName and question are required' }, { status: 400 })
     }
@@ -117,9 +117,9 @@ Return JSON with: { "answer": string, "citations": [{"file": string, "lines": [s
     const userPrompt = `Question: ${question}\n\nRelevant repository files:\n${contextBlocks}`
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o',
       temperature: 0.2,
-      max_tokens: 1200,
+      max_tokens: 1500,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
