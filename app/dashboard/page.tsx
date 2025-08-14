@@ -109,6 +109,11 @@ export default function Dashboard() {
         body: JSON.stringify(requestBody),
       })
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown API error' }))
+        throw new Error(`API Error ${response.status}: ${errorData.error || 'Unknown error'}`)
+      }
+
       const data = await response.json()
       
       const aiResponse = {
@@ -124,7 +129,7 @@ export default function Dashboard() {
       const errorResponse = {
         id: messages.length + 2,
         type: 'ai',
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}. ${selectedRepo ? 'Repository-specific chat failed.' : 'General AI failed.'}`,
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorResponse])
