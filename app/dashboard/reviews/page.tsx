@@ -42,6 +42,7 @@ export default function Reviews() {
       const response = await fetch('/api/repositories')
       if (response.ok) {
         const repos: Repository[] = await response.json()
+        console.log('🔍 REVIEWS PAGE - Raw repos from database:', repos)
         setRepositories(repos)
         
         // Convert repositories with analysis results to review format  
@@ -49,6 +50,7 @@ export default function Reviews() {
           .filter((repo: Repository) => {
             // Show all repositories that are not currently being analyzed
             // This includes repos with 0 bugs (clean code!) and repos with bugs found
+            console.log(`🔍 FILTERING REPO: ${repo.fullName}, bugs: ${repo.bugs}, analyzing: ${repo.analyzing}`)
             return repo.analyzing === false
           })
           .map((repo: Repository, index: number) => ({
@@ -65,6 +67,7 @@ export default function Reviews() {
             prNumber: Math.floor(Math.random() * 100) + 1
           }))
         
+        console.log('🎯 REVIEWS PAGE - Final reviewsData:', reviewsData)
         setReviews(reviewsData)
       }
     } catch (error) {

@@ -23,6 +23,7 @@ interface Repository {
 
 export default function Dashboard() {
   const [repositories, setRepositories] = useState<Repository[]>([])
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null)
 
   // Load repositories from database
   const loadRepositories = async () => {
@@ -88,16 +89,24 @@ export default function Dashboard() {
     setIsLoading(true)
 
     try {
-      // Call our real AI API
-      const response = await fetch('/api/ai/chat', {
+      // Call repository-specific AI API if a repo is selected, otherwise general AI
+      const apiEndpoint = selectedRepo ? '/api/github/chat' : '/api/ai/chat'
+      const requestBody = selectedRepo 
+        ? {
+            repoFullName: selectedRepo.fullName,
+            question: inputMessage.trim()
+          }
+        : {
+            message: inputMessage.trim(),
+            context: { repositories: repositories }
+          }
+
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          message: inputMessage.trim(),
-          context: { repositories: repositories }
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       const data = await response.json()
@@ -105,7 +114,7 @@ export default function Dashboard() {
       const aiResponse = {
         id: messages.length + 2,
         type: 'ai',
-        content: data.response || 'Sorry, I encountered an error processing your request.',
+        content: selectedRepo ? (data.answer || 'Sorry, I encountered an error processing your request.') : (data.response || 'Sorry, I encountered an error processing your request.'),
         timestamp: new Date()
       }
       
@@ -302,7 +311,15 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   repositories.map((repo) => (
-                  <div key={repo.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                  <div 
+                    key={repo.id} 
+                    onClick={() => setSelectedRepo(repo)}
+                    className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-colors ${
+                      selectedRepo?.fullName === repo.fullName
+                        ? 'border-primary-500 bg-primary-50 shadow-md'
+                        : 'border-gray-200 hover:bg-gray-50 hover:border-primary-300'
+                    }`}
+                  >
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
                         <svg className="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
@@ -337,13 +354,34 @@ export default function Dashboard() {
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">Ask AI about your code</h2>
-                  <p className="text-sm text-gray-600 mt-1">Query your codebase in natural language</p>
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                    Ask AI about your code
+                    {selectedRepo && (
+                      <span className="ml-3 px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm font-medium">
+                        🎯 {selectedRepo.name} Expert
+                      </span>
+                    )}
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedRepo 
+                      ? `I have full context of ${selectedRepo.name} (${selectedRepo.fullName}). Ask me anything about its code, architecture, or the ${selectedRepo.bugs} issues found!`
+                      : "Query your codebase in natural language"
+                    }
+                  </p>
                 </div>
-                <button
-                  onClick={verifyOpenAIKey}
-                  disabled={verificationStatus.status === 'checking'}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                <div className="flex items-center space-x-2">
+                  {selectedRepo && (
+                    <button
+                      onClick={() => setSelectedRepo(null)}
+                      className="px-3 py-1.5 text-xs font-medium rounded-md bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors"
+                    >
+                      🔄 General AI
+                    </button>
+                  )}
+                  <button
+                    onClick={verifyOpenAIKey}
+                    disabled={verificationStatus.status === 'checking'}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                     verificationStatus.status === 'success'
                       ? 'bg-green-100 text-green-800 border border-green-200'
                       : verificationStatus.status === 'error'
@@ -356,6 +394,7 @@ export default function Dashboard() {
                   {verificationStatus.status === 'error' && '❌ Connection Failed'}
                   {verificationStatus.status === 'idle' && '🔍 Test OpenAI Key'}
                 </button>
+                </div>
               </div>
               
               {/* Verification Status Details */}

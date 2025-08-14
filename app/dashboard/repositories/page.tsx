@@ -655,6 +655,13 @@ export default function Repositories() {
                           {analyzing === repo.fullName ? '🔍 Analyzing...' : '🔍 Analyze Code'}
                         </button>
                         
+                        <button
+                          onClick={() => toggleDetailedResults(`chat-${repo.fullName}`)}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors"
+                        >
+                          🤖 Ask AI
+                        </button>
+                        
                         {analysisResults[repo.fullName] && (
                           <button
                             onClick={() => toggleDetailedResults(repo.fullName)}
@@ -809,11 +816,24 @@ export default function Repositories() {
                         </div>
                       )}
 
-                      {/* Repo Q&A */}
-                      <div className="mt-6 border-t pt-4">
-                        <h5 className="font-semibold text-gray-900 mb-2">💬 Ask a question about this repository</h5>
-                        <RepoChat repoFullName={repo.fullName} />
-                      </div>
+                      {/* AI Chat Section */}
+                      {expandedResults[`chat-${repo.fullName}`] && (
+                        <div className="mt-6 border-t pt-4">
+                          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <h5 className="font-semibold text-purple-900 mb-3 flex items-center">
+                              🤖 AI Assistant - Repository Expert for {repo.name}
+                              <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                                Has full codebase context
+                              </span>
+                            </h5>
+                            <p className="text-sm text-purple-700 mb-4">
+                              Ask me anything about this repository's code, architecture, security issues, or functionality. 
+                              I have analyzed the entire codebase and can provide detailed answers with code references.
+                            </p>
+                            <RepoChat repoFullName={repo.fullName} />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
