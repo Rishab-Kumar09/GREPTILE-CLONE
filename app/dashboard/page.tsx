@@ -1,21 +1,46 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 interface Repository {
-  id: number
+  id?: string | number
   name: string
   fullName: string
-  language: string
-  lastReview: string
-  status: string
-  reviews: number
+  language?: string
+  lastReview?: string
+  status?: string
+  reviews?: number
   bugs: number
+  stars: number
+  forks: number
+  description?: string
+  url: string
+  analyzing?: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 export default function Dashboard() {
-  const [repositories] = useState<Repository[]>([])
+  const [repositories, setRepositories] = useState<Repository[]>([])
+
+  // Load repositories from database
+  const loadRepositories = async () => {
+    try {
+      const response = await fetch('/api/repositories')
+      if (response.ok) {
+        const repos = await response.json()
+        setRepositories(repos)
+      }
+    } catch (error) {
+      console.error('Error loading repositories:', error)
+    }
+  }
+
+  // Load repositories on component mount
+  useEffect(() => {
+    loadRepositories()
+  }, [])
 
   const [messages, setMessages] = useState([
     {
