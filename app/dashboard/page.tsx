@@ -220,7 +220,9 @@ export default function Dashboard() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Reviews</p>
-                <p className="text-2xl font-bold text-gray-900">269</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {repositories.filter(repo => repo.bugs > 0).length}
+                </p>
               </div>
             </div>
           </div>
@@ -250,7 +252,9 @@ export default function Dashboard() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Time Saved</p>
-                <p className="text-2xl font-bold text-gray-900">24h</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {repositories.reduce((total, repo) => total + (repo.bugs || 0), 0) * 5}m
+                </p>
               </div>
             </div>
           </div>
@@ -259,7 +263,7 @@ export default function Dashboard() {
             <div className="flex items-center">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
               </div>
               <div className="ml-4">

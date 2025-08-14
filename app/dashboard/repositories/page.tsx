@@ -356,11 +356,36 @@ export default function Repositories() {
       
       // CRITICAL: Final UI update AFTER alert is dismissed (use TOTAL issues)
       const finalTotalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
+      
+      // Update local state
       setRepositories(prev => prev.map(r => 
         r.fullName === repo.fullName 
           ? { ...r, bugs: finalTotalIssues, reviews: totalFilesProcessed, status: 'active' as const }
           : r
       ))
+      
+      // SAVE TO DATABASE - Update the repository with analysis results
+      try {
+        const updatedRepo = repositories.find(r => r.fullName === repo.fullName)
+        console.log(`🔍 LOOKING FOR REPO TO SAVE: ${repo.fullName}`)
+        console.log(`📋 AVAILABLE REPOS:`, repositories.map(r => r.fullName))
+        console.log(`✅ FOUND REPO:`, updatedRepo ? 'YES' : 'NO')
+        
+        if (updatedRepo) {
+          const repoToSave = {
+            ...updatedRepo,
+            bugs: finalTotalIssues,
+            analyzing: false
+          }
+          console.log(`💾 SAVING TO DATABASE:`, repoToSave)
+          const savedRepo = await saveRepository(repoToSave)
+          console.log(`✅ SAVED TO DATABASE: ${repo.fullName} with ${finalTotalIssues} issues`, savedRepo)
+        } else {
+          console.error(`❌ REPO NOT FOUND IN LOCAL STATE: ${repo.fullName}`)
+        }
+      } catch (dbError) {
+        console.error('Failed to save analysis results to database:', dbError)
+      }
       
       console.log(`🔒 FINAL UPDATE: Setting total issues to ${finalTotalIssues} (${totalBugs} bugs + ${totalSecurityIssues} security + ${totalCodeSmells} smells) for ${repo.fullName}`)
             

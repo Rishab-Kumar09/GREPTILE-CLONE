@@ -44,9 +44,13 @@ export default function Reviews() {
         const repos: Repository[] = await response.json()
         setRepositories(repos)
         
-        // Convert repositories with analysis results to review format
+        // Convert repositories with analysis results to review format  
         const reviewsData: Review[] = repos
-          .filter((repo: Repository) => repo.bugs > 0) // Only repos that have been analyzed
+          .filter((repo: Repository) => {
+            // Show all repositories that are not currently being analyzed
+            // This includes repos with 0 bugs (clean code!) and repos with bugs found
+            return repo.analyzing === false
+          })
           .map((repo: Repository, index: number) => ({
             id: repo.id || index + 1,
             prTitle: `Code Analysis for ${repo.name}`,
@@ -178,7 +182,9 @@ export default function Reviews() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Avg Review Time</p>
-                <p className="text-2xl font-bold text-gray-900">3.2m</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {reviews.length > 0 ? (reviews.reduce((sum, review) => sum + review.bugsFound, 0) * 2 / reviews.length).toFixed(1) : '0'}m
+                </p>
               </div>
             </div>
           </div>
