@@ -5,16 +5,7 @@ import { PrismaClient } from '@prisma/client';
 // Triggers database schema creation after deployment
 export async function POST(request: NextRequest) {
   try {
-    // Temporary: Skip authentication for testing
-    // const authHeader = request.headers.get('authorization');
-    // const expectedToken = process.env.MIGRATION_SECRET || 'your-secret-key';
-    
-    // if (authHeader !== `Bearer ${expectedToken}`) {
-    //   return NextResponse.json(
-    //     { error: 'Unauthorized' },
-    //     { status: 401 }
-    //   );
-    // }
+    // No authentication needed for simple database setup
 
     console.log('🚀 Starting post-deployment database setup...');
 

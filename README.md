@@ -233,9 +233,8 @@ This approach separates application deployment from database operations, followi
 Set these in AWS Amplify Console → Environment Variables:
 
 ```env
-DATABASE_URL=postgresql://username:password@your-rds-endpoint:5432/database
+DATABASE_URL=postgresql://Rishab09:password@your-rds-endpoint:5432/database
 OPENAI_API_KEY=your-openai-api-key
-MIGRATION_SECRET=your-secure-migration-secret
 ```
 
 ### Manual Migration (if needed)

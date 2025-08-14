@@ -49,9 +49,8 @@ This guide shows how to deploy the Greptile Clone application on AWS using **ind
 In Amplify Console → App settings → Environment variables, add:
 
 ```
-DATABASE_URL = postgresql://admin:YOUR_PASSWORD@YOUR_RDS_ENDPOINT:5432/greptile_clone_db
+DATABASE_URL = postgresql://Rishab09:YOUR_PASSWORD@YOUR_RDS_ENDPOINT:5432/greptile_clone_db
 OPENAI_API_KEY = your-openai-api-key
-MIGRATION_SECRET = your-secure-secret-key
 NODE_ENV = production
 ```
 

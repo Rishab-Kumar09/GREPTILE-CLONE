@@ -12,7 +12,6 @@ Write-Host "📡 Sending migration request..." -ForegroundColor Yellow
 
 try {
     $headers = @{
-        "Authorization" = "Bearer $MIGRATION_SECRET"
         "Content-Type" = "application/json"
     }
     
