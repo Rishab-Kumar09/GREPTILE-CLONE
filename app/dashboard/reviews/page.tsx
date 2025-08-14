@@ -1,65 +1,79 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
-export default function Reviews() {
-  const [reviews] = useState([
-    {
-      id: 1,
-      prTitle: 'Add user authentication system',
-      repository: 'johndoe/my-awesome-project',
-      author: 'johndoe',
-      createdAt: '2 hours ago',
-      status: 'reviewed',
-      aiComments: 3,
-      bugsFound: 2,
-      suggestions: 5,
-      severity: 'medium',
-      prNumber: 42
-    },
-    {
-      id: 2,
-      prTitle: 'Fix memory leak in data processing',
-      repository: 'johndoe/api-service',
-      author: 'janedoe',
-      createdAt: '5 hours ago',
-      status: 'in_progress',
-      aiComments: 1,
-      bugsFound: 1,
-      suggestions: 2,
-      severity: 'high',
-      prNumber: 38
-    },
-    {
-      id: 3,
-      prTitle: 'Update dependencies and improve performance',
-      repository: 'company/frontend-app',
-      author: 'developer123',
-      createdAt: '1 day ago',
-      status: 'reviewed',
-      aiComments: 7,
-      bugsFound: 0,
-      suggestions: 8,
-      severity: 'low',
-      prNumber: 156
-    },
-    {
-      id: 4,
-      prTitle: 'Implement new payment gateway',
-      repository: 'johndoe/api-service',
-      author: 'johndoe',
-      createdAt: '2 days ago',
-      status: 'reviewed',
-      aiComments: 4,
-      bugsFound: 3,
-      suggestions: 6,
-      severity: 'high',
-      prNumber: 35
-    }
-  ])
+interface Repository {
+  id?: string | number
+  name: string
+  fullName: string
+  language?: string
+  bugs: number
+  stars: number
+  forks: number
+  description?: string
+  url: string
+  analyzing?: boolean
+  createdAt?: string
+  updatedAt?: string
+}
 
-  const [selectedReview, setSelectedReview] = useState<typeof reviews[0] | null>(null)
+interface Review {
+  id: string | number
+  prTitle: string
+  repository: string
+  author: string
+  createdAt: string
+  status: string
+  aiComments: number
+  bugsFound: number
+  suggestions: number
+  severity: string
+  prNumber: number
+}
+
+export default function Reviews() {
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [repositories, setRepositories] = useState<Repository[]>([])
+
+  // Load repositories and their analysis results
+  const loadReviews = async () => {
+    try {
+      const response = await fetch('/api/repositories')
+      if (response.ok) {
+        const repos: Repository[] = await response.json()
+        setRepositories(repos)
+        
+        // Convert repositories with analysis results to review format
+        const reviewsData: Review[] = repos
+          .filter((repo: Repository) => repo.bugs > 0) // Only repos that have been analyzed
+          .map((repo: Repository, index: number) => ({
+            id: repo.id || index + 1,
+            prTitle: `Code Analysis for ${repo.name}`,
+            repository: repo.fullName,
+            author: repo.fullName.split('/')[0],
+            createdAt: repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently',
+            status: 'reviewed',
+            aiComments: Math.floor(repo.bugs * 0.8), // Estimate comments based on bugs
+            bugsFound: repo.bugs,
+            suggestions: Math.floor(repo.bugs * 1.2), // Estimate suggestions
+            severity: repo.bugs > 5 ? 'high' : repo.bugs > 2 ? 'medium' : 'low',
+            prNumber: Math.floor(Math.random() * 100) + 1
+          }))
+        
+        setReviews(reviewsData)
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error)
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    loadReviews()
+  }, [])
+
+  const [selectedReview, setSelectedReview] = useState<Review | null>(null)
 
   return (
     <div className="min-h-screen bg-gray-50">

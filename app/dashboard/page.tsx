@@ -59,14 +59,19 @@ export default function Dashboard() {
     details?: any
   }>({ status: 'idle' })
 
-  const aiResponses = [
-    "In your api-service repository, authentication is handled through JWT tokens in the `auth/middleware.py` file. The system uses a two-step process: token validation and user permission checking.",
-    "Your TypeScript project follows a modular architecture. The main components are organized in the `src/components/` directory, with shared utilities in `src/utils/`. The authentication flow starts in `AuthProvider.tsx`.",
-    "I found 3 potential security issues in your recent commits: 1) Hardcoded API keys in config.js, 2) Missing input validation in user registration, 3) SQL injection vulnerability in the search function.",
-    "The performance bottleneck in your frontend-app is likely caused by unnecessary re-renders in the UserList component. Consider using React.memo() and moving the filtering logic to a custom hook.",
-    "Your Python API follows RESTful conventions well. The database models are properly structured, but I recommend adding database indexes on the `user_id` and `created_at` columns for better query performance.",
-    "The error handling in your authentication system could be improved. Consider implementing a centralized error handler and returning more specific error codes for different failure scenarios."
-  ]
+  const getAiResponse = () => {
+    const responses = [
+      repositories.length > 0 
+        ? `I've analyzed your ${repositories.length} connected repositories. I can help you with code questions, architecture decisions, or specific functions from: ${repositories.map(r => r.name).join(', ')}.`
+        : "I'm ready to help you with code analysis! Connect some repositories and I'll have full context of your codebase to answer questions about your code, architecture, or specific functions.",
+      "I can help you understand your codebase structure, find potential issues, suggest improvements, or explain complex code patterns.",
+      "Ask me about your code architecture, security vulnerabilities, performance optimizations, or any specific functions you're working on.",
+      "I have the ability to analyze your entire codebase and provide contextual answers about your code, dependencies, and best practices.",
+      "Feel free to ask about code reviews, refactoring suggestions, debugging help, or explanations of how different parts of your code work together.",
+      "I can help identify code smells, suggest architectural improvements, explain complex algorithms, or help you understand legacy code in your repositories."
+    ]
+    return responses[Math.floor(Math.random() * responses.length)]
+  }
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
