@@ -27,6 +27,8 @@ export default function Dashboard() {
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [selectedIcon, setSelectedIcon] = useState('👤')
   const [profileImage, setProfileImage] = useState<string | null>(null)
+  const [userName, setUserName] = useState('John Doe')
+  const [userTitle, setUserTitle] = useState('Software Developer')
 
   // Load repositories from database
   const loadRepositories = async () => {
@@ -41,9 +43,45 @@ export default function Dashboard() {
     }
   }
 
+  // Load profile settings from localStorage
+  const loadProfileSettings = () => {
+    try {
+      const savedIcon = localStorage.getItem('selectedIcon')
+      const savedImage = localStorage.getItem('profileImage')
+      const savedName = localStorage.getItem('userName')
+      const savedTitle = localStorage.getItem('userTitle')
+      
+      if (savedIcon) setSelectedIcon(savedIcon)
+      if (savedImage) setProfileImage(savedImage)
+      if (savedName) setUserName(savedName)
+      if (savedTitle) setUserTitle(savedTitle)
+    } catch (error) {
+      console.error('Error loading profile settings:', error)
+    }
+  }
+
+  // Save profile settings to localStorage
+  const saveProfileSettings = () => {
+    try {
+      localStorage.setItem('selectedIcon', selectedIcon)
+      localStorage.setItem('userName', userName)
+      localStorage.setItem('userTitle', userTitle)
+      if (profileImage) {
+        localStorage.setItem('profileImage', profileImage)
+      } else {
+        localStorage.removeItem('profileImage')
+      }
+      return true
+    } catch (error) {
+      console.error('Error saving profile settings:', error)
+      return false
+    }
+  }
+
   // Load repositories on component mount
   useEffect(() => {
     loadRepositories()
+    loadProfileSettings()
   }, [])
 
   const [messages, setMessages] = useState([
@@ -200,7 +238,7 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, John!</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {userName.split(' ')[0]}!</h1>
           <p className="text-gray-600">Here's what's happening with your code reviews today.</p>
         </div>
 
@@ -390,7 +428,13 @@ export default function Dashboard() {
                       </p>
                     </div>
                     {message.type === 'user' && (
-                      <div className="w-6 h-6 bg-gray-300 rounded-full flex-shrink-0"></div>
+                      <div className="w-6 h-6 bg-gray-300 rounded-full flex-shrink-0 flex items-center justify-center text-sm">
+                        {profileImage ? (
+                          <img src={profileImage} alt="Profile" className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <span>{selectedIcon}</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -476,9 +520,36 @@ export default function Dashboard() {
               </div>
             </div>
 
+            {/* Profile Info */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Profile Information</h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter your full name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                  <input
+                    type="text"
+                    value={userTitle}
+                    onChange={(e) => setUserTitle(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="e.g., Software Developer, Product Manager"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Image Upload */}
             <div className="mb-6">
-              <h4 className="text-sm font-medium text-gray-900 mb-3">Or Upload Your Photo</h4>
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Upload Your Photo</h4>
               <div className="flex items-center space-x-4">
                 <input
                   type="file"
@@ -519,8 +590,8 @@ export default function Dashboard() {
                   )}
                 </div>
                 <div>
-                  <p className="font-medium text-gray-900">John Doe</p>
-                  <p className="text-sm text-gray-500">Software Developer</p>
+                  <p className="font-medium text-gray-900">{userName}</p>
+                  <p className="text-sm text-gray-500">{userTitle}</p>
                 </div>
               </div>
             </div>
@@ -535,9 +606,14 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => {
-                  // Here you would typically save to database
-                  console.log('Saving profile:', { selectedIcon, profileImage })
-                  setShowProfileModal(false)
+                  const success = saveProfileSettings()
+                  if (success) {
+                    setShowProfileModal(false)
+                    // Show success feedback
+                    console.log('Profile saved successfully!')
+                  } else {
+                    alert('Failed to save profile settings. Please try again.')
+                  }
                 }}
                 className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 transition-colors"
               >
