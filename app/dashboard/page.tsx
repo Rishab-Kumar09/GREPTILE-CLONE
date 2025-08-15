@@ -54,11 +54,7 @@ export default function Dashboard() {
 
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [verificationStatus, setVerificationStatus] = useState<{
-    status: 'idle' | 'checking' | 'success' | 'error'
-    message?: string
-    details?: any
-  }>({ status: 'idle' })
+
 
   const getAiResponse = () => {
     const responses = [
@@ -145,34 +141,7 @@ export default function Dashboard() {
     }
   }
 
-  const verifyOpenAIKey = async () => {
-    setVerificationStatus({ status: 'checking' })
-    
-    try {
-      const response = await fetch('/api/ai/verify')
-      const data = await response.json()
-      
-      if (data.success) {
-        setVerificationStatus({
-          status: 'success',
-          message: data.message,
-          details: data.details
-        })
-      } else {
-        setVerificationStatus({
-          status: 'error',
-          message: data.error,
-          details: data.details
-        })
-      }
-    } catch (error) {
-      setVerificationStatus({
-        status: 'error',
-        message: 'Failed to verify OpenAI connection',
-        details: 'Network error or server unavailable'
-      })
-    }
-  }
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -383,51 +352,12 @@ export default function Dashboard() {
                       🔄 General AI
                     </button>
                   )}
-                  <button
-                    onClick={verifyOpenAIKey}
-                    disabled={verificationStatus.status === 'checking'}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                    verificationStatus.status === 'success'
-                      ? 'bg-green-100 text-green-800 border border-green-200'
-                      : verificationStatus.status === 'error'
-                      ? 'bg-red-100 text-red-800 border border-red-200'
-                      : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
-                  }`}
-                >
-                  {verificationStatus.status === 'checking' && '🔄 Checking...'}
-                  {verificationStatus.status === 'success' && '✅ OpenAI Connected'}
-                  {verificationStatus.status === 'error' && '❌ Connection Failed'}
-                  {verificationStatus.status === 'idle' && '🔍 Test OpenAI Key'}
-                </button>
+                  <div className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-100 text-green-800 border border-green-200">
+                    ✅ OpenAI Connected
+                  </div>
                 </div>
               </div>
-              
-              {/* Verification Status Details */}
-              {verificationStatus.status !== 'idle' && (
-                <div className={`mt-3 p-3 rounded-md text-sm ${
-                  verificationStatus.status === 'success'
-                    ? 'bg-green-50 text-green-700 border border-green-200'
-                    : 'bg-red-50 text-red-700 border border-red-200'
-                }`}>
-                  <p className="font-medium">{verificationStatus.message}</p>
-                  {verificationStatus.details && (
-                    <div className="mt-2 text-xs">
-                      {typeof verificationStatus.details === 'string' ? (
-                        <p>{verificationStatus.details}</p>
-                      ) : (
-                        <div className="space-y-1">
-                          {verificationStatus.details.status && (
-                            <p><strong>Status:</strong> {verificationStatus.details.status}</p>
-                          )}
-                          {verificationStatus.details.response && (
-                            <p><strong>Response:</strong> "{verificationStatus.details.response}"</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+
             </div>
             <div className="p-6">
               <div className="space-y-4 mb-4 h-64 overflow-y-auto bg-gray-50 rounded-lg p-4">

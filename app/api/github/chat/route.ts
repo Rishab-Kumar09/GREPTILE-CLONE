@@ -112,7 +112,14 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = `You are an expert codebase assistant. Answer the user's question using ONLY the provided files. 
 When you cite code, include the exact line(s) and a short snippet in your answer. 
-Return JSON with: { "answer": string, "citations": [{"file": string, "lines": [start, end], "snippet": string}] }.`
+
+IMPORTANT: You must return ONLY valid JSON in this exact format:
+{
+  "answer": "Your detailed answer here",
+  "citations": [{"file": "filename.js", "lines": [1, 5], "snippet": "code snippet"}]
+}
+
+Do not include any text before or after the JSON. Do not use markdown code blocks.`
 
     const userPrompt = `Question: ${question}\n\nRelevant repository files:\n${contextBlocks}`
 
@@ -128,13 +135,23 @@ Return JSON with: { "answer": string, "citations": [{"file": string, "lines": [s
 
     const raw = completion.choices?.[0]?.message?.content || ''
     let parsed: any = null
-    try { parsed = JSON.parse(raw) } catch { parsed = { answer: raw, citations: [] } }
+    
+    try { 
+      parsed = JSON.parse(raw) 
+      console.log('✅ Successfully parsed JSON:', parsed)
+    } catch (parseError) { 
+      console.log('❌ JSON parsing failed, raw content:', raw)
+      parsed = { answer: raw, citations: [] } 
+    }
+
+    const finalAnswer = parsed.answer || parsed.response || raw
+    console.log('🎯 Final answer being returned:', finalAnswer)
 
     return NextResponse.json({
       repoFullName,
       defaultBranch,
       filesUsed: ranked.map(f => f.path),
-      answer: parsed.answer || raw,
+      answer: finalAnswer,
       citations: parsed.citations || [],
     })
   } catch (err: any) {
