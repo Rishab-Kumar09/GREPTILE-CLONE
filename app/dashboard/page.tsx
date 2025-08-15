@@ -24,6 +24,9 @@ interface Repository {
 export default function Dashboard() {
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [selectedIcon, setSelectedIcon] = useState('👤')
+  const [profileImage, setProfileImage] = useState<string | null>(null)
 
   // Load repositories from database
   const loadRepositories = async () => {
@@ -178,7 +181,16 @@ export default function Dashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
                 </svg>
               </button>
-              <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+              <button 
+                onClick={() => setShowProfileModal(true)}
+                className="w-8 h-8 bg-gray-300 rounded-full hover:bg-gray-400 transition-colors flex items-center justify-center text-lg"
+              >
+                {profileImage ? (
+                  <img src={profileImage} alt="Profile" className="w-8 h-8 rounded-full object-cover" />
+                ) : (
+                  <span>{selectedIcon}</span>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -424,6 +436,117 @@ export default function Dashboard() {
 
 
       </main>
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Update Profile Picture</h3>
+              <button 
+                onClick={() => setShowProfileModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Icon Selection */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Choose an Icon</h4>
+              <div className="grid grid-cols-6 gap-2">
+                {['👤', '👨‍💻', '👩‍💻', '🧑‍💼', '👨‍🎨', '👩‍🎨', '🧑‍🔬', '👨‍🚀', '👩‍🚀', '🤖', '👨‍🏫', '👩‍🏫'].map((icon) => (
+                  <button
+                    key={icon}
+                    onClick={() => {
+                      setSelectedIcon(icon)
+                      setProfileImage(null)
+                    }}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center text-xl border-2 transition-colors ${
+                      selectedIcon === icon && !profileImage
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Image Upload */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Or Upload Your Photo</h4>
+              <div className="flex items-center space-x-4">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      const reader = new FileReader()
+                      reader.onload = (e) => {
+                        setProfileImage(e.target?.result as string)
+                        setSelectedIcon('👤') // Reset icon selection
+                      }
+                      reader.readAsDataURL(file)
+                    }
+                  }}
+                  className="flex-1 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                />
+                {profileImage && (
+                  <button
+                    onClick={() => setProfileImage(null)}
+                    className="text-red-600 hover:text-red-800 text-sm"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-gray-900 mb-3">Preview</h4>
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center text-xl">
+                  {profileImage ? (
+                    <img src={profileImage} alt="Preview" className="w-12 h-12 rounded-full object-cover" />
+                  ) : (
+                    <span>{selectedIcon}</span>
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">John Doe</p>
+                  <p className="text-sm text-gray-500">Software Developer</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // Here you would typically save to database
+                  console.log('Saving profile:', { selectedIcon, profileImage })
+                  setShowProfileModal(false)
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700 transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
