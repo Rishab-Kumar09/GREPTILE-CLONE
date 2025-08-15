@@ -636,17 +636,26 @@ export default function Repositories() {
                     </div>
                     <div className="flex items-center space-x-2">
                       <div className="flex gap-2">
-                        <button
-                          onClick={() => analyzeRepository(repo)}
-                          disabled={analyzing === repo.fullName}
-                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                            analyzing === repo.fullName
-                              ? 'bg-blue-100 text-blue-800 cursor-not-allowed'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
-                          }`}
-                        >
-                          {analyzing === repo.fullName ? '🔍 Analyzing...' : '🔍 Analyze Code'}
-                        </button>
+                        {repo.bugs > 0 ? (
+                          <button
+                            onClick={() => toggleDetailedResults(repo.fullName)}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors"
+                          >
+                            📋 View {repo.bugs} Issues
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => analyzeRepository(repo)}
+                            disabled={analyzing === repo.fullName}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                              analyzing === repo.fullName
+                                ? 'bg-blue-100 text-blue-800 cursor-not-allowed'
+                                : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }`}
+                          >
+                            {analyzing === repo.fullName ? '🔍 Analyzing...' : '🔍 Analyze Code'}
+                          </button>
+                        )}
                         
                         {analysisResults[repo.fullName] && (
                           <button
@@ -677,33 +686,54 @@ export default function Repositories() {
                 </div>
                 
                 {/* Expandable Results Section */}
-                {expandedResults[repo.fullName] && analysisResults[repo.fullName] && (
+                {(expandedResults[repo.fullName] || repo.bugs > 0) && (
                   <div className="mx-6 mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                     <div className="space-y-4">
                       {/* Results Header */}
                       <div className="flex items-center justify-between">
                         <h4 className="text-lg font-semibold text-gray-900">📋 Analysis Results</h4>
                         <div className="flex items-center space-x-4 text-sm text-gray-600">
-                          <span>📁 {analysisResults[repo.fullName].filesAnalyzed} files analyzed</span>
-                          <span>📈 {analysisResults[repo.fullName].coverage?.percentage || 100}% coverage</span>
+                          {analysisResults[repo.fullName] ? (
+                            <>
+                              <span>📁 {analysisResults[repo.fullName].filesAnalyzed} files analyzed</span>
+                              <span>📈 {analysisResults[repo.fullName].coverage?.percentage || 100}% coverage</span>
+                            </>
+                          ) : (
+                            <span>📊 {repo.bugs} issues found in previous analysis</span>
+                          )}
                         </div>
                       </div>
                       
                       {/* Issue Breakdown */}
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="text-center p-3 bg-red-100 rounded-lg">
-                          <div className="text-2xl font-bold text-red-600">{analysisResults[repo.fullName].totalBugs || 0}</div>
-                          <div className="text-sm text-red-800">🐛 Logic Bugs</div>
+                      {analysisResults[repo.fullName] ? (
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="text-center p-3 bg-red-100 rounded-lg">
+                            <div className="text-2xl font-bold text-red-600">{analysisResults[repo.fullName].totalBugs || 0}</div>
+                            <div className="text-sm text-red-800">🐛 Logic Bugs</div>
+                          </div>
+                          <div className="text-center p-3 bg-orange-100 rounded-lg">
+                            <div className="text-2xl font-bold text-orange-600">{analysisResults[repo.fullName].totalSecurityIssues || 0}</div>
+                            <div className="text-sm text-orange-800">🔒 Security Issues</div>
+                          </div>
+                          <div className="text-center p-3 bg-yellow-100 rounded-lg">
+                            <div className="text-2xl font-bold text-yellow-600">{analysisResults[repo.fullName].totalCodeSmells || 0}</div>
+                            <div className="text-sm text-yellow-800">💡 Code Smells</div>
+                          </div>
                         </div>
-                        <div className="text-center p-3 bg-orange-100 rounded-lg">
-                          <div className="text-2xl font-bold text-orange-600">{analysisResults[repo.fullName].totalSecurityIssues || 0}</div>
-                          <div className="text-sm text-orange-800">🔒 Security Issues</div>
+                      ) : (
+                        <div className="text-center p-6 bg-blue-50 rounded-lg border-2 border-dashed border-blue-200">
+                          <div className="text-2xl font-bold text-blue-600">{repo.bugs}</div>
+                          <div className="text-sm text-blue-800 mb-3">🔍 Total Issues Found</div>
+                          <button
+                            onClick={() => analyzeRepository(repo)}
+                            disabled={analyzing === repo.fullName}
+                            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300"
+                          >
+                            {analyzing === repo.fullName ? '🔍 Re-analyzing...' : '🔄 Re-analyze for Details'}
+                          </button>
+                          <p className="text-xs text-blue-600 mt-2">Re-run analysis to see detailed breakdown</p>
                         </div>
-                        <div className="text-center p-3 bg-yellow-100 rounded-lg">
-                          <div className="text-2xl font-bold text-yellow-600">{analysisResults[repo.fullName].totalCodeSmells || 0}</div>
-                          <div className="text-sm text-yellow-800">💡 Code Smells</div>
-                        </div>
-                      </div>
+                      )}
                       
                       {/* Detailed Issues */}
                       {analysisResults[repo.fullName].results && analysisResults[repo.fullName].results.length > 0 && (
