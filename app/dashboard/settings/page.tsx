@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 export default function Settings() {
@@ -18,11 +18,91 @@ export default function Settings() {
     }
   })
   
+  // Profile settings (synced with localStorage)
+  const [userName, setUserName] = useState('John Doe')
+  const [userEmail, setUserEmail] = useState('john@example.com')
+  const [userCompany, setUserCompany] = useState('Acme Inc.')
+  const [userTimezone, setUserTimezone] = useState('UTC-8 (Pacific Time)')
+  const [selectedIcon, setSelectedIcon] = useState('👤')
+  const [profileImage, setProfileImage] = useState<string | null>(null)
+  
+  // Load profile settings on mount
+  useEffect(() => {
+    loadProfileSettings()
+    loadOtherSettings()
+  }, [])
+
+  // Load notification and review settings from localStorage
+  const loadOtherSettings = () => {
+    try {
+      const savedNotifications = localStorage.getItem('notificationSettings')
+      const savedReviewSettings = localStorage.getItem('reviewSettings')
+      
+      if (savedNotifications) {
+        const notifications = JSON.parse(savedNotifications)
+        setSettings(prev => ({ ...prev, notifications }))
+      }
+      
+      if (savedReviewSettings) {
+        const reviewSettings = JSON.parse(savedReviewSettings)
+        setSettings(prev => ({ ...prev, reviewSettings }))
+      }
+    } catch (error) {
+      console.error('Error loading other settings:', error)
+    }
+  }
+  
   const [verificationStatus, setVerificationStatus] = useState<{
     status: 'idle' | 'checking' | 'success' | 'error'
     message?: string
     details?: any
   }>({ status: 'idle' })
+
+  // Load profile settings from localStorage
+  const loadProfileSettings = () => {
+    try {
+      const savedName = localStorage.getItem('userName')
+      const savedEmail = localStorage.getItem('userEmail') 
+      const savedCompany = localStorage.getItem('userCompany')
+      const savedTimezone = localStorage.getItem('userTimezone')
+      const savedIcon = localStorage.getItem('selectedIcon')
+      const savedImage = localStorage.getItem('profileImage')
+      
+      if (savedName) setUserName(savedName)
+      if (savedEmail) setUserEmail(savedEmail)
+      if (savedCompany) setUserCompany(savedCompany)
+      if (savedTimezone) setUserTimezone(savedTimezone)
+      if (savedIcon) setSelectedIcon(savedIcon)
+      if (savedImage) setProfileImage(savedImage)
+    } catch (error) {
+      console.error('Error loading profile settings:', error)
+    }
+  }
+
+  // Save profile settings to localStorage
+  const saveProfileSettings = () => {
+    try {
+      localStorage.setItem('userName', userName)
+      localStorage.setItem('userEmail', userEmail)
+      localStorage.setItem('userCompany', userCompany)
+      localStorage.setItem('userTimezone', userTimezone)
+      localStorage.setItem('selectedIcon', selectedIcon)
+      if (profileImage) {
+        localStorage.setItem('profileImage', profileImage)
+      } else {
+        localStorage.removeItem('profileImage')
+      }
+      return true
+    } catch (error) {
+      console.error('Error saving profile settings:', error)
+      return false
+    }
+  }
+
+  // Load profile settings on mount
+  useEffect(() => {
+    loadProfileSettings()
+  }, [])
 
   const verifyOpenAIKey = async () => {
     setVerificationStatus({ status: 'checking' })
@@ -90,7 +170,13 @@ export default function Settings() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
                 </svg>
               </button>
-              <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                {profileImage ? (
+                  <img src={profileImage} alt="Profile" className="w-8 h-8 rounded-full object-cover" />
+                ) : (
+                  <span className="text-lg">{selectedIcon}</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -173,7 +259,8 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700">Full Name</label>
                       <input
                         type="text"
-                        defaultValue="John Doe"
+                        value={userName}
+                        onChange={(e) => setUserName(e.target.value)}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                       />
                     </div>
@@ -181,7 +268,8 @@ export default function Settings() {
                       <label className="block text-sm font-medium text-gray-700">Email</label>
                       <input
                         type="email"
-                        defaultValue="john@example.com"
+                        value={userEmail}
+                        onChange={(e) => setUserEmail(e.target.value)}
                         className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                       />
                     </div>
@@ -191,23 +279,38 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-gray-700">Company</label>
                     <input
                       type="text"
-                      defaultValue="Acme Inc."
+                      value={userCompany}
+                      onChange={(e) => setUserCompany(e.target.value)}
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Timezone</label>
-                    <select className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-                      <option>UTC-8 (Pacific Time)</option>
-                      <option>UTC-5 (Eastern Time)</option>
-                      <option>UTC+0 (GMT)</option>
-                      <option>UTC+1 (Central European Time)</option>
+                    <select 
+                      value={userTimezone}
+                      onChange={(e) => setUserTimezone(e.target.value)}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="UTC-8 (Pacific Time)">UTC-8 (Pacific Time)</option>
+                      <option value="UTC-5 (Eastern Time)">UTC-5 (Eastern Time)</option>
+                      <option value="UTC+0 (GMT)">UTC+0 (GMT)</option>
+                      <option value="UTC+1 (Central European Time)">UTC+1 (Central European Time)</option>
                     </select>
                   </div>
 
                   <div className="pt-4">
-                    <button className="btn-primary">
+                    <button 
+                      onClick={() => {
+                        const success = saveProfileSettings()
+                        if (success) {
+                          alert('Profile settings saved successfully!')
+                        } else {
+                          alert('Failed to save profile settings. Please try again.')
+                        }
+                      }}
+                      className="btn-primary"
+                    >
                       Save Changes
                     </button>
                   </div>
@@ -281,7 +384,18 @@ export default function Settings() {
                   </div>
 
                   <div className="pt-4">
-                    <button className="btn-primary">
+                    <button 
+                      onClick={() => {
+                        // Save notification settings to localStorage
+                        try {
+                          localStorage.setItem('notificationSettings', JSON.stringify(settings.notifications))
+                          alert('Notification preferences saved successfully!')
+                        } catch (error) {
+                          alert('Failed to save notification preferences. Please try again.')
+                        }
+                      }}
+                      className="btn-primary"
+                    >
                       Save Preferences
                     </button>
                   </div>
@@ -421,7 +535,18 @@ export default function Settings() {
                   </div>
 
                   <div className="pt-4">
-                    <button className="btn-primary">
+                    <button 
+                      onClick={() => {
+                        // Save review settings to localStorage
+                        try {
+                          localStorage.setItem('reviewSettings', JSON.stringify(settings.reviewSettings))
+                          alert('AI review settings saved successfully!')
+                        } catch (error) {
+                          alert('Failed to save AI review settings. Please try again.')
+                        }
+                      }}
+                      className="btn-primary"
+                    >
                       Save Settings
                     </button>
                   </div>
