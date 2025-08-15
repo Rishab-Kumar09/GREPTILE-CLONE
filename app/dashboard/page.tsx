@@ -416,17 +416,11 @@ export default function Dashboard() {
                         <p>{verificationStatus.details}</p>
                       ) : (
                         <div className="space-y-1">
-                          {verificationStatus.details.model && (
-                            <p><strong>Model:</strong> {verificationStatus.details.model}</p>
-                          )}
-                          {verificationStatus.details.keyPrefix && (
-                            <p><strong>API Key:</strong> {verificationStatus.details.keyPrefix}</p>
+                          {verificationStatus.details.status && (
+                            <p><strong>Status:</strong> {verificationStatus.details.status}</p>
                           )}
                           {verificationStatus.details.response && (
                             <p><strong>Response:</strong> "{verificationStatus.details.response}"</p>
-                          )}
-                          {verificationStatus.details.usage && (
-                            <p><strong>Tokens Used:</strong> {verificationStatus.details.usage.total_tokens}</p>
                           )}
                         </div>
                       )}

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     })
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o",
       messages: [
         { role: "user", content: "Say 'OpenAI API key is working!' in exactly those words." }
       ],
@@ -42,11 +42,8 @@ export async function GET(request: NextRequest) {
       success: true,
       message: 'OpenAI API key is working correctly!',
       details: {
-        model: completion.model,
         response: response,
-        usage: completion.usage,
-        keyLength: apiKey.length,
-        keyPrefix: apiKey.substring(0, 8) + '...',
+        status: 'Connected and ready'
       }
     })
 
