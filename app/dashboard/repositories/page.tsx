@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import React from 'react' // Added for RepoChat component
 
@@ -71,7 +71,7 @@ export default function Repositories() {
   }
 
   // Load repositories on component mount
-  React.useEffect(() => {
+  useEffect(() => {
     loadRepositories()
   }, [])
 
@@ -891,10 +891,10 @@ export default function Repositories() {
 
 // Lightweight repo chat widget
 function RepoChat({ repoFullName }: { repoFullName: string }) {
-  const [question, setQuestion] = React.useState('')
-  const [loading, setLoading] = React.useState(false)
-  const [answer, setAnswer] = React.useState<string | null>(null)
-  const [citations, setCitations] = React.useState<any[]>([])
+  const [question, setQuestion] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [answer, setAnswer] = useState<string | null>(null)
+  const [citations, setCitations] = useState<any[]>([])
 
   const ask = async () => {
     if (!question.trim()) return
