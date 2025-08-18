@@ -42,7 +42,7 @@ export default function Header() {
               Sign In
             </Link>
             <Link href="/auth/signup" className="btn-primary">
-              Start Free Trial
+              Sign Up
             </Link>
           </div>
 
@@ -81,7 +81,7 @@ export default function Header() {
                 Sign In
               </Link>
               <Link href="/auth/signup" className="block px-3 py-2 btn-primary mt-2">
-                Start Free Trial
+                Sign Up
               </Link>
             </div>
           </div>

@@ -241,7 +241,7 @@ export default function Demo() {
                 Sign In
               </Link>
               <Link href="/auth/signup" className="btn-primary">
-                Start Free Trial
+                Sign Up
               </Link>
             </div>
           </div>
@@ -321,7 +321,7 @@ export default function Demo() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/auth/signup" className="btn-primary">
-              Start Free Trial
+              Sign Up
             </Link>
             <Link href="/dashboard" className="btn-outline">
               View Dashboard Demo

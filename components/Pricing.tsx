@@ -13,7 +13,7 @@ export default function Pricing() {
               <li>✓ Unlimited PR reviews</li>
               <li>✓ Full AI analysis</li>
             </ul>
-            <button className="btn-outline w-full">Start Free (No Payment)</button>
+            <a href="/auth/signup" className="btn-outline w-full inline-block text-center">Start Free (No Payment)</a>
           </div>
           <div className="card p-8 border-primary-500 border-2 relative">
             <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-primary-500 text-white px-4 py-1 rounded-full text-sm">
@@ -30,7 +30,7 @@ export default function Pricing() {
               <li>✓ Advanced AI models</li>
               <li>✓ Custom rules</li>
             </ul>
-            <button className="btn-primary w-full">Activate Pro (Free)</button>
+            <a href="/auth/signup" className="btn-primary w-full inline-block text-center">Activate Pro (Free)</a>
           </div>
           <div className="card p-8">
             <h3 className="text-xl font-bold mb-4">Enterprise</h3>
@@ -44,7 +44,7 @@ export default function Pricing() {
               <li>✓ Custom AI models</li>
               <li>✓ SLA guarantee</li>
             </ul>
-            <button className="btn-outline w-full">Get Enterprise (Free)</button>
+            <a href="/auth/signup" className="btn-outline w-full inline-block text-center">Get Enterprise (Free)</a>
           </div>
         </div>
       </div>

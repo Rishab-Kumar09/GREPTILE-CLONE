@@ -12,7 +12,7 @@ export default function CTA() {
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/auth/signup" className="btn bg-white text-primary-600 hover:bg-gray-100 text-lg px-8 py-3">
-            Start Free Trial
+                          Sign Up
           </Link>
           <Link href="/demo" className="btn border-white text-white hover:bg-white hover:text-primary-600 text-lg px-8 py-3">
             Schedule Demo
