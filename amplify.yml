@@ -4,10 +4,12 @@ frontend:
     preBuild:
       commands:
         - npm ci
-        - env | grep -e DATABASE_URL >> .env.production
-        - env | grep -e OPENAI_API_KEY >> .env.production
-        - env | grep -e NODE_ENV >> .env.production
-        - npx prisma generate
+        - echo "DATABASE_URL=$DATABASE_URL" >> .env.production
+        - echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> .env.production
+        - echo "NODE_ENV=production" >> .env.production
+        - cat .env.production
+        - npx prisma generate --schema=./prisma/schema.prisma
+        - echo "Prisma client generated successfully"
     build:
       commands:
         - npm run build
@@ -17,4 +19,5 @@ frontend:
       - '**/*'
   cache:
     paths:
-      - node_modules/**/* 
+      - node_modules/**/*
+      - .next/cache/**/* 

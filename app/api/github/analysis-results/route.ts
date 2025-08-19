@@ -20,9 +20,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Return stored analysis results if available
-    if (repository.analysisResults) {
-      return NextResponse.json(repository.analysisResults)
-    }
+    // Temporarily disabled until Prisma client is regenerated
+    // if (repository.analysisResults) {
+    //   return NextResponse.json(repository.analysisResults)
+    // }
 
     // For NodeGoat, return detailed analysis (fallback for existing data)
     if (repo === 'OWASP/NodeGoat') {
