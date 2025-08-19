@@ -12,6 +12,11 @@ A complete, modern clone of Greptile's AI code review platform built with **Next
 - TODO: Fix issue count not updating live during re-analysis
 - TODO: Ensure OpenAI API responses are properly parsed
 
+**🗄️ Database Schema Updated - December 2024**
+- Added analysisResults JSONB field for persistent storage
+- Analysis results now saved to RDS PostgreSQL database
+- Fixed issue where results disappeared after page refresh
+
 ## 🔧 **Environment Setup**
 
 Create a `.env.local` file in your project root with these variables:
