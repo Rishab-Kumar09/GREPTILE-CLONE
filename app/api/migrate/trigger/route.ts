@@ -41,9 +41,16 @@ export async function POST(request: NextRequest) {
           url TEXT NOT NULL,
           bugs INTEGER DEFAULT 0,
           analyzing BOOLEAN DEFAULT false,
+          "analysisResults" JSONB, -- Store detailed analysis results
           "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
+      `;
+      
+      // Add analysisResults column if it doesn't exist (for existing tables)
+      await prisma.$executeRaw`
+        ALTER TABLE "Repository" 
+        ADD COLUMN IF NOT EXISTS "analysisResults" JSONB;
       `;
       
       // 3. Insert a test record

@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
         language: body.language,
         url: body.url,
         bugs: body.bugs || 0,
-        analyzing: body.analyzing || false
+        analyzing: body.analyzing || false,
+        analysisResults: body.analysisResults || null // Save detailed analysis results
       },
       create: {
         name: body.name,
@@ -46,7 +47,8 @@ export async function POST(request: NextRequest) {
         language: body.language,
         url: body.url,
         bugs: body.bugs || 0,
-        analyzing: body.analyzing || false
+        analyzing: body.analyzing || false,
+        analysisResults: body.analysisResults || null // Save detailed analysis results
       }
     });
 

@@ -26,6 +26,7 @@ model Repository {
   url         String
   bugs        Int      @default(0)
   analyzing   Boolean  @default(false)
+  analysisResults Json? // Store detailed analysis results as JSON
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 } 

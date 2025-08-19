@@ -22,6 +22,7 @@ interface Repository {
   url: string
   analyzing?: boolean
   createdAt?: string
+  analysisResults?: any // Added for detailed analysis results
 }
 
 export default function Repositories() {
@@ -371,10 +372,11 @@ export default function Repositories() {
           const repoToSave = {
             ...updatedRepo,
             bugs: finalTotalIssues,
-            analyzing: false
+            analyzing: false,
+            analysisResults: finalResults // Save the complete analysis results
           }
           await saveRepository(repoToSave)
-          console.log(`💾 SAVED TO DATABASE: ${repo.fullName} with ${finalTotalIssues} issues`)
+          console.log(`💾 SAVED TO DATABASE: ${repo.fullName} with ${finalTotalIssues} issues and detailed results`)
         }
       } catch (dbError) {
         console.error('Failed to save analysis results to database:', dbError)
