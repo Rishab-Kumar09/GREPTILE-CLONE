@@ -736,10 +736,10 @@ export default function Repositories() {
                       )}
                       
                       {/* Detailed Issues */}
-                      {analysisResults[repo.fullName].results && analysisResults[repo.fullName].results.length > 0 && (
+                      {analysisResults[repo.fullName]?.results && analysisResults[repo.fullName].results.length > 0 && (
                         <div className="space-y-3">
                           <h5 className="font-medium text-gray-900">🔍 Issues Found:</h5>
-                                                     <div className="max-h-96 overflow-y-auto space-y-3">
+                          <div className="max-h-96 overflow-y-auto space-y-3">
                              {analysisResults[repo.fullName].results.map((fileResult: any, index: number) => (
                               <div key={index} className="bg-white p-3 rounded-lg border border-gray-200">
                                 <div className="font-medium text-gray-900 mb-2">📁 {fileResult.file}</div>
