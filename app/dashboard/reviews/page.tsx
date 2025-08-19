@@ -12,10 +12,36 @@ interface Repository {
   stars: number
   forks: number
   description?: string
-  url: string
   analyzing?: boolean
   createdAt?: string
   updatedAt?: string
+}
+
+interface AnalysisResult {
+  file: string
+  bugs: Array<{
+    line: number
+    severity: string
+    type: string
+    description: string
+    suggestion: string
+    codeSnippet?: string
+  }>
+  securityIssues: Array<{
+    line: number
+    severity: string
+    type: string
+    description: string
+    suggestion: string
+    codeSnippet?: string
+  }>
+  codeSmells: Array<{
+    line: number
+    type: string
+    description: string
+    suggestion: string
+    codeSnippet?: string
+  }>
 }
 
 interface Review {
@@ -27,9 +53,10 @@ interface Review {
   status: string
   aiComments: number
   bugsFound: number
-  suggestions: number
   severity: string
   prNumber: number
+  suggestions?: number
+  analysisResults?: AnalysisResult[]
 }
 
 export default function Reviews() {
@@ -45,26 +72,38 @@ export default function Reviews() {
         setRepositories(repos)
         
         // Convert repositories with analysis results to review format  
-        const reviewsData: Review[] = repos
-          .filter((repo: Repository) => {
-            // Show all repositories that are not currently being analyzed
-            // This includes repos with 0 bugs (clean code!) and repos with bugs found
-            return repo.analyzing === false
-          })
-          .map((repo: Repository, index: number) => ({
-            id: repo.id || index + 1,
-            prTitle: `Code Analysis for ${repo.name}`,
-            repository: repo.fullName,
-            author: repo.fullName.split('/')[0],
-            createdAt: repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently',
-            status: 'reviewed',
-            aiComments: Math.floor(repo.bugs * 0.8), // Estimate comments based on bugs
-            bugsFound: repo.bugs,
-            suggestions: Math.floor(repo.bugs * 1.2), // Estimate suggestions
-            severity: repo.bugs > 5 ? 'high' : repo.bugs > 2 ? 'medium' : 'low',
-            prNumber: Math.floor(Math.random() * 100) + 1
-          }))
+        const reviewsData: Review[] = []
         
+        for (const repo of repos) {
+          if (repo.analyzing === false && repo.bugs > 0) {
+            // Try to load analysis results for this repo
+            let analysisResults: AnalysisResult[] = []
+            try {
+              const analysisResponse = await fetch(`/api/github/analysis-results?repo=${encodeURIComponent(repo.fullName)}`)
+              if (analysisResponse.ok) {
+                const analysisData = await analysisResponse.json()
+                analysisResults = analysisData.results || []
+              }
+            } catch (error) {
+              console.error(`Failed to load analysis for ${repo.fullName}:`, error)
+            }
+
+            reviewsData.push({
+              id: repo.id || reviewsData.length + 1,
+              prTitle: `Code Analysis for ${repo.name}`,
+              repository: repo.fullName,
+              author: repo.fullName.split('/')[0],
+              createdAt: repo.updatedAt ? new Date(repo.updatedAt).toLocaleDateString() : 'Recently',
+              status: 'reviewed',
+              aiComments: Math.floor(repo.bugs * 0.8),
+              bugsFound: repo.bugs,
+              suggestions: Math.floor(repo.bugs * 1.2),
+              severity: repo.bugs > 5 ? 'high' : repo.bugs > 2 ? 'medium' : 'low',
+              prNumber: Math.floor(Math.random() * 100) + 1,
+              analysisResults
+            })
+          }
+        }
 
         setReviews(reviewsData)
       }
@@ -79,6 +118,67 @@ export default function Reviews() {
   }, [])
 
   const [selectedReview, setSelectedReview] = useState<Review | null>(null)
+
+  // Get all issues from analysis results
+  const getAllIssues = (review: Review) => {
+    if (!review.analysisResults) return []
+    
+    const allIssues: Array<{
+      type: 'bug' | 'security' | 'codeSmell'
+      file: string
+      line: number
+      severity?: string
+      title: string
+      description: string
+      suggestion: string
+      codeSnippet?: string
+    }> = []
+
+    review.analysisResults.forEach(result => {
+      // Add bugs
+      result.bugs?.forEach(bug => {
+        allIssues.push({
+          type: 'bug',
+          file: result.file,
+          line: bug.line,
+          severity: bug.severity,
+          title: bug.type,
+          description: bug.description,
+          suggestion: bug.suggestion,
+          codeSnippet: bug.codeSnippet
+        })
+      })
+
+      // Add security issues
+      result.securityIssues?.forEach(security => {
+        allIssues.push({
+          type: 'security',
+          file: result.file,
+          line: security.line,
+          severity: security.severity,
+          title: security.type,
+          description: security.description,
+          suggestion: security.suggestion,
+          codeSnippet: security.codeSnippet
+        })
+      })
+
+      // Add code smells
+      result.codeSmells?.forEach(smell => {
+        allIssues.push({
+          type: 'codeSmell',
+          file: result.file,
+          line: smell.line,
+          title: smell.type,
+          description: smell.description,
+          suggestion: smell.suggestion,
+          codeSnippet: smell.codeSnippet
+        })
+      })
+    })
+
+    return allIssues
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -123,90 +223,106 @@ export default function Reviews() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Pull Request Reviews</h1>
-          <p className="text-gray-600">AI-powered code reviews for your repositories</p>
+        <div className="sm:flex sm:items-center sm:justify-between">
+          <div className="sm:flex-auto">
+            <h1 className="text-base font-semibold leading-6 text-gray-900">Pull Request Reviews</h1>
+            <p className="mt-2 text-sm text-gray-700">
+              AI-powered code reviews for your repositories
+            </p>
+          </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Reviews</p>
-                <p className="text-2xl font-bold text-gray-900">{reviews.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Bugs Found</p>
-                <p className="text-2xl font-bold text-gray-900">{reviews.reduce((sum, review) => sum + review.bugsFound, 0)}</p>
+        <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-green-600 text-lg">📋</span>
+                  </div>
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Total Reviews</dt>
+                    <dd className="text-lg font-medium text-gray-900">{reviews.length}</dd>
+                  </dl>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Suggestions</p>
-                <p className="text-2xl font-bold text-gray-900">{reviews.reduce((sum, review) => sum + review.suggestions, 0)}</p>
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                    <span className="text-red-600 text-lg">⚠️</span>
+                  </div>
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Bugs Found</dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {reviews.reduce((sum, review) => sum + review.bugsFound, 0)}
+                    </dd>
+                  </dl>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 text-lg">💡</span>
+                  </div>
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Suggestions</dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {reviews.reduce((sum, review) => sum + (review.suggestions || 0), 0)}
+                    </dd>
+                  </dl>
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avg Review Time</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {reviews.length > 0 ? (reviews.reduce((sum, review) => sum + review.bugsFound, 0) * 2 / reviews.length).toFixed(1) : '0'}m
-                </p>
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="p-5">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                    <span className="text-green-600 text-lg">⚡</span>
+                  </div>
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Avg Review Time</dt>
+                    <dd className="text-lg font-medium text-gray-900">68.0m</dd>
+                  </dl>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Reviews List */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Recent Reviews</h2>
-              <div className="flex items-center space-x-2">
-                <select className="px-3 py-1 border border-gray-300 rounded-md text-sm">
+        <div className="mt-8 bg-white shadow sm:rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <div className="sm:flex sm:items-center sm:justify-between">
+              <h3 className="text-lg font-medium leading-6 text-gray-900">Recent Reviews</h3>
+              <div className="mt-3 flex space-x-3 sm:mt-0">
+                <select className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary-500 focus:outline-none focus:ring-primary-500 sm:text-sm">
                   <option>All Repositories</option>
-                  <option>johndoe/my-awesome-project</option>
-                  <option>johndoe/api-service</option>
-                  <option>company/frontend-app</option>
                 </select>
-                <select className="px-3 py-1 border border-gray-300 rounded-md text-sm">
+                <select className="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary-500 focus:outline-none focus:ring-primary-500 sm:text-sm">
                   <option>All Status</option>
-                  <option>Reviewed</option>
-                  <option>In Progress</option>
                 </select>
               </div>
             </div>
@@ -241,39 +357,37 @@ export default function Reviews() {
                       {review.repository} • by {review.author} • {review.createdAt}
                     </p>
                     <div className="flex items-center space-x-6">
-                      <span className="flex items-center text-sm text-gray-600">
-                        <svg className="w-4 h-4 mr-1 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      <span className="flex items-center text-sm text-gray-500">
+                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                         </svg>
                         {review.aiComments} AI comments
                       </span>
-                      <span className="flex items-center text-sm text-gray-600">
-                        <svg className="w-4 h-4 mr-1 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      <span className="flex items-center text-sm text-gray-500">
+                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
                         {review.bugsFound} bugs
                       </span>
-                      <span className="flex items-center text-sm text-gray-600">
-                        <svg className="w-4 h-4 mr-1 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      <span className="flex items-center text-sm text-gray-500">
+                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
                         </svg>
                         {review.suggestions} suggestions
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                  <div className="flex items-center">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       review.status === 'reviewed' 
-                        ? 'bg-green-100 text-green-800' 
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-yellow-100 text-yellow-800'
                     }`}>
-                      {review.status.replace('_', ' ')}
+                      {review.status}
                     </span>
-                    <button className="p-2 text-gray-600 hover:text-gray-900">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </button>
+                    <svg className="ml-2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
                   </div>
                 </div>
               </div>
@@ -284,7 +398,7 @@ export default function Reviews() {
         {/* Review Detail Modal */}
         {selectedReview && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-gray-900">
                   {selectedReview.prTitle}
@@ -300,39 +414,79 @@ export default function Reviews() {
               </div>
 
               <div className="space-y-6">
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center mb-3">
-                    <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center mr-2">
-                      <span className="text-white text-xs">🤖</span>
-                    </div>
-                    <span className="font-medium text-sm">Greptile AI</span>
-                    <span className="text-xs text-gray-500 ml-auto">2 minutes ago</span>
+                {/* Real Issues from Analysis */}
+                {getAllIssues(selectedReview).length > 0 ? (
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-gray-900">🔍 Issues Found</h4>
+                    {getAllIssues(selectedReview).map((issue, index) => (
+                      <div key={index} className={`border rounded-lg p-4 ${
+                        issue.type === 'security' ? 'border-red-200 bg-red-50' :
+                        issue.type === 'bug' ? 'border-orange-200 bg-orange-50' :
+                        'border-yellow-200 bg-yellow-50'
+                      }`}>
+                        <div className="flex items-center mb-3">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 ${
+                            issue.type === 'security' ? 'bg-red-100' :
+                            issue.type === 'bug' ? 'bg-orange-100' :
+                            'bg-yellow-100'
+                          }`}>
+                            <span className="text-xs">
+                              {issue.type === 'security' ? '🔒' : issue.type === 'bug' ? '🐛' : '💡'}
+                            </span>
+                          </div>
+                          <span className="font-medium text-sm">
+                            {issue.title}
+                            {issue.severity && (
+                              <span className={`ml-2 px-2 py-0.5 text-xs rounded ${
+                                issue.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                                issue.severity === 'high' ? 'bg-orange-100 text-orange-800' :
+                                issue.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-blue-100 text-blue-800'
+                              }`}>
+                                {issue.severity}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-xs text-gray-500 ml-auto">
+                            {issue.file}:{issue.line}
+                          </span>
+                        </div>
+                        <p className={`text-sm mb-2 ${
+                          issue.type === 'security' ? 'text-red-800' :
+                          issue.type === 'bug' ? 'text-orange-800' :
+                          'text-yellow-800'
+                        }`}>
+                          <strong>Issue:</strong> {issue.description}
+                        </p>
+                        {issue.codeSnippet && (
+                          <div className="bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono mb-2 overflow-x-auto">
+                            <span className="text-gray-400">Line {issue.line}:</span> {issue.codeSnippet}
+                          </div>
+                        )}
+                        <p className={`text-sm ${
+                          issue.type === 'security' ? 'text-red-700' :
+                          issue.type === 'bug' ? 'text-orange-700' :
+                          'text-yellow-700'
+                        }`}>
+                          <strong>💡 Suggestion:</strong> {issue.suggestion}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                  <div className="bg-red-50 border border-red-200 rounded p-3 mb-3">
-                    <p className="text-sm text-red-800">
-                      <strong>Security Issue:</strong> The API endpoint at line 45 doesn't validate user permissions 
-                      before accessing sensitive data. This could lead to unauthorized data access.
-                    </p>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">No detailed analysis results available. Try re-running the analysis.</p>
                   </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-3">
-                    <p className="text-sm text-blue-800">
-                      <strong>Performance Suggestion:</strong> Consider using pagination for the user list endpoint 
-                      to improve response times when dealing with large datasets.
-                    </p>
-                  </div>
-                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                    <p className="text-sm text-yellow-800">
-                      <strong>Code Quality:</strong> The function `processUserData` could be refactored to use 
-                      the existing helper function in `utils/dataProcessor.js` to reduce code duplication.
-                    </p>
-                  </div>
-                </div>
+                )}
 
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="font-medium text-gray-900 mb-2">AI Review Summary</h4>
                   <p className="text-sm text-gray-700 mb-4">
-                    This pull request introduces user authentication functionality. The implementation looks solid overall, 
-                    but there are a few security and performance considerations that should be addressed before merging.
+                    Analysis complete for {selectedReview.repository}. 
+                    {selectedReview.bugsFound > 0 
+                      ? `Found ${selectedReview.bugsFound} issues that should be addressed.`
+                      : 'No critical issues found. Code looks good!'
+                    }
                   </p>
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
