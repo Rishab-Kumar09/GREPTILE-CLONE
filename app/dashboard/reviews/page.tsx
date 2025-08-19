@@ -416,60 +416,121 @@ export default function Reviews() {
               <div className="space-y-6">
                 {/* Real Issues from Analysis */}
                 {getAllIssues(selectedReview).length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <h4 className="font-medium text-gray-900">🔍 Issues Found</h4>
-                    {getAllIssues(selectedReview).map((issue, index) => (
-                      <div key={index} className={`border rounded-lg p-4 ${
-                        issue.type === 'security' ? 'border-red-200 bg-red-50' :
-                        issue.type === 'bug' ? 'border-orange-200 bg-orange-50' :
-                        'border-yellow-200 bg-yellow-50'
-                      }`}>
-                        <div className="flex items-center mb-3">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-2 ${
-                            issue.type === 'security' ? 'bg-red-100' :
-                            issue.type === 'bug' ? 'bg-orange-100' :
-                            'bg-yellow-100'
-                          }`}>
-                            <span className="text-xs">
-                              {issue.type === 'security' ? '🔒' : issue.type === 'bug' ? '🐛' : '💡'}
-                            </span>
-                          </div>
-                          <span className="font-medium text-sm">
-                            {issue.title}
-                            {issue.severity && (
-                              <span className={`ml-2 px-2 py-0.5 text-xs rounded ${
-                                issue.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                                issue.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                                issue.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-blue-100 text-blue-800'
-                              }`}>
-                                {issue.severity}
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-xs text-gray-500 ml-auto">
-                            {issue.file}:{issue.line}
-                          </span>
+                    
+                    {/* Group issues by file */}
+                    {selectedReview.analysisResults?.map((fileResult, fileIndex) => (
+                      <div key={fileIndex} className="bg-white border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center mb-4">
+                          <span className="text-yellow-600 text-lg mr-2">📁</span>
+                          <h5 className="font-medium text-gray-900">{fileResult.file}</h5>
                         </div>
-                        <p className={`text-sm mb-2 ${
-                          issue.type === 'security' ? 'text-red-800' :
-                          issue.type === 'bug' ? 'text-orange-800' :
-                          'text-yellow-800'
-                        }`}>
-                          <strong>Issue:</strong> {issue.description}
-                        </p>
-                        {issue.codeSnippet && (
-                          <div className="bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono mb-2 overflow-x-auto">
-                            <span className="text-gray-400">Line {issue.line}:</span> {issue.codeSnippet}
+
+                        {/* Security Issues */}
+                        {fileResult.securityIssues?.length > 0 && (
+                          <div className="mb-6">
+                            <div className="flex items-center mb-3">
+                              <span className="text-red-600 text-lg mr-2">🔒</span>
+                              <h6 className="font-medium text-red-700">Security Issues ({fileResult.securityIssues.length}):</h6>
+                            </div>
+                            {fileResult.securityIssues.map((issue, issueIndex) => (
+                              <div key={issueIndex} className="mb-4 last:mb-0">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h6 className="font-medium text-red-800">Line {issue.line}: {issue.type}</h6>
+                                  {issue.severity && (
+                                    <span className={`px-2 py-0.5 text-xs rounded font-medium ${
+                                      issue.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                                      issue.severity === 'high' ? 'bg-orange-100 text-orange-800' :
+                                      issue.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                      'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {issue.severity}
+                                    </span>
+                                  )}
+                                </div>
+                                {issue.codeSnippet && (
+                                  <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2 overflow-x-auto">
+                                    <span className="text-gray-400">Line {issue.line}:</span> {issue.codeSnippet}
+                                  </div>
+                                )}
+                                <p className="text-red-700 text-sm mb-2">{issue.description}</p>
+                                {issue.suggestion && (
+                                  <p className="text-red-600 text-sm italic flex items-start">
+                                    <span className="mr-1">💡</span>
+                                    <span>{issue.suggestion}</span>
+                                  </p>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         )}
-                        <p className={`text-sm ${
-                          issue.type === 'security' ? 'text-red-700' :
-                          issue.type === 'bug' ? 'text-orange-700' :
-                          'text-yellow-700'
-                        }`}>
-                          <strong>💡 Suggestion:</strong> {issue.suggestion}
-                        </p>
+
+                        {/* Logic Bugs */}
+                        {fileResult.bugs?.length > 0 && (
+                          <div className="mb-6">
+                            <div className="flex items-center mb-3">
+                              <span className="text-orange-600 text-lg mr-2">🐛</span>
+                              <h6 className="font-medium text-orange-700">Logic Bugs ({fileResult.bugs.length}):</h6>
+                            </div>
+                            {fileResult.bugs.map((bug, bugIndex) => (
+                              <div key={bugIndex} className="mb-4 last:mb-0">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h6 className="font-medium text-orange-800">Line {bug.line}: {bug.type}</h6>
+                                  {bug.severity && (
+                                    <span className={`px-2 py-0.5 text-xs rounded font-medium ${
+                                      bug.severity === 'critical' ? 'bg-red-100 text-red-800' :
+                                      bug.severity === 'high' ? 'bg-orange-100 text-orange-800' :
+                                      bug.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                      'bg-blue-100 text-blue-800'
+                                    }`}>
+                                      {bug.severity}
+                                    </span>
+                                  )}
+                                </div>
+                                {bug.codeSnippet && (
+                                  <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2 overflow-x-auto">
+                                    <span className="text-gray-400">Line {bug.line}:</span> {bug.codeSnippet}
+                                  </div>
+                                )}
+                                <p className="text-orange-700 text-sm mb-2">{bug.description}</p>
+                                {bug.suggestion && (
+                                  <p className="text-orange-600 text-sm italic flex items-start">
+                                    <span className="mr-1">💡</span>
+                                    <span>{bug.suggestion}</span>
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Code Smells */}
+                        {fileResult.codeSmells?.length > 0 && (
+                          <div className="mb-6">
+                            <div className="flex items-center mb-3">
+                              <span className="text-yellow-600 text-lg mr-2">💡</span>
+                              <h6 className="font-medium text-yellow-700">Code Smells ({fileResult.codeSmells.length}):</h6>
+                            </div>
+                            {fileResult.codeSmells.map((smell, smellIndex) => (
+                              <div key={smellIndex} className="mb-4 last:mb-0">
+                                <h6 className="font-medium text-yellow-800 mb-2">Line {smell.line}: {smell.type}</h6>
+                                {smell.codeSnippet && (
+                                  <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2 overflow-x-auto">
+                                    <span className="text-gray-400">Line {smell.line}:</span> {smell.codeSnippet}
+                                  </div>
+                                )}
+                                <p className="text-yellow-700 text-sm mb-2">{smell.description}</p>
+                                {smell.suggestion && (
+                                  <p className="text-yellow-600 text-sm italic flex items-start">
+                                    <span className="mr-1">💡</span>
+                                    <span>{smell.suggestion}</span>
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
