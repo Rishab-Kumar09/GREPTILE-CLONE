@@ -2,6 +2,16 @@
 
 A complete, modern clone of Greptile's AI code review platform built with **Next.js 14**, **TypeScript**, and **Tailwind CSS**. Features functional AI chat, dashboard management, and a beautiful responsive UI.
 
+## 📋 **Recent Updates**
+
+**🔧 Reverted to Stable Version (Commit 77833f4) - December 2024**
+- Reverted to working version to fix OpenAI analysis issues
+- Investigating 0 issues bug in repository analysis  
+- Maintaining stable UI and functionality
+- Working on improved OpenAI integration
+- TODO: Fix issue count not updating live during re-analysis
+- TODO: Ensure OpenAI API responses are properly parsed
+
 ## 🔧 **Environment Setup**
 
 Create a `.env.local` file in your project root with these variables:
