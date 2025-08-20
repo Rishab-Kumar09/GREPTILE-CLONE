@@ -606,261 +606,76 @@ export default function Repositories() {
               </div>
             ) : (
               repositories.map((repo) => (
-              <div key={repo.id} className="p-6 hover:bg-gray-50">
+              <div key={repo.id} className="p-4 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <svg className="w-7 h-7 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
                       </svg>
                     </div>
                     <div>
                       <div className="flex items-center space-x-2">
-                        <h3 className="text-lg font-semibold text-gray-900">{repo.name}</h3>
+                        <h3 className="text-base font-semibold text-gray-900">{repo.name}</h3>
                         {repo.isPrivate && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
                             Private
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">{repo.fullName}</p>
-                      <div className="flex items-center space-x-4 mt-2">
-                        <span className="text-sm text-gray-500">
-                          <span className="inline-block w-3 h-3 rounded-full bg-blue-500 mr-1"></span>
-                          {repo.language}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          ⭐ {repo.stars}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          🍴 {repo.forks}
-                        </span>
-                      </div>
+                      <p className="text-sm text-gray-500">{repo.fullName}</p>
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-6">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-gray-900">{repo.reviews}</p>
-                      <p className="text-sm text-gray-600">Reviews</p>
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3 text-sm text-gray-500">
+                      <span>⭐ {repo.stars}</span>
+                      <span>🍴 {repo.forks}</span>
+                      <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1"></span>
+                      <span>{repo.language}</span>
                     </div>
+                    
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-red-600">{repo.bugs}</p>
-                      <p className="text-sm text-gray-600">Issues Found</p>
+                      <p className="text-lg font-bold text-red-600">{repo.bugs}</p>
+                      <p className="text-xs text-gray-500">Issues</p>
                     </div>
-                    <div className="text-center">
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        repo.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : repo.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {repo.status}
-                      </span>
-                      <p className="text-xs text-gray-500 mt-1">Last: {repo.lastReview}</p>
-                    </div>
+                    
                     <div className="flex items-center space-x-2">
-                      <div className="flex gap-2">
-                        {repo.bugs > 0 ? (
-                          <button
-                            onClick={() => toggleDetailedResults(repo.fullName)}
-                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors"
-                          >
-                            📋 View {repo.bugs} Issues
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => analyzeRepository(repo)}
-                            disabled={analyzing === repo.fullName}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                              analyzing === repo.fullName
-                                ? 'bg-blue-100 text-blue-800 cursor-not-allowed'
-                                : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
-                          >
-                            {analyzing === repo.fullName ? '🔍 Analyzing...' : '🔍 Analyze Code'}
-                          </button>
-                        )}
-                        
-                        {analysisResults[repo.fullName] && (
-                          <button
-                            onClick={() => toggleDetailedResults(repo.fullName)}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                              expandedResults[repo.fullName]
-                                ? 'bg-red-600 text-white hover:bg-red-700'
-                                : 'bg-green-600 text-white hover:bg-green-700'
-                            }`}
-                          >
-                            {expandedResults[repo.fullName] ? '🔼 Hide Details' : '📋 View Details'}
-                          </button>
-                        )}
-                      </div>
-                      <button className="p-2 text-gray-600 hover:text-gray-900">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {repo.bugs > 0 && (
+                        <Link 
+                          href="/dashboard/reviews"
+                          className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700"
+                        >
+                          View Issues
+                        </Link>
+                      )}
+                      
+                      {!analyzing || analyzing !== repo.fullName ? (
+                        <button
+                          onClick={() => analyzeRepository(repo)}
+                          disabled={analyzing === repo.fullName}
+                          className="px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                          🔍 Analyze
+                        </button>
+                      ) : (
+                        <span className="px-3 py-1.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-md">
+                          🔍 Analyzing...
+                        </span>
+                      )}
+                      
+                      <button className="p-1.5 text-gray-400 hover:text-gray-600">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </button>
-                      <button className="p-2 text-gray-600 hover:text-red-600">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
                     </div>
                   </div>
                 </div>
-                
-                {/* Expandable Results Section */}
-                {(expandedResults[repo.fullName] || repo.bugs > 0) && (
-                  <div className="mx-6 mb-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                    <div className="space-y-4">
-                      {/* Results Header */}
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-lg font-semibold text-gray-900">📋 Analysis Results</h4>
-                        <div className="flex items-center space-x-4 text-sm text-gray-600">
-                          {analysisResults[repo.fullName] ? (
-                            <>
-                              <span>📁 {analysisResults[repo.fullName].filesAnalyzed} files analyzed</span>
-                              <span>📈 {analysisResults[repo.fullName].coverage?.percentage || 100}% coverage</span>
-                            </>
-                          ) : (
-                            <span>📊 {repo.bugs} issues found in previous analysis</span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Issue Breakdown */}
-                      {analysisResults[repo.fullName] ? (
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="text-center p-3 bg-red-100 rounded-lg">
-                            <div className="text-2xl font-bold text-red-600">{analysisResults[repo.fullName].totalBugs || 0}</div>
-                            <div className="text-sm text-red-800">🐛 Logic Bugs</div>
-                          </div>
-                          <div className="text-center p-3 bg-orange-100 rounded-lg">
-                            <div className="text-2xl font-bold text-orange-600">{analysisResults[repo.fullName].totalSecurityIssues || 0}</div>
-                            <div className="text-sm text-orange-800">🔒 Security Issues</div>
-                          </div>
-                          <div className="text-center p-3 bg-yellow-100 rounded-lg">
-                            <div className="text-2xl font-bold text-yellow-600">{analysisResults[repo.fullName].totalCodeSmells || 0}</div>
-                            <div className="text-sm text-yellow-800">💡 Code Smells</div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center p-6 bg-gray-50 rounded-lg border border-gray-200">
-                          <div className="text-2xl font-bold text-gray-600">{repo.bugs}</div>
-                          <div className="text-sm text-gray-800 mb-3">🔍 Total Issues Found</div>
-                          <p className="text-xs text-gray-600">Analysis completed - detailed breakdown available in Reviews page</p>
-                        </div>
-                      )}
-                      
-                      {/* Detailed Issues */}
-                      {analysisResults[repo.fullName]?.results && analysisResults[repo.fullName].results.length > 0 && (
-                        <div className="space-y-3">
-                          <h5 className="font-medium text-gray-900">🔍 Issues Found:</h5>
-                          <div className="max-h-96 overflow-y-auto space-y-3">
-                             {analysisResults[repo.fullName].results.map((fileResult: any, index: number) => (
-                              <div key={index} className="bg-white p-3 rounded-lg border border-gray-200">
-                                <div className="font-medium text-gray-900 mb-2">📁 {fileResult.file}</div>
-                                
-                                {/* Security Issues */}
-                                {fileResult.securityIssues?.length > 0 && (
-                                  <div className="mb-2">
-                                    <div className="text-sm font-medium text-orange-700 mb-1">🔒 Security Issues ({fileResult.securityIssues.length}):</div>
-                                                                         {fileResult.securityIssues.map((issue: any, issueIndex: number) => (
-                                      <div key={issueIndex} className="text-sm bg-orange-50 p-2 rounded border-l-2 border-orange-200 mb-1">
-                                                                                 <div className="font-medium text-orange-800">Line {issue.line}: {issue.type} 
-                                           <span className={`ml-2 px-2 py-0.5 text-xs rounded ${
-                                             issue.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                                             issue.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                                             issue.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                             'bg-blue-100 text-blue-800'
-                                           }`}>
-                                             {issue.severity}
-                                           </span>
-                                         </div>
-                                         {issue.codeSnippet && (
-                                           <div className="bg-gray-900 text-gray-100 p-2 rounded text-xs font-mono mt-1 overflow-x-auto">
-                                             <span className="text-gray-400">Line {issue.line}:</span> {issue.codeSnippet}
-                                           </div>
-                                         )}
-                                         <div className="text-orange-700 mt-1">{issue.description}</div>
-                                         {issue.suggestion && (
-                                           <div className="text-orange-600 text-xs mt-1 italic">💡 {issue.suggestion}</div>
-                                         )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                
-                                {/* Code Smells */}
-                                {fileResult.codeSmells?.length > 0 && (
-                                  <div className="mb-2">
-                                    <div className="text-sm font-medium text-yellow-700 mb-1">💡 Code Smells ({fileResult.codeSmells.length}):</div>
-                                                                         {fileResult.codeSmells.map((smell: any, smellIndex: number) => (
-                                      <div key={smellIndex} className="text-sm bg-yellow-50 p-2 rounded border-l-2 border-yellow-200 mb-1">
-                                                                                 <div className="font-medium text-yellow-800">Line {smell.line}: {smell.type}</div>
-                                         {smell.codeSnippet && (
-                                           <div className="bg-gray-900 text-gray-100 p-2 rounded text-xs font-mono mt-1 overflow-x-auto">
-                                             <span className="text-gray-400">Line {smell.line}:</span> {smell.codeSnippet}
-                                           </div>
-                                         )}
-                                         <div className="text-yellow-700 mt-1">{smell.description}</div>
-                                         {smell.suggestion && (
-                                           <div className="text-yellow-600 text-xs mt-1 italic">💡 {smell.suggestion}</div>
-                                         )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                
-                                {/* Logic Bugs */}
-                                {fileResult.bugs?.length > 0 && (
-                                  <div className="mb-2">
-                                    <div className="text-sm font-medium text-red-700 mb-1">🐛 Logic Bugs ({fileResult.bugs.length}):</div>
-                                                                         {fileResult.bugs.map((bug: any, bugIndex: number) => (
-                                      <div key={bugIndex} className="text-sm bg-red-50 p-2 rounded border-l-2 border-red-200 mb-1">
-                                                                                 <div className="font-medium text-red-800">Line {bug.line}: {bug.type}
-                                           <span className={`ml-2 px-2 py-0.5 text-xs rounded ${
-                                             bug.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                                             bug.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                                             bug.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                             'bg-blue-100 text-blue-800'
-                                           }`}>
-                                             {bug.severity}
-                                           </span>
-                                         </div>
-                                         {bug.codeSnippet && (
-                                           <div className="bg-gray-900 text-gray-100 p-2 rounded text-xs font-mono mt-1 overflow-x-auto">
-                                             <span className="text-gray-400">Line {bug.line}:</span> {bug.codeSnippet}
-                                           </div>
-                                         )}
-                                         <div className="text-red-700 mt-1">{bug.description}</div>
-                                         {bug.suggestion && (
-                                           <div className="text-red-600 text-xs mt-1 italic">💡 {bug.suggestion}</div>
-                                         )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                            
-                            
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Repo Q&A */}
-                      <div className="mt-6 border-t pt-4">
-                        <h5 className="font-semibold text-gray-900 mb-2">💬 Ask a question about this repository</h5>
-                        <RepoChat repoFullName={repo.fullName} />
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
-            )))}
+            ))
+            )}
           </div>
         </div>
 
