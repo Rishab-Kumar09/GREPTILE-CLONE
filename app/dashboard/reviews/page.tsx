@@ -55,7 +55,7 @@ interface Review {
   bugsFound: number
   severity: string
   prNumber: number
-  suggestions?: number
+  suggestions: number
   analysisResults?: AnalysisResult[]
 }
 
@@ -117,8 +117,6 @@ export default function Reviews() {
   useEffect(() => {
     loadReviews()
   }, [])
-
-  const [selectedReview, setSelectedReview] = useState<Review | null>(null)
 
   // Toggle expanded state for reviews
   const toggleReviewExpanded = (reviewId: string | number) => {
@@ -192,64 +190,47 @@ export default function Reviews() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+          <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <Link href="/" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">🦎</span>
+              <Link href="/dashboard" className="flex items-center">
+                <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center mr-3">
+                  <span className="text-white font-bold text-lg">G</span>
                 </div>
                 <span className="text-xl font-bold text-gray-900">Greptile Clone</span>
               </Link>
             </div>
-            
-            <nav className="flex items-center space-x-8">
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
+            <nav className="hidden md:flex space-x-8">
+              <Link href="/dashboard" className="text-gray-500 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                 Dashboard
               </Link>
-              <Link href="/dashboard/repositories" className="text-gray-600 hover:text-gray-900">
+              <Link href="/dashboard/repositories" className="text-gray-500 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                 Repositories
               </Link>
-              <Link href="/dashboard/reviews" className="text-primary-600 font-medium">
+              <Link href="/dashboard/reviews" className="bg-gray-900 text-white px-3 py-2 rounded-md text-sm font-medium">
                 Reviews
               </Link>
-              <Link href="/dashboard/settings" className="text-gray-600 hover:text-gray-900">
+              <Link href="/dashboard/settings" className="text-gray-500 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                 Settings
               </Link>
             </nav>
-
-            <div className="flex items-center space-x-4">
-              <button className="p-2 text-gray-600 hover:text-gray-900">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-                </svg>
-              </button>
+            <div className="flex items-center">
               <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="sm:flex sm:items-center sm:justify-between">
-          <div className="sm:flex-auto">
-            <h1 className="text-base font-semibold leading-6 text-gray-900">Pull Request Reviews</h1>
-            <p className="mt-2 text-sm text-gray-700">
-              AI-powered code reviews for your repositories
-            </p>
-          </div>
-        </div>
-
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Stats */}
-        <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
           <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                    <span className="text-green-600 text-lg">📋</span>
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-blue-600 text-lg">📋</span>
                   </div>
                 </div>
                 <div className="ml-5 w-0 flex-1">
@@ -267,15 +248,13 @@ export default function Reviews() {
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                    <span className="text-red-600 text-lg">⚠️</span>
+                    <span className="text-red-600 text-lg">🐛</span>
                   </div>
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Bugs Found</dt>
-                    <dd className="text-lg font-medium text-gray-900">
-                      {reviews.reduce((sum, review) => sum + review.bugsFound, 0)}
-                    </dd>
+                    <dt className="text-sm font-medium text-gray-500 truncate">Issues Found</dt>
+                    <dd className="text-lg font-medium text-gray-900">{reviews.reduce((sum, r) => sum + r.bugsFound, 0)}</dd>
                   </dl>
                 </div>
               </div>
@@ -286,16 +265,14 @@ export default function Reviews() {
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-blue-600 text-lg">💡</span>
+                  <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <span className="text-yellow-600 text-lg">💡</span>
                   </div>
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Suggestions</dt>
-                    <dd className="text-lg font-medium text-gray-900">
-                      {reviews.reduce((sum, review) => sum + (review.suggestions || 0), 0)}
-                    </dd>
+                    <dt className="text-sm font-medium text-gray-500 truncate">AI Suggestions</dt>
+                    <dd className="text-lg font-medium text-gray-900">{reviews.reduce((sum, r) => sum + r.suggestions, 0)}</dd>
                   </dl>
                 </div>
               </div>
@@ -343,67 +320,68 @@ export default function Reviews() {
                   className="p-6 hover:bg-gray-50 cursor-pointer"
                   onClick={() => toggleReviewExpanded(review.id)}
                 >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {review.prTitle}
-                      </h3>
-                      <span className="text-sm text-gray-500">
-                        #{review.prNumber}
-                      </span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {review.prTitle}
+                        </h3>
+                        <span className="text-sm text-gray-500">
+                          #{review.prNumber}
+                        </span>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          review.severity === 'high' 
+                            ? 'bg-red-100 text-red-800'
+                            : review.severity === 'medium'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {review.severity} priority
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        {review.repository} • by {review.author} • {review.createdAt}
+                      </p>
+                      <div className="flex items-center space-x-6">
+                        <span className="flex items-center text-sm text-gray-500">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                          </svg>
+                          {review.aiComments} AI comments
+                        </span>
+                        <span className="flex items-center text-sm text-gray-500">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          {review.bugsFound} bugs
+                        </span>
+                        <span className="flex items-center text-sm text-gray-500">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                          </svg>
+                          {review.suggestions} suggestions
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        review.severity === 'high' 
-                          ? 'bg-red-100 text-red-800'
-                          : review.severity === 'medium'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-green-100 text-green-800'
+                        review.status === 'reviewed' 
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-yellow-100 text-yellow-800'
                       }`}>
-                        {review.severity} priority
+                        {review.status}
                       </span>
+                      <svg 
+                        className={`ml-2 w-5 h-5 text-gray-400 transform transition-transform ${
+                          expandedReviews[review.id] ? 'rotate-90' : ''
+                        }`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">
-                      {review.repository} • by {review.author} • {review.createdAt}
-                    </p>
-                    <div className="flex items-center space-x-6">
-                      <span className="flex items-center text-sm text-gray-500">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                        </svg>
-                        {review.aiComments} AI comments
-                      </span>
-                      <span className="flex items-center text-sm text-gray-500">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        {review.bugsFound} bugs
-                      </span>
-                      <span className="flex items-center text-sm text-gray-500">
-                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                        </svg>
-                        {review.suggestions} suggestions
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      review.status === 'reviewed' 
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {review.status}
-                    </span>
-                    <svg 
-                      className={`ml-2 w-5 h-5 text-gray-400 transform transition-transform ${
-                        expandedReviews[review.id] ? 'rotate-90' : ''
-                      }`} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
                   </div>
                 </div>
                 
@@ -568,180 +546,6 @@ export default function Reviews() {
             ))}
           </div>
         </div>
-
-        {/* Modal removed - replaced with expand/collapse above */}
-        {false && selectedReview && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-gray-900">
-                  {selectedReview.prTitle}
-                </h3>
-                <button
-                  onClick={() => setSelectedReview(null)}
-                  className="p-2 text-gray-600 hover:text-gray-900"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                {/* Real Issues from Analysis */}
-                {getAllIssues(selectedReview).length > 0 ? (
-                  <div className="space-y-6">
-                    <h4 className="font-medium text-gray-900">🔍 Issues Found</h4>
-                    
-                    {/* Group issues by file */}
-                    {selectedReview.analysisResults?.map((fileResult, fileIndex) => (
-                      <div key={fileIndex} className="bg-white border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center mb-4">
-                          <span className="text-yellow-600 text-lg mr-2">📁</span>
-                          <h5 className="font-medium text-gray-900">{fileResult.file}</h5>
-                        </div>
-
-                        {/* Security Issues */}
-                        {fileResult.securityIssues?.length > 0 && (
-                          <div className="mb-6">
-                            <div className="flex items-center mb-3">
-                              <span className="text-red-600 text-lg mr-2">🔒</span>
-                              <h6 className="font-medium text-red-700">Security Issues ({fileResult.securityIssues.length}):</h6>
-                            </div>
-                            {fileResult.securityIssues.map((issue, issueIndex) => (
-                              <div key={issueIndex} className="mb-4 last:mb-0">
-                                <div className="flex items-center justify-between mb-2">
-                                  <h6 className="font-medium text-red-800">Line {issue.line}: {issue.type}</h6>
-                                  {issue.severity && (
-                                    <span className={`px-2 py-0.5 text-xs rounded font-medium ${
-                                      issue.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                                      issue.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                                      issue.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                      'bg-blue-100 text-blue-800'
-                                    }`}>
-                                      {issue.severity}
-                                    </span>
-                                  )}
-                                </div>
-                                {issue.codeSnippet && (
-                                  <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2 overflow-x-auto">
-                                    <span className="text-gray-400">Line {issue.line}:</span> {issue.codeSnippet}
-                                  </div>
-                                )}
-                                <p className="text-red-700 text-sm mb-2">{issue.description}</p>
-                                {issue.suggestion && (
-                                  <p className="text-red-600 text-sm italic flex items-start">
-                                    <span className="mr-1">💡</span>
-                                    <span>{issue.suggestion}</span>
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Logic Bugs */}
-                        {fileResult.bugs?.length > 0 && (
-                          <div className="mb-6">
-                            <div className="flex items-center mb-3">
-                              <span className="text-orange-600 text-lg mr-2">🐛</span>
-                              <h6 className="font-medium text-orange-700">Logic Bugs ({fileResult.bugs.length}):</h6>
-                            </div>
-                            {fileResult.bugs.map((bug, bugIndex) => (
-                              <div key={bugIndex} className="mb-4 last:mb-0">
-                                <div className="flex items-center justify-between mb-2">
-                                  <h6 className="font-medium text-orange-800">Line {bug.line}: {bug.type}</h6>
-                                  {bug.severity && (
-                                    <span className={`px-2 py-0.5 text-xs rounded font-medium ${
-                                      bug.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                                      bug.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                                      bug.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                      'bg-blue-100 text-blue-800'
-                                    }`}>
-                                      {bug.severity}
-                                    </span>
-                                  )}
-                                </div>
-                                {bug.codeSnippet && (
-                                  <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2 overflow-x-auto">
-                                    <span className="text-gray-400">Line {bug.line}:</span> {bug.codeSnippet}
-                                  </div>
-                                )}
-                                <p className="text-orange-700 text-sm mb-2">{bug.description}</p>
-                                {bug.suggestion && (
-                                  <p className="text-orange-600 text-sm italic flex items-start">
-                                    <span className="mr-1">💡</span>
-                                    <span>{bug.suggestion}</span>
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Code Smells */}
-                        {fileResult.codeSmells?.length > 0 && (
-                          <div className="mb-6">
-                            <div className="flex items-center mb-3">
-                              <span className="text-yellow-600 text-lg mr-2">💡</span>
-                              <h6 className="font-medium text-yellow-700">Code Smells ({fileResult.codeSmells.length}):</h6>
-                            </div>
-                            {fileResult.codeSmells.map((smell, smellIndex) => (
-                              <div key={smellIndex} className="mb-4 last:mb-0">
-                                <h6 className="font-medium text-yellow-800 mb-2">Line {smell.line}: {smell.type}</h6>
-                                {smell.codeSnippet && (
-                                  <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2 overflow-x-auto">
-                                    <span className="text-gray-400">Line {smell.line}:</span> {smell.codeSnippet}
-                                  </div>
-                                )}
-                                <p className="text-yellow-700 text-sm mb-2">{smell.description}</p>
-                                {smell.suggestion && (
-                                  <p className="text-yellow-600 text-sm italic flex items-start">
-                                    <span className="mr-1">💡</span>
-                                    <span>{smell.suggestion}</span>
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500">No detailed analysis results available. Try re-running the analysis.</p>
-                  </div>
-                )}
-
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-2">AI Review Summary</h4>
-                  <p className="text-sm text-gray-700 mb-4">
-                    Analysis complete for {selectedReview.repository}. 
-                    {selectedReview.bugsFound > 0 
-                      ? `Found ${selectedReview.bugsFound} issues that should be addressed.`
-                      : 'No critical issues found. Code looks good!'
-                    }
-                  </p>
-                  <div className="grid grid-cols-3 gap-4 text-center">
-                    <div>
-                      <p className="text-2xl font-bold text-red-600">{selectedReview.bugsFound}</p>
-                      <p className="text-sm text-gray-600">Issues Found</p>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-blue-600">{selectedReview.suggestions}</p>
-                      <p className="text-sm text-gray-600">Suggestions</p>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-green-600">8/10</p>
-                      <p className="text-sm text-gray-600">Code Quality</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   )
