@@ -62,6 +62,7 @@ interface Review {
 export default function Reviews() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [repositories, setRepositories] = useState<Repository[]>([])
+  const [expandedReviews, setExpandedReviews] = useState<{[key: string]: boolean}>({})
 
   // Load repositories and their analysis results
   const loadReviews = async () => {
@@ -118,6 +119,14 @@ export default function Reviews() {
   }, [])
 
   const [selectedReview, setSelectedReview] = useState<Review | null>(null)
+
+  // Toggle expanded state for reviews
+  const toggleReviewExpanded = (reviewId: string | number) => {
+    setExpandedReviews(prev => ({
+      ...prev,
+      [reviewId]: !prev[reviewId]
+    }))
+  }
 
   // Get all issues from analysis results
   const getAllIssues = (review: Review) => {

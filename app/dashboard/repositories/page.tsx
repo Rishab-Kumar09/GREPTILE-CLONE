@@ -42,6 +42,18 @@ export default function Repositories() {
       if (response.ok) {
         const repos = await response.json()
         setRepositories(repos)
+        
+        // Load stored analysis results for each repository
+        const analysisData: {[key: string]: any} = {}
+        for (const repo of repos) {
+          if (repo.analysisResults) {
+            analysisData[repo.fullName] = repo.analysisResults
+            console.log(`📊 Loaded analysis results for ${repo.fullName}:`, repo.analysisResults)
+          }
+        }
+        setAnalysisResults(analysisData)
+        
+        console.log(`📊 Loaded ${repos.length} repositories with ${Object.keys(analysisData).length} analysis results`)
       } else {
         console.error('Failed to load repositories from database')
       }
@@ -723,17 +735,10 @@ export default function Repositories() {
                           </div>
                         </div>
                       ) : (
-                        <div className="text-center p-6 bg-blue-50 rounded-lg border-2 border-dashed border-blue-200">
-                          <div className="text-2xl font-bold text-blue-600">{repo.bugs}</div>
-                          <div className="text-sm text-blue-800 mb-3">🔍 Total Issues Found</div>
-                          <button
-                            onClick={() => analyzeRepository(repo)}
-                            disabled={analyzing === repo.fullName}
-                            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300"
-                          >
-                            {analyzing === repo.fullName ? '🔍 Re-analyzing...' : '🔄 Re-analyze for Details'}
-                          </button>
-                          <p className="text-xs text-blue-600 mt-2">Re-run analysis to see detailed breakdown</p>
+                        <div className="text-center p-6 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="text-2xl font-bold text-gray-600">{repo.bugs}</div>
+                          <div className="text-sm text-gray-800 mb-3">🔍 Total Issues Found</div>
+                          <p className="text-xs text-gray-600">Analysis completed - detailed breakdown available in Reviews page</p>
                         </div>
                       )}
                       
