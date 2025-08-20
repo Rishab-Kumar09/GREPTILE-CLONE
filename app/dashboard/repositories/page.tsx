@@ -34,6 +34,7 @@ export default function Repositories() {
   const [analyzing, setAnalyzing] = useState<string | null>(null)
   const [analysisResults, setAnalysisResults] = useState<{[key: string]: any}>({})
   const [expandedResults, setExpandedResults] = useState<{[key: string]: boolean}>({})
+  const [profilePic, setProfilePic] = useState<string | null>(null)
 
   // Load repositories from database on component mount
   const loadRepositories = async () => {
@@ -86,6 +87,11 @@ export default function Repositories() {
   // Load repositories on component mount
   useEffect(() => {
     loadRepositories()
+    // Load profile picture from localStorage
+    const savedProfilePic = localStorage.getItem('profileImage')
+    if (savedProfilePic) {
+      setProfilePic(savedProfilePic)
+    }
   }, [])
 
   const fetchRepositories = async (githubUsername: string) => {
@@ -441,7 +447,13 @@ export default function Repositories() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
                 </svg>
               </button>
-              <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+              <div className="w-8 h-8 rounded-full overflow-hidden">
+                {profilePic ? (
+                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-300 rounded-full"></div>
+                )}
+              </div>
             </div>
           </div>
         </div>

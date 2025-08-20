@@ -63,6 +63,7 @@ export default function Reviews() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [expandedReviews, setExpandedReviews] = useState<{[key: string]: boolean}>({})
+  const [profilePic, setProfilePic] = useState<string | null>(null)
 
   // Load repositories and their analysis results
   const loadReviews = async () => {
@@ -116,6 +117,11 @@ export default function Reviews() {
   // Load data on component mount
   useEffect(() => {
     loadReviews()
+    // Load profile picture from localStorage
+    const savedProfilePic = localStorage.getItem('profileImage')
+    if (savedProfilePic) {
+      setProfilePic(savedProfilePic)
+    }
   }, [])
 
   // Toggle expanded state for reviews
@@ -216,7 +222,13 @@ export default function Reviews() {
               </Link>
             </nav>
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+              <div className="w-8 h-8 rounded-full overflow-hidden">
+                {profilePic ? (
+                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-300 rounded-full"></div>
+                )}
+              </div>
             </div>
           </div>
         </div>
