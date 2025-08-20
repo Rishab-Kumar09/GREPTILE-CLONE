@@ -210,6 +210,9 @@ export default function Dashboard() {
               <Link href="/dashboard/settings" className="text-gray-600 hover:text-gray-900">
                 Settings
               </Link>
+              <Link href="/setup" className="bg-green-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-green-700 transition-colors">
+                Setup Bot
+              </Link>
             </nav>
 
             <div className="flex items-center space-x-4">
