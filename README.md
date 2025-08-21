@@ -313,4 +313,5 @@ Your Greptile clone is production-ready and can be deployed to:
 - **Any Node.js hosting provider**
 
 **🎉 Start building the future of AI-powered code reviews!** D e p l o y   t r i g g e r   f o r   c o m m i t   1 b 4 1 8 7 3  
+ B u i l d   f i x   t r i g g e r  
  
