@@ -14,12 +14,14 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get('state');
 
     if (!code) {
-      return NextResponse.redirect(new URL('/dashboard?error=github_auth_failed', request.url));
+      return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_auth_failed'));
     }
 
     if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
       console.error('GitHub OAuth credentials not configured');
-      return NextResponse.redirect(new URL('/dashboard?error=github_config_missing', request.url));
+      console.error('GITHUB_CLIENT_ID:', GITHUB_CLIENT_ID ? 'Present' : 'Missing');
+      console.error('GITHUB_CLIENT_SECRET:', GITHUB_CLIENT_SECRET ? 'Present' : 'Missing');
+      return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_config_missing'));
     }
 
     // Exchange code for access token
@@ -40,7 +42,7 @@ export async function GET(request: NextRequest) {
 
     if (tokenData.error || !tokenData.access_token) {
       console.error('GitHub token exchange failed:', tokenData);
-      return NextResponse.redirect(new URL('/dashboard?error=github_token_failed', request.url));
+      return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_token_failed'));
     }
 
     // Get user information from GitHub
@@ -72,10 +74,10 @@ export async function GET(request: NextRequest) {
     `;
 
     // Redirect back to dashboard with success
-    return NextResponse.redirect(new URL('/dashboard?github=connected', request.url));
+    return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?github=connected'));
 
   } catch (error) {
     console.error('GitHub OAuth callback error:', error);
-    return NextResponse.redirect(new URL('/dashboard?error=github_callback_failed', request.url));
+    return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_callback_failed'));
   }
 } 
