@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
-const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'http://localhost:3000/api/github/callback';
+const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'https://main.d2x7xjj4p1h8wm.amplifyapp.com/api/github/callback';
 
 // GET /api/github/oauth - Initiate GitHub OAuth flow
 export async function GET() {
