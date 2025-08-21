@@ -312,4 +312,5 @@ Your Greptile clone is production-ready and can be deployed to:
 - **Netlify** (for static deployment)
 - **Any Node.js hosting provider**
 
-**🎉 Start building the future of AI-powered code reviews!** 
+**🎉 Start building the future of AI-powered code reviews!** D e p l o y   t r i g g e r   f o r   c o m m i t   1 b 4 1 8 7 3  
+ 
