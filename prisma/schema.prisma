@@ -15,17 +15,6 @@ model HealthCheck {
   createdAt DateTime @default(now())
 }
 
-model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String?  @unique
-  profileImage String?  // Base64 encoded image or URL
-  selectedIcon String?  @default("👤")
-  userTitle    String?  @default("Developer")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
 model Repository {
   id          String   @id @default(cuid())
   name        String
@@ -40,4 +29,14 @@ model Repository {
   analysisResults Json? // Store detailed analysis results as JSON
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model UserProfile {
+  id           String   @id @default("default-user")
+  name         String   @default("R.K.")
+  profileImage String?  // Base64 encoded image
+  selectedIcon String?  @default("👤")
+  userTitle    String?  @default("Developer")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 } 

@@ -43,39 +43,30 @@ export default function Dashboard() {
     }
   }
 
-  // Load profile settings from database and localStorage
+  // Load profile settings from DATABASE (with localStorage fallback)
   const loadProfileSettings = async () => {
     try {
-      // First try to load from database
-      const response = await fetch('/api/user/profile')
+      console.log('🔄 Loading profile from DATABASE...')
+      const response = await fetch('/api/profile')
+      
       if (response.ok) {
-        const user = await response.json()
-        console.log('📊 Loaded user from database:', user)
-        
-        if (user.name) setUserName(user.name)
-        if (user.userTitle) setUserTitle(user.userTitle)
-        if (user.selectedIcon) setSelectedIcon(user.selectedIcon)
-        if (user.profileImage) {
-          setProfileImage(user.profileImage)
-          // Also save to localStorage for faster loading
-          localStorage.setItem('profileImage', user.profileImage)
+        const data = await response.json()
+        if (data.success && data.profile) {
+          console.log('✅ Loaded from DATABASE:', data.profile)
+          const profile = data.profile
+          
+          setUserName(profile.name || 'R.K.')
+          setUserTitle(profile.userTitle || 'Developer')
+          setSelectedIcon(profile.selectedIcon || '👤')
+          if (profile.profileImage) {
+            setProfileImage(profile.profileImage)
+          }
+          return // Success - exit early
         }
-      } else {
-        console.log('📊 Database not available, loading from localStorage')
-        // Fallback to localStorage
-        const savedIcon = localStorage.getItem('selectedIcon')
-        const savedImage = localStorage.getItem('profileImage')
-        const savedName = localStorage.getItem('userName')
-        const savedTitle = localStorage.getItem('userTitle')
-        
-        if (savedIcon) setSelectedIcon(savedIcon)
-        if (savedImage) setProfileImage(savedImage)
-        if (savedName) setUserName(savedName)
-        if (savedTitle) setUserTitle(savedTitle)
       }
-    } catch (error) {
-      console.error('Error loading profile settings:', error)
-      // Fallback to localStorage on error
+      
+      // Fallback to localStorage only if database fails
+      console.log('⚠️ Database failed, using localStorage fallback')
       const savedIcon = localStorage.getItem('selectedIcon')
       const savedImage = localStorage.getItem('profileImage')
       const savedName = localStorage.getItem('userName')
@@ -85,23 +76,55 @@ export default function Dashboard() {
       if (savedImage) setProfileImage(savedImage)
       if (savedName) setUserName(savedName)
       if (savedTitle) setUserTitle(savedTitle)
+      
+    } catch (error) {
+      console.error('❌ Profile loading error:', error)
     }
   }
 
-  // Save profile settings to localStorage
-  const saveProfileSettings = () => {
+  // Save profile settings to DATABASE (with localStorage backup)
+  const saveProfileSettings = async () => {
     try {
-      localStorage.setItem('selectedIcon', selectedIcon)
-      localStorage.setItem('userName', userName)
-      localStorage.setItem('userTitle', userTitle)
-      if (profileImage) {
-        localStorage.setItem('profileImage', profileImage)
-      } else {
-        localStorage.removeItem('profileImage')
+      console.log('💾 Saving profile to DATABASE...')
+      
+      const profileData = {
+        name: userName,
+        profileImage: profileImage,
+        selectedIcon: selectedIcon,
+        userTitle: userTitle
       }
-      return true
+      
+      const response = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData)
+      })
+      
+      if (response.ok) {
+        console.log('✅ Saved to DATABASE successfully!')
+        
+        // Also save to localStorage as backup
+        localStorage.setItem('selectedIcon', selectedIcon)
+        localStorage.setItem('userName', userName)
+        localStorage.setItem('userTitle', userTitle)
+        if (profileImage) {
+          localStorage.setItem('profileImage', profileImage)
+        } else {
+          localStorage.removeItem('profileImage')
+        }
+        return true
+      } else {
+        console.error('❌ Database save failed, saving to localStorage only')
+        localStorage.setItem('selectedIcon', selectedIcon)
+        localStorage.setItem('userName', userName)
+        localStorage.setItem('userTitle', userTitle)
+        if (profileImage) {
+          localStorage.setItem('profileImage', profileImage)
+        }
+        return false
+      }
     } catch (error) {
-      console.error('Error saving profile settings:', error)
+      console.error('❌ Error saving profile:', error)
       return false
     }
   }
