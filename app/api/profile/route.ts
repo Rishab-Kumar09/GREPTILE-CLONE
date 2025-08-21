@@ -17,10 +17,10 @@ export async function GET() {
         profile: profiles[0]
       });
     } else {
-      // Create default profile
+      // Create empty profile - user will fill in their own data
       await prisma.$executeRaw`
-        INSERT INTO "UserProfile" (id, name, "selectedIcon", "userTitle", "createdAt", "updatedAt")
-        VALUES ('default-user', 'R.K.', '👤', 'Developer', NOW(), NOW())
+        INSERT INTO "UserProfile" (id, "selectedIcon", "createdAt", "updatedAt")
+        VALUES ('default-user', '👤', NOW(), NOW())
         ON CONFLICT (id) DO NOTHING
       `;
       
@@ -28,9 +28,9 @@ export async function GET() {
         success: true,
         profile: {
           id: 'default-user',
-          name: 'R.K.',
+          name: null,
           selectedIcon: '👤',
-          userTitle: 'Developer',
+          userTitle: null,
           profileImage: null
         }
       });
