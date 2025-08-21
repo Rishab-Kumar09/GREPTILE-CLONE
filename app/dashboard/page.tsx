@@ -43,9 +43,39 @@ export default function Dashboard() {
     }
   }
 
-  // Load profile settings from localStorage
-  const loadProfileSettings = () => {
+  // Load profile settings from database and localStorage
+  const loadProfileSettings = async () => {
     try {
+      // First try to load from database
+      const response = await fetch('/api/user/profile')
+      if (response.ok) {
+        const user = await response.json()
+        console.log('📊 Loaded user from database:', user)
+        
+        if (user.name) setUserName(user.name)
+        if (user.userTitle) setUserTitle(user.userTitle)
+        if (user.selectedIcon) setSelectedIcon(user.selectedIcon)
+        if (user.profileImage) {
+          setProfileImage(user.profileImage)
+          // Also save to localStorage for faster loading
+          localStorage.setItem('profileImage', user.profileImage)
+        }
+      } else {
+        console.log('📊 Database not available, loading from localStorage')
+        // Fallback to localStorage
+        const savedIcon = localStorage.getItem('selectedIcon')
+        const savedImage = localStorage.getItem('profileImage')
+        const savedName = localStorage.getItem('userName')
+        const savedTitle = localStorage.getItem('userTitle')
+        
+        if (savedIcon) setSelectedIcon(savedIcon)
+        if (savedImage) setProfileImage(savedImage)
+        if (savedName) setUserName(savedName)
+        if (savedTitle) setUserTitle(savedTitle)
+      }
+    } catch (error) {
+      console.error('Error loading profile settings:', error)
+      // Fallback to localStorage on error
       const savedIcon = localStorage.getItem('selectedIcon')
       const savedImage = localStorage.getItem('profileImage')
       const savedName = localStorage.getItem('userName')
@@ -55,8 +85,6 @@ export default function Dashboard() {
       if (savedImage) setProfileImage(savedImage)
       if (savedName) setUserName(savedName)
       if (savedTitle) setUserTitle(savedTitle)
-    } catch (error) {
-      console.error('Error loading profile settings:', error)
     }
   }
 

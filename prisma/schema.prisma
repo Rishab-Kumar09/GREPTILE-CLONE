@@ -15,6 +15,17 @@ model HealthCheck {
   createdAt DateTime @default(now())
 }
 
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String?  @unique
+  profileImage String?  // Base64 encoded image or URL
+  selectedIcon String?  @default("👤")
+  userTitle    String?  @default("Developer")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 model Repository {
   id          String   @id @default(cuid())
   name        String
