@@ -33,7 +33,13 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       authUrl: githubAuthUrl.toString(),
-      state
+      state,
+      debug: {
+        clientId: GITHUB_CLIENT_ID ? 'Present' : 'Missing',
+        redirectUri: GITHUB_REDIRECT_URI,
+        envKeys: Object.keys(process.env).filter(key => key.includes('GITHUB')),
+        nodeEnv: process.env.NODE_ENV
+      }
     });
   } catch (error) {
     console.error('GitHub OAuth initiation error:', error);

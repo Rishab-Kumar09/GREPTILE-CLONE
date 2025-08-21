@@ -1,18 +1,13 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/server';
 
+// GET /api/debug/env - Debug environment variables
 export async function GET() {
-  const envVars = {
-    DATABASE_URL: process.env.DATABASE_URL ? 'SET (hidden)' : 'NOT SET',
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY ? 'SET (hidden)' : 'NOT SET',
-    NODE_ENV: process.env.NODE_ENV || 'NOT SET',
-    // Show all env vars that start with certain prefixes (safe ones)
-    allEnvKeys: Object.keys(process.env).filter(key => 
-      key.startsWith('NODE_') || 
-      key.startsWith('AWS_') || 
-      key.startsWith('DATABASE_') ||
-      key.startsWith('OPENAI_')
-    )
-  }
-  
-  return NextResponse.json(envVars)
+  return NextResponse.json({
+    nodeEnv: process.env.NODE_ENV,
+    githubClientId: process.env.GITHUB_CLIENT_ID ? 'Present' : 'Missing',
+    githubClientSecret: process.env.GITHUB_CLIENT_SECRET ? 'Present' : 'Missing',
+    databaseUrl: process.env.DATABASE_URL ? 'Present' : 'Missing',
+    allGithubKeys: Object.keys(process.env).filter(key => key.includes('GITHUB')),
+    timestamp: new Date().toISOString()
+  });
 } 
