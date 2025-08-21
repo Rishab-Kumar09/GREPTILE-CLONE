@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import React from 'react' // Added for RepoChat component
+import DashboardHeader from '@/components/DashboardHeader'
 
 interface Repository {
   id?: string | number
@@ -412,52 +413,7 @@ export default function Repositories() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link href="/" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">🦎</span>
-                </div>
-                <span className="text-xl font-bold text-gray-900">Greptile Clone</span>
-              </Link>
-            </div>
-            
-            <nav className="flex items-center space-x-8">
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
-                Dashboard
-              </Link>
-              <Link href="/dashboard/repositories" className="text-primary-600 font-medium">
-                Repositories
-              </Link>
-              <Link href="/dashboard/reviews" className="text-gray-600 hover:text-gray-900">
-                Reviews
-              </Link>
-              <Link href="/dashboard/settings" className="text-gray-600 hover:text-gray-900">
-                Settings
-              </Link>
-            </nav>
-
-            <div className="flex items-center space-x-4">
-              <button className="p-2 text-gray-600 hover:text-gray-900">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-                </svg>
-              </button>
-              <div className="w-8 h-8 rounded-full overflow-hidden">
-                {profilePic ? (
-                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gray-300 rounded-full"></div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader currentPage="repositories" />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

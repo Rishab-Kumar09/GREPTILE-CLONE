@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import DashboardHeader from '@/components/DashboardHeader'
 
 interface Repository {
   id?: string | number
@@ -195,44 +196,7 @@ export default function Reviews() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <Link href="/dashboard" className="flex items-center">
-                <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center mr-3">
-                  <span className="text-white font-bold text-lg">G</span>
-                </div>
-                <span className="text-xl font-bold text-gray-900">Greptile Clone</span>
-              </Link>
-            </div>
-            <nav className="hidden md:flex space-x-8">
-              <Link href="/dashboard" className="text-gray-500 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                Dashboard
-              </Link>
-              <Link href="/dashboard/repositories" className="text-gray-500 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                Repositories
-              </Link>
-              <Link href="/dashboard/reviews" className="bg-gray-900 text-white px-3 py-2 rounded-md text-sm font-medium">
-                Reviews
-              </Link>
-              <Link href="/dashboard/settings" className="text-gray-500 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-                Settings
-              </Link>
-            </nav>
-            <div className="flex items-center">
-              <div className="w-8 h-8 rounded-full overflow-hidden">
-                {profilePic ? (
-                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gray-300 rounded-full"></div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DashboardHeader currentPage="reviews" />
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Stats */}
