@@ -2,16 +2,57 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import DashboardHeader from '@/components/DashboardHeader'
+import DashboardHeader from '../../components/DashboardHeader'
 
 export default function Setup() {
   const [currentStep, setCurrentStep] = useState(1)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [githubConnected, setGithubConnected] = useState(false)
+  const [githubUsername, setGithubUsername] = useState<string | null>(null)
   const [selectedRepos, setSelectedRepos] = useState<string[]>([])
   const [prSummaryEnabled, setPrSummaryEnabled] = useState(true)
   const [reviewBehaviorSet, setReviewBehaviorSet] = useState(false)
   const [filtersConfigured, setFiltersConfigured] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  // Check GitHub connection status on component mount
+  useEffect(() => {
+    const checkGithubConnection = async () => {
+      try {
+        const response = await fetch('/api/profile')
+        const data = await response.json()
+        
+        if (data.success && data.profile) {
+          setGithubConnected(data.profile.githubConnected || false)
+          setGithubUsername(data.profile.githubUsername || null)
+        }
+      } catch (error) {
+        console.error('Failed to check GitHub connection:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    checkGithubConnection()
+  }, [])
+
+  // Handle GitHub OAuth initiation
+  const handleGithubConnect = async () => {
+    try {
+      const response = await fetch('/api/github/oauth')
+      const data = await response.json()
+      
+      if (data.success && data.authUrl) {
+        // Redirect to GitHub OAuth
+        window.location.href = data.authUrl
+      } else {
+        alert('Failed to initiate GitHub connection')
+      }
+    } catch (error) {
+      console.error('GitHub connection error:', error)
+      alert('Failed to connect to GitHub')
+    }
+  }
 
   const steps = [
     { id: 1, title: 'Connect GitHub', completed: githubConnected },
@@ -93,15 +134,37 @@ export default function Setup() {
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Connect GitHub</h2>
               <p className="text-gray-600 mb-6">Connect your GitHub account to enable AI code reviews</p>
-              <button
-                onClick={() => {
-                  setGithubConnected(true)
-                  handleStepComplete(1)
-                }}
-                className="bg-gray-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors"
-              >
-                Connect GitHub Account
-              </button>
+              
+              {loading ? (
+                <div className="text-gray-500">Checking connection status...</div>
+              ) : githubConnected ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center justify-center">
+                    <svg className="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-green-800 font-medium">
+                      Connected as @{githubUsername}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={handleGithubConnect}
+                  className="bg-gray-900 text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-800 transition-colors"
+                >
+                  Connect GitHub Account
+                </button>
+              )}
+              
+              {githubConnected && (
+                <button
+                  onClick={() => handleStepComplete(1)}
+                  className="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors ml-4"
+                >
+                  Continue
+                </button>
+              )}
             </div>
           )}
 

@@ -31,7 +31,10 @@ export async function GET() {
           name: null,
           selectedIcon: '👤',
           userTitle: null,
-          profileImage: null
+          profileImage: null,
+          githubConnected: false,
+          githubUsername: null,
+          githubAvatarUrl: null
         }
       });
     }

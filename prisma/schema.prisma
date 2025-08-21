@@ -37,6 +37,13 @@ model UserProfile {
   profileImage String?  // Base64 encoded image
   selectedIcon String?  @default("👤")
   userTitle    String?  @default("Developer")
+  
+  // GitHub OAuth fields
+  githubConnected Boolean  @default(false)
+  githubUsername  String?
+  githubAvatarUrl String?
+  githubTokenRef  String?  // Reference to AWS Secrets Manager (not the actual token)
+  
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 } 
