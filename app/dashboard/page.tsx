@@ -33,9 +33,21 @@ export default function Dashboard() {
   const [githubConnected, setGithubConnected] = useState(false)
   const [githubUsername, setGithubUsername] = useState<string | null>(null)
 
-  // Load repositories from database
+  // Load repositories from database or GitHub
   const loadRepositories = async () => {
     try {
+      // First try to load real GitHub repositories if connected
+      const githubResponse = await fetch('/api/github/repositories')
+      const githubData = await githubResponse.json()
+      
+      if (githubData.success && githubData.repositories) {
+        console.log('✅ Loaded real GitHub repositories:', githubData.repositories.length)
+        setRepositories(githubData.repositories)
+        return
+      }
+      
+      // Fallback to demo repositories
+      console.log('📋 Loading demo repositories (GitHub not connected)')
       const response = await fetch('/api/repositories')
       if (response.ok) {
         const repos = await response.json()
@@ -43,6 +55,16 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error loading repositories:', error)
+      // Load demo data as final fallback
+      try {
+        const response = await fetch('/api/repositories')
+        if (response.ok) {
+          const repos = await response.json()
+          setRepositories(repos)
+        }
+      } catch (fallbackError) {
+        console.error('Error loading fallback repositories:', fallbackError)
+      }
     }
   }
 
