@@ -659,8 +659,8 @@ export default function Dashboard() {
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  const success = saveProfileSettings()
+                onClick={async () => {
+                  const success = await saveProfileSettings()
                   if (success) {
                     setShowProfileModal(false)
                     // Show success feedback
