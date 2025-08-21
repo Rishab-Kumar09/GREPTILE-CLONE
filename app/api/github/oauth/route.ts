@@ -6,7 +6,14 @@ const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'https://master.d
 // GET /api/github/oauth - Initiate GitHub OAuth flow
 export async function GET() {
   try {
+    // DEBUG: Log environment variables in OAuth initiation
+    console.log('🔍 OAUTH DEBUG - Environment Variables:');
+    console.log('GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'Present' : 'Missing');
+    console.log('GITHUB_REDIRECT_URI:', GITHUB_REDIRECT_URI);
+    console.log('All env keys:', Object.keys(process.env).filter(key => key.includes('GITHUB')));
+    
     if (!GITHUB_CLIENT_ID) {
+      console.log('❌ OAUTH ERROR: GITHUB_CLIENT_ID is missing');
       return NextResponse.json(
         { error: 'GitHub OAuth not configured' },
         { status: 500 }

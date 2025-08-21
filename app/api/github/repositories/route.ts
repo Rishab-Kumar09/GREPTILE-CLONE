@@ -6,6 +6,8 @@ const prisma = new PrismaClient();
 // GET /api/github/repositories - Fetch user's GitHub repositories
 export async function GET() {
   try {
+    console.log('🔍 REPOS: Checking GitHub connection status...');
+    
     // Get user's GitHub connection info
     const result = await prisma.$queryRaw`
       SELECT "githubConnected", "githubTokenRef", "githubUsername" 
@@ -14,7 +16,12 @@ export async function GET() {
       LIMIT 1
     ` as any[];
 
+    console.log('📊 REPOS: Database query result:', result.length > 0 ? 'User found' : 'No user found');
+    
     if (result.length === 0 || !result[0].githubConnected || !result[0].githubTokenRef) {
+      console.log('❌ REPOS: GitHub not connected or no token found');
+      console.log('Connection status:', result[0]?.githubConnected ? 'Connected' : 'Not connected');
+      console.log('Token status:', result[0]?.githubTokenRef ? 'Present' : 'Missing');
       return NextResponse.json({
         success: false,
         error: 'GitHub not connected',
@@ -23,6 +30,7 @@ export async function GET() {
     }
 
     const { githubTokenRef, githubUsername } = result[0];
+    console.log('✅ REPOS: GitHub connection found for user:', githubUsername);
 
     // Fetch repositories from GitHub API
     const response = await fetch('https://api.github.com/user/repos?sort=updated&per_page=50', {
