@@ -12,6 +12,9 @@ const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
 // GET /api/github/callback - Handle GitHub OAuth callback
 export async function GET(request: NextRequest) {
   try {
+    console.log('🚀 CALLBACK STARTED - Full request URL:', request.url);
+    console.log('🚀 CALLBACK STARTED - NextURL:', request.nextUrl.toString());
+    
     // DEBUG: Log all environment variables
     console.log('🔍 CALLBACK DEBUG - Environment Variables:');
     console.log('GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'Present' : 'Missing');
@@ -20,20 +23,24 @@ export async function GET(request: NextRequest) {
     console.log('NODE_ENV:', process.env.NODE_ENV);
     console.log('All env keys:', Object.keys(process.env).filter(key => key.includes('GITHUB')));
     
+    console.log('🔍 CALLBACK: Attempting to get search parameters...');
     const { searchParams } = request.nextUrl;
+    console.log('✅ CALLBACK: Search parameters obtained successfully');
+    
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     
     console.log('🔍 CALLBACK DEBUG - Request Data:');
     console.log('Code received:', code ? 'Present' : 'Missing');
     console.log('State received:', state ? 'Present' : 'Missing');
+    console.log('All search params:', Object.fromEntries(searchParams.entries()));
 
     if (!code) {
       console.log('❌ CALLBACK ERROR: No authorization code received');
       console.log('URL params:', Object.fromEntries(searchParams.entries()));
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_auth_failed'));
     }
-
+    
     console.log('✅ CALLBACK: Authorization code received');
 
     if (!GITHUB_CLIENT_ID || !GITHUB_CLIENT_SECRET) {
@@ -44,7 +51,7 @@ export async function GET(request: NextRequest) {
       console.error('Raw env GITHUB_CLIENT_SECRET:', process.env.GITHUB_CLIENT_SECRET ? '[REDACTED]' : 'Missing');
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_config_missing'));
     }
-
+    
     console.log('✅ CALLBACK: GitHub credentials found, proceeding with token exchange');
 
     // Exchange code for access token
@@ -58,16 +65,16 @@ export async function GET(request: NextRequest) {
       body: JSON.stringify({
         client_id: GITHUB_CLIENT_ID,
         client_secret: GITHUB_CLIENT_SECRET,
-        code,
+        code: code,
       }),
     });
-
+    
     console.log('📡 CALLBACK: Token response status:', tokenResponse.status);
     const tokenData = await tokenResponse.json();
     console.log('📡 CALLBACK: Token data received:', tokenData.error ? `Error: ${tokenData.error}` : 'Success');
 
     if (tokenData.error || !tokenData.access_token) {
-      console.error('❌ CALLBACK ERROR: GitHub token exchange failed:', tokenData);
+      console.error('❌ CALLBACK ERROR: Failed to exchange code for token:', tokenData);
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_token_failed'));
     }
 
@@ -81,7 +88,7 @@ export async function GET(request: NextRequest) {
         'Accept': 'application/vnd.github.v3+json',
       },
     });
-
+    
     console.log('📡 CALLBACK: User response status:', userResponse.status);
     const userData = await userResponse.json();
     console.log('👤 CALLBACK: User data received:', userData.login ? `@${userData.login}` : 'No login found');
@@ -90,11 +97,10 @@ export async function GET(request: NextRequest) {
       console.error('❌ CALLBACK ERROR: Failed to get GitHub user data:', userData);
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_user_failed'));
     }
-
+    
     console.log('✅ CALLBACK: User data validated, saving to database...');
 
     // Store GitHub connection info in database
-    // For now, we'll store the token directly (later we'll move to AWS Secrets Manager)
     console.log('💾 CALLBACK: Updating database with GitHub connection...');
     await prisma.$executeRaw`
       UPDATE "UserProfile" 
@@ -106,7 +112,7 @@ export async function GET(request: NextRequest) {
         "updatedAt" = NOW()
       WHERE id = 'default-user'
     `;
-
+    
     console.log('✅ CALLBACK SUCCESS: Database updated, redirecting to dashboard');
     console.log(`🎉 CALLBACK: User @${userData.login} successfully connected to GitHub!`);
 
@@ -114,7 +120,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?github=connected'));
 
   } catch (error) {
-    console.error('GitHub OAuth callback error:', error);
+    console.error('🚨 CALLBACK FATAL ERROR:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      name: error instanceof Error ? error.name : 'Unknown error type'
+    });
     return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_callback_failed'));
   }
 } 
