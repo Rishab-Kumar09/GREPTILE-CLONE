@@ -352,6 +352,12 @@ export default function Repositories() {
         })
 
         if (!response.ok) {
+          console.error(`❌ Batch ${batchIndex + 1} failed with status ${response.status}`)
+          if (response.status === 500) {
+            console.error('🚨 API Error - stopping analysis')
+            alert('Analysis failed due to API error. Please check your OpenAI API key configuration.')
+            break // Exit the loop on 500 errors
+          }
           if (response.status === 504 || response.status === 502) {
             console.log(`⏰ Batch ${batchIndex + 1} timeout (${response.status}) - continuing with next batch...`)
             batchIndex++
@@ -359,9 +365,12 @@ export default function Repositories() {
             await new Promise(resolve => setTimeout(resolve, 1000))
             continue
           }
-          console.error(`❌ Batch ${batchIndex + 1} failed with status ${response.status}`)
           batchIndex++
-          continue // Continue with next batch instead of throwing error
+          if (batchIndex > 20) { // Safety limit to prevent infinite loops
+            console.error('🚨 Too many failed batches - stopping analysis')
+            break
+          }
+          continue
         }
 
         let batchData

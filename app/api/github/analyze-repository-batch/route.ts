@@ -39,12 +39,13 @@ export async function POST(request: NextRequest) {
     console.log(`🚀 BATCH ${batchIndex + 1} - Analyzing ${owner}/${repo}`)
     
     if (!openai) {
+      console.error('❌ OpenAI API key not configured')
       return NextResponse.json({ 
         success: false,
-        error: 'OpenAI API key not configured',
+        error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to environment variables.',
         totalBugs: 0,
         results: []
-      })
+      }, { status: 500 })
     }
 
     // Get repository info first to find default branch
