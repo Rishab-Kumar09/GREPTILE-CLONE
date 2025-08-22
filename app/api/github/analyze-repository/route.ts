@@ -37,6 +37,10 @@ export async function POST(request: NextRequest) {
   const TIMEOUT_MS = 25000 // 25 seconds (safe for Netlify's 30s limit)
   
   try {
+    console.log('🔍 DEBUG: Analysis API called');
+    console.log('🔍 DEBUG: Environment check - OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY);
+    console.log('🔍 DEBUG: OpenAI client initialized:', !!openai);
+    
     const { repoUrl, owner, repo } = await request.json()
     
     console.log(`🚀 Starting analysis for ${owner}/${repo} with ${TIMEOUT_MS/1000}s timeout`)
@@ -213,10 +217,18 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Repository analysis error:', error)
+    console.error('❌ MAIN CATCH: Repository analysis error:', error)
+    if (error instanceof Error) {
+      console.error('❌ MAIN CATCH: Error message:', error.message)
+      console.error('❌ MAIN CATCH: Error stack:', error.stack)
+    }
+    console.error('❌ MAIN CATCH: Error type:', typeof error)
+    console.error('❌ MAIN CATCH: Error details:', JSON.stringify(error, null, 2))
+    
     return NextResponse.json({
       error: 'Failed to analyze repository',
       details: error instanceof Error ? error.message : 'Unknown error',
+      errorType: typeof error,
       totalBugs: 0,
       results: []
     }, { status: 500 })
