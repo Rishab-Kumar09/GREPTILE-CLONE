@@ -49,11 +49,19 @@ export default function Repositories() {
       const response = await fetch('/api/repositories')
       if (response.ok) {
         const repos = await response.json()
+        console.log('🔍 FRONTEND: Loaded repositories from database:', repos)
         setRepositories(repos)
         
         // Load stored analysis results for each repository
         const analysisData: {[key: string]: any} = {}
         for (const repo of repos) {
+          console.log(`📊 Repository data for ${repo.fullName}:`, {
+            stars: repo.stars,
+            forks: repo.forks,
+            language: repo.language,
+            description: repo.description,
+            bugs: repo.bugs
+          })
           if (repo.analysisResults) {
             analysisData[repo.fullName] = repo.analysisResults
             console.log(`📊 Loaded analysis results for ${repo.fullName}:`, repo.analysisResults)
@@ -537,6 +545,14 @@ export default function Repositories() {
               className="btn-primary disabled:opacity-50"
             >
               {loadingGithubRepos ? 'Loading...' : (githubConnected ? 'Fetch GitHub Repos' : 'Fetch Repos')}
+            </button>
+            
+            {/* Test PR Analysis Link */}
+            <button
+              onClick={() => window.open('/dashboard/pr-analysis?repo=OWASP/NodeGoat', '_blank')}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+            >
+              🧪 Test PR Analysis
             </button>
             
             {/* Test PR Analysis Link */}
