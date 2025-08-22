@@ -35,6 +35,39 @@ export default function Dashboard() {
   const [realStats, setRealStats] = useState<any>(null)
   const [loadingStats, setLoadingStats] = useState(false)
 
+  // Load real analysis statistics from analyzed repositories
+  const loadAnalysisStats = async () => {
+    try {
+      console.log('📊 DASHBOARD: Loading real analysis statistics from analyzed repositories...')
+      const response = await fetch('/api/repositories')
+      if (response.ok) {
+        const repos = await response.json()
+        
+        // Calculate real stats from analyzed repositories
+        const analyzedRepos = repos.filter((repo: any) => repo.analyzing === false && repo.bugs > 0)
+        const totalIssuesFound = analyzedRepos.reduce((total: number, repo: any) => total + (repo.bugs || 0), 0)
+        const totalReviewsCompleted = analyzedRepos.length
+        const totalFilesReviewed = analyzedRepos.reduce((total: number, repo: any) => total + (repo.reviews || 0), 0)
+        const avgTimePerReview = 45 // minutes
+        const totalTimeSaved = totalReviewsCompleted * avgTimePerReview
+        
+        const analysisStats = {
+          reviewsCompleted: totalReviewsCompleted,
+          issuesFound: totalIssuesFound,
+          timeSaved: totalTimeSaved,
+          filesReviewed: totalFilesReviewed,
+          activeRepos: repos.length,
+          analyzedRepos: analyzedRepos.length
+        }
+        
+        console.log('✅ DASHBOARD: Real analysis stats calculated:', analysisStats)
+        setRealStats(analysisStats)
+      }
+    } catch (error) {
+      console.error('❌ DASHBOARD: Error loading analysis stats:', error)
+    }
+  }
+
   // Load real GitHub statistics
   const loadRealStats = async () => {
     if (!githubConnected || loadingStats) return
@@ -50,9 +83,13 @@ export default function Dashboard() {
         setRealStats(data.stats)
       } else {
         console.log('❌ DASHBOARD: Failed to load real stats:', data.error)
+        // Fallback to analysis stats
+        loadAnalysisStats()
       }
     } catch (error) {
       console.error('❌ DASHBOARD: Error loading real stats:', error)
+      // Fallback to analysis stats
+      loadAnalysisStats()
     } finally {
       setLoadingStats(false)
     }
@@ -68,8 +105,8 @@ export default function Dashboard() {
       if (githubData.success && githubData.repositories) {
         console.log('✅ Loaded real GitHub repositories:', githubData.repositories.length)
         setRepositories(githubData.repositories)
-        // Load real stats when GitHub is connected
-        loadRealStats()
+        // Load analysis stats (real issue counts from analyzed repos)
+        loadAnalysisStats()
         return
       }
       
@@ -183,10 +220,12 @@ export default function Dashboard() {
     }
   }
 
-  // Load repositories on component mount
+  // Load data on component mount
   useEffect(() => {
-    loadRepositories()
     loadProfileSettings()
+    loadRepositories()
+    // Always load real analysis stats from analyzed repositories
+    loadAnalysisStats()
   }, [])
 
   const [messages, setMessages] = useState([
@@ -331,9 +370,8 @@ export default function Dashboard() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Issues Found</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {loadingStats ? '...' : (realStats?.totalIssues || (githubConnected ? 
-                    repositories.reduce((total, repo) => total + (repo.bugs || Math.floor(Math.random() * 15) + 5), 0) :
-                    repositories.reduce((total, repo) => total + (repo.bugs || 0), 0))
+                  {loadingStats ? '...' : (realStats?.issuesFound || realStats?.totalIssues || 
+                    repositories.reduce((total, repo) => total + (repo.bugs || 0), 0)
                   )}
                 </p>
               </div>
@@ -350,9 +388,8 @@ export default function Dashboard() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Time Saved</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {loadingStats ? '...' : (realStats?.timesSaved || (githubConnected ? 
-                    Math.floor(repositories.length * 2.5 * 60) : 
-                    repositories.reduce((total, repo) => total + (repo.bugs || 0), 0) * 5)
+                  {loadingStats ? '...' : (realStats?.timeSaved || realStats?.timesSaved || 
+                    repositories.filter(repo => repo.bugs > 0).length * 45
                   )}m
                 </p>
               </div>
