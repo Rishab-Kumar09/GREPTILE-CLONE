@@ -104,6 +104,24 @@ export default function Repositories() {
     }
   }
 
+  // Check GitHub connection status
+  const checkGithubConnection = async () => {
+    try {
+      const response = await fetch('/api/profile')
+      const data = await response.json()
+      if (data.success && data.profile && data.profile.githubConnected) {
+        setGithubConnected(true)
+        console.log('✅ GitHub is connected')
+      } else {
+        console.log('❌ GitHub is not connected')
+        setGithubConnected(false)
+      }
+    } catch (error) {
+      console.error('Error checking GitHub connection:', error)
+      setGithubConnected(false)
+    }
+  }
+
   // Load repositories on component mount
   useEffect(() => {
     loadRepositories()
@@ -516,13 +534,21 @@ export default function Repositories() {
                   }
                 }}
               />
-              <button 
-                onClick={handleFetchRepos}
-                disabled={loading || loadingGithubRepos}
-                className="btn-primary disabled:opacity-50"
-              >
-                {loadingGithubRepos ? 'Loading...' : (githubConnected ? 'Fetch GitHub Repos' : 'Fetch Repos')}
-              </button>
+                          <button 
+              onClick={handleFetchRepos}
+              disabled={loading || loadingGithubRepos}
+              className="btn-primary disabled:opacity-50"
+            >
+              {loadingGithubRepos ? 'Loading...' : (githubConnected ? 'Fetch GitHub Repos' : 'Fetch Repos')}
+            </button>
+            
+            {/* Test PR Analysis Link */}
+            <button
+              onClick={() => window.open('/dashboard/pr-analysis?repo=OWASP/NodeGoat', '_blank')}
+              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+            >
+              🧪 Test PR Analysis
+            </button>
             </div>
             <button 
               onClick={() => setShowAddRepo(true)}
@@ -700,14 +726,13 @@ export default function Repositories() {
                         </span>
                       )}
                       
-                      {repo.bugs > 0 && (
-                        <button
-                          onClick={() => window.open(`/dashboard/pr-analysis?repo=${encodeURIComponent(repo.fullName)}`, '_blank')}
-                          className="px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-green-600 text-white hover:bg-green-700"
-                        >
-                          📋 PR Analysis
-                        </button>
-                      )}
+                      {/* Always show PR Analysis button for testing */}
+                      <button
+                        onClick={() => window.open(`/dashboard/pr-analysis?repo=${encodeURIComponent(repo.fullName)}`, '_blank')}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md transition-colors bg-green-600 text-white hover:bg-green-700"
+                      >
+                        📋 PR Analysis
+                      </button>
                       
                       <button className="p-1.5 text-gray-400 hover:text-gray-600">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
