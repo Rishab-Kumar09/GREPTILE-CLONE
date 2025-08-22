@@ -188,16 +188,16 @@ export default function Repositories() {
   // Add repository from GitHub dropdown
   const addGithubRepository = async (repo: any) => {
     try {
-      console.log('🔄 Adding GitHub repository:', repo.full_name)
+      console.log('🔄 Adding GitHub repository:', repo.fullName)
       
       const repoToAdd = {
         name: repo.name,
-        fullName: repo.full_name,
+        fullName: repo.fullName, // Use our API's transformed field name
         language: repo.language || 'Unknown',
-        stars: repo.stargazers_count || 0,
-        forks: repo.forks_count || 0,
+        stars: repo.stars || 0, // Use our API's transformed field name
+        forks: repo.forks || 0, // Use our API's transformed field name
         description: repo.description || '',
-        url: repo.html_url, // Use html_url as the main URL
+        url: repo.url, // Use our API's transformed field name
         bugs: 0,
         analyzing: false
       }
@@ -207,7 +207,7 @@ export default function Repositories() {
       // Validate data before sending
       if (!repoToAdd.name || !repoToAdd.fullName || !repoToAdd.url) {
         console.error('❌ FRONTEND: Invalid repository data:', repoToAdd)
-        alert(`❌ Invalid repository data for ${repo.full_name}. Missing required fields.`)
+        alert(`❌ Invalid repository data for ${repo.fullName}. Missing required fields.`)
         return
       }
       
@@ -216,7 +216,7 @@ export default function Repositories() {
         console.log('✅ Repository saved successfully:', savedRepo)
         await loadRepositories()
         setShowRepoDropdown(false)
-        alert(`✅ Successfully added ${repo.full_name} to your repositories!`)
+        alert(`✅ Successfully added ${repo.fullName} to your repositories!`)
       } else {
         console.error('❌ Failed to save repository')
         alert('Failed to save repository. Please check the console for details.')
@@ -709,16 +709,16 @@ export default function Repositories() {
                             <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">{repo.language}</span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">{repo.full_name}</p>
+                        <p className="text-sm text-gray-600 mt-1">{repo.fullName}</p>
                         {repo.description && (
                           <p className="text-sm text-gray-500 mt-1">{repo.description}</p>
                         )}
                         <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
                           <span className="flex items-center">
-                            ⭐ {repo.stargazers_count}
+                            ⭐ {repo.stars}
                           </span>
                           <span className="flex items-center">
-                            🍴 {repo.forks_count}
+                            🍴 {repo.forks}
                           </span>
                           <span>Updated: {new Date(repo.updated_at).toLocaleDateString()}</span>
                         </div>
