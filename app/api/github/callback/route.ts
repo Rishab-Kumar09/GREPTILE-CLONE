@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic';
 
 const prisma = new PrismaClient();
 
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
-const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
+// Note: GitHub credentials will be fetched from internal endpoint
+// due to AWS Amplify environment variable scoping issue
 
 // GET /api/github/callback - Handle GitHub OAuth callback
 export async function GET(request: NextRequest) {
@@ -15,13 +15,34 @@ export async function GET(request: NextRequest) {
     console.log('🚀 CALLBACK STARTED - Full request URL:', request.url);
     console.log('🚀 CALLBACK STARTED - NextURL:', request.nextUrl.toString());
     
+    // WORKAROUND: Fetch GitHub credentials from internal endpoint
+    // because this route can't access environment variables
+    console.log('🔄 CALLBACK: Fetching GitHub credentials from internal endpoint...');
+    let GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET;
+    
+    try {
+      const credentialsResponse = await fetch('https://master.d3dp89x98knsw0.amplifyapp.com/api/github/get-credentials');
+      const credentialsData = await credentialsResponse.json();
+      
+      if (credentialsData.success) {
+        GITHUB_CLIENT_ID = credentialsData.clientId;
+        GITHUB_CLIENT_SECRET = credentialsData.clientSecret;
+        console.log('✅ CALLBACK: GitHub credentials fetched successfully');
+      } else {
+        console.error('❌ CALLBACK: Failed to fetch GitHub credentials:', credentialsData.error);
+        return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_config_missing'));
+      }
+    } catch (error) {
+      console.error('❌ CALLBACK: Error fetching GitHub credentials:', error);
+      return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_config_missing'));
+    }
+    
     // DEBUG: Log all environment variables
     console.log('🔍 CALLBACK DEBUG - Environment Variables:');
-    console.log('GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'Present' : 'Missing');
-    console.log('GITHUB_CLIENT_SECRET:', process.env.GITHUB_CLIENT_SECRET ? 'Present' : 'Missing');
+    console.log('GITHUB_CLIENT_ID:', GITHUB_CLIENT_ID ? 'Present' : 'Missing');
+    console.log('GITHUB_CLIENT_SECRET:', GITHUB_CLIENT_SECRET ? 'Present' : 'Missing');
     console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Present' : 'Missing');
     console.log('NODE_ENV:', process.env.NODE_ENV);
-    console.log('All env keys:', Object.keys(process.env).filter(key => key.includes('GITHUB')));
     
     console.log('🔍 CALLBACK: Attempting to get search parameters...');
     const { searchParams } = request.nextUrl;
@@ -47,8 +68,6 @@ export async function GET(request: NextRequest) {
       console.error('❌ CALLBACK ERROR: GitHub OAuth credentials not configured');
       console.error('GITHUB_CLIENT_ID:', GITHUB_CLIENT_ID ? 'Present' : 'Missing');
       console.error('GITHUB_CLIENT_SECRET:', GITHUB_CLIENT_SECRET ? 'Present' : 'Missing');
-      console.error('Raw env GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID);
-      console.error('Raw env GITHUB_CLIENT_SECRET:', process.env.GITHUB_CLIENT_SECRET ? '[REDACTED]' : 'Missing');
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_config_missing'));
     }
     
