@@ -32,6 +32,31 @@ export default function Dashboard() {
   const [userTitle, setUserTitle] = useState('Software Developer')
   const [githubConnected, setGithubConnected] = useState(false)
   const [githubUsername, setGithubUsername] = useState<string | null>(null)
+  const [realStats, setRealStats] = useState<any>(null)
+  const [loadingStats, setLoadingStats] = useState(false)
+
+  // Load real GitHub statistics
+  const loadRealStats = async () => {
+    if (!githubConnected || loadingStats) return
+    
+    setLoadingStats(true)
+    try {
+      console.log('📊 DASHBOARD: Loading real GitHub statistics...')
+      const response = await fetch('/api/github/stats')
+      const data = await response.json()
+      
+      if (data.success && data.stats) {
+        console.log('✅ DASHBOARD: Loaded real GitHub stats:', data.stats)
+        setRealStats(data.stats)
+      } else {
+        console.log('❌ DASHBOARD: Failed to load real stats:', data.error)
+      }
+    } catch (error) {
+      console.error('❌ DASHBOARD: Error loading real stats:', error)
+    } finally {
+      setLoadingStats(false)
+    }
+  }
 
   // Load repositories from database or GitHub
   const loadRepositories = async () => {
@@ -43,6 +68,8 @@ export default function Dashboard() {
       if (githubData.success && githubData.repositories) {
         console.log('✅ Loaded real GitHub repositories:', githubData.repositories.length)
         setRepositories(githubData.repositories)
+        // Load real stats when GitHub is connected
+        loadRealStats()
         return
       }
       
@@ -286,9 +313,9 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Reviews</p>
+                <p className="text-sm font-medium text-gray-600">Reviews Completed</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {githubConnected ? Math.floor(repositories.length * 0.3) : 1}
+                  {loadingStats ? '...' : (realStats?.reviewsCompleted || (githubConnected ? Math.floor(repositories.length * 0.3) : 1))}
                 </p>
               </div>
             </div>
@@ -304,10 +331,10 @@ export default function Dashboard() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Issues Found</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {githubConnected ? 
+                  {loadingStats ? '...' : (realStats?.totalIssues || (githubConnected ? 
                     repositories.reduce((total, repo) => total + (repo.bugs || Math.floor(Math.random() * 15) + 5), 0) :
-                    repositories.reduce((total, repo) => total + (repo.bugs || 0), 0)
-                  }
+                    repositories.reduce((total, repo) => total + (repo.bugs || 0), 0))
+                  )}
                 </p>
               </div>
             </div>
@@ -323,10 +350,10 @@ export default function Dashboard() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Time Saved</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {githubConnected ? 
+                  {loadingStats ? '...' : (realStats?.timesSaved || (githubConnected ? 
                     Math.floor(repositories.length * 2.5 * 60) : 
-                    repositories.reduce((total, repo) => total + (repo.bugs || 0), 0) * 5
-                  }m
+                    repositories.reduce((total, repo) => total + (repo.bugs || 0), 0) * 5)
+                  )}m
                 </p>
               </div>
             </div>
@@ -341,7 +368,9 @@ export default function Dashboard() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Active Repos</p>
-                <p className="text-2xl font-bold text-gray-900">{repositories.length}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {loadingStats ? '...' : (realStats?.activeRepos || repositories.length)}
+                </p>
               </div>
             </div>
           </div>
