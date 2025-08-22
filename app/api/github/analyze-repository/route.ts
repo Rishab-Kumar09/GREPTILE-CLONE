@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 }) : null
@@ -39,12 +42,14 @@ export async function POST(request: NextRequest) {
     console.log(`🚀 Starting analysis for ${owner}/${repo} with ${TIMEOUT_MS/1000}s timeout`)
     
     if (!openai) {
+      console.error('❌ OpenAI API key not configured');
+      console.error('❌ OPENAI_API_KEY environment variable:', process.env.OPENAI_API_KEY ? 'SET (length: ' + process.env.OPENAI_API_KEY.length + ')' : 'NOT SET');
       return NextResponse.json({ 
         success: false,
         error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to your environment variables.',
         totalBugs: 0,
         results: []
-      })
+      }, { status: 500 })
     }
 
     // Get repository info first to find default branch

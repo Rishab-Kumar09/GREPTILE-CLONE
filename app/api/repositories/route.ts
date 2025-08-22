@@ -86,17 +86,25 @@ export async function POST(request: NextRequest) {
 // DELETE /api/repositories - Delete a repository
 export async function DELETE(request: NextRequest) {
   try {
+    console.log('🗑️ API: DELETE request received');
+    console.log('🗑️ API: Request URL:', request.url);
+    console.log('🗑️ API: Request nextUrl:', request.nextUrl.href);
+    
     const { searchParams } = request.nextUrl
     const fullName = searchParams.get('fullName')
     
+    console.log('🗑️ API: Extracted fullName:', fullName);
+    console.log('🗑️ API: All search params:', Object.fromEntries(searchParams.entries()));
+    
     if (!fullName) {
+      console.log('❌ API: Missing fullName parameter');
       return NextResponse.json(
         { error: 'Repository fullName is required' },
         { status: 400 }
       );
     }
 
-    console.log('🗑️ API: Deleting repository:', fullName);
+    console.log('🗑️ API: Attempting to delete repository:', fullName);
     
     const deletedRepository = await prisma.repository.delete({
       where: { fullName: fullName }
@@ -106,6 +114,10 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true, deleted: deletedRepository });
   } catch (error) {
     console.error('❌ API: Failed to delete repository:', error);
+    if (error instanceof Error) {
+      console.error('❌ API: Error message:', error.message);
+      console.error('❌ API: Error stack:', error.stack);
+    }
     return NextResponse.json(
       { error: 'Failed to delete repository', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
