@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DashboardHeader from '../../../components/DashboardHeader'
 
@@ -39,7 +39,7 @@ interface Repository {
   analysisResults?: AnalysisResult[]
 }
 
-export default function PRAnalysis() {
+function PRAnalysisContent() {
   const searchParams = useSearchParams()
   const repoName = searchParams.get('repo')
   
@@ -306,5 +306,21 @@ export default function PRAnalysis() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function PRAnalysis() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50">
+        <DashboardHeader currentPage="repositories" />
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <span className="ml-2 text-gray-600">Loading analysis...</span>
+        </div>
+      </div>
+    }>
+      <PRAnalysisContent />
+    </Suspense>
   )
 } 
