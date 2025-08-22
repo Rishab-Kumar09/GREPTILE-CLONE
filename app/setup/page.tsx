@@ -113,6 +113,10 @@ export default function Setup() {
     }
     if (stepId < 5) {
       setCurrentStep(stepId + 1)
+    } else if (stepId === 5) {
+      // Move to completion screen (step 6)
+      setCurrentStep(6)
+      console.log('🎉 SETUP: All steps completed! Moving to success screen.')
     }
   }
 
