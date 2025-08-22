@@ -37,20 +37,14 @@ export async function POST(request: NextRequest) {
   const TIMEOUT_MS = 25000 // 25 seconds (safe for Netlify's 30s limit)
   
   try {
-    console.log('🔍 DEBUG: Analysis API called');
-    console.log('🔍 DEBUG: Environment check - OPENAI_API_KEY exists:', !!process.env.OPENAI_API_KEY);
-    console.log('🔍 DEBUG: OpenAI client initialized:', !!openai);
-    
     const { repoUrl, owner, repo } = await request.json()
     
-    console.log(`🚀 Starting analysis for ${owner}/${repo} with ${TIMEOUT_MS/1000}s timeout`)
+    console.log(`Starting analysis for ${owner}/${repo}`)
     
     if (!openai) {
-      console.error('❌ OpenAI API key not configured');
-      console.error('❌ OPENAI_API_KEY environment variable:', process.env.OPENAI_API_KEY ? 'SET (length: ' + process.env.OPENAI_API_KEY.length + ')' : 'NOT SET');
       return NextResponse.json({ 
         success: false,
-        error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to your environment variables.',
+        error: 'OpenAI API key not configured',
         totalBugs: 0,
         results: []
       }, { status: 500 })
@@ -137,7 +131,7 @@ export async function POST(request: NextRequest) {
     for (const file of filesToAnalyze) {
       // Check timeout
       if (Date.now() - startTime > TIMEOUT_MS) {
-        console.log(`⏰ Timeout reached, stopping analysis. Processed ${filesProcessed}/${filesToAnalyze.length} files`)
+        console.log(`Timeout reached, stopping analysis. Processed ${filesProcessed}/${filesToAnalyze.length} files`)
         break
       }
       
@@ -183,7 +177,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`🎉 ANALYSIS COMPLETE: ${totalBugs} bugs, ${totalSecurityIssues} security issues, ${totalCodeSmells} code smells across ${analysisResults.length} files`)
+    console.log(`Analysis complete: ${totalBugs} issues found`)
 
     return NextResponse.json({
       success: true,
@@ -217,18 +211,11 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('❌ MAIN CATCH: Repository analysis error:', error)
-    if (error instanceof Error) {
-      console.error('❌ MAIN CATCH: Error message:', error.message)
-      console.error('❌ MAIN CATCH: Error stack:', error.stack)
-    }
-    console.error('❌ MAIN CATCH: Error type:', typeof error)
-    console.error('❌ MAIN CATCH: Error details:', JSON.stringify(error, null, 2))
+    console.error('Analysis error:', error instanceof Error ? error.message : 'Unknown error')
     
     return NextResponse.json({
       error: 'Failed to analyze repository',
       details: error instanceof Error ? error.message : 'Unknown error',
-      errorType: typeof error,
       totalBugs: 0,
       results: []
     }, { status: 500 })

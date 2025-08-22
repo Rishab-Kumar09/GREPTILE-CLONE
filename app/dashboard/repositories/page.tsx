@@ -323,8 +323,8 @@ export default function Repositories() {
       
       const [owner, repoName] = repo.fullName.split('/')
       
-      // Use the WORKING single-batch API (same as NodeGoat)
-      const response = await fetch('/api/github/analyze-repository', {
+      // Use the simplified analysis API (no complex logging)
+      const response = await fetch('/api/github/analyze-simple', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
