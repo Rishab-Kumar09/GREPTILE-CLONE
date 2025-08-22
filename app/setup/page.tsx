@@ -16,6 +16,20 @@ export default function Setup() {
   const [loading, setLoading] = useState(true)
   const [githubRepos, setGithubRepos] = useState<any[]>([])
   const [loadingRepos, setLoadingRepos] = useState(false)
+  
+  // Add missing state for interactive elements
+  const [strictnessLevel, setStrictnessLevel] = useState(60)
+  const [commentTypes, setCommentTypes] = useState({
+    syntax: true,
+    logic: true,
+    style: true
+  })
+  const [filters, setFilters] = useState({
+    labels: '',
+    authors: '',
+    branches: '',
+    keywords: ''
+  })
 
   // Check GitHub connection status on component mount
   useEffect(() => {
@@ -79,10 +93,11 @@ export default function Setup() {
 
   // Fetch repos when reaching step 2 and GitHub is connected
   useEffect(() => {
-    if (currentStep === 2 && githubConnected) {
+    if (currentStep === 2 && githubConnected && githubRepos.length === 0) {
+      console.log('🔄 SETUP: Fetching GitHub repositories for step 2...')
       fetchGithubRepos()
     }
-  }, [currentStep, githubConnected])
+  }, [currentStep, githubConnected, githubRepos.length])
 
   const steps = [
     { id: 1, title: 'Connect GitHub', completed: githubConnected },
@@ -343,8 +358,19 @@ export default function Setup() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Strictness Level</label>
                   <div className="flex items-center space-x-4">
                     <span className="text-sm text-gray-500">LOW</span>
-                    <div className="flex-1 h-2 bg-gray-200 rounded-full">
-                      <div className="h-2 bg-green-600 rounded-full" style={{width: '60%'}}></div>
+                    <div className="flex-1 relative">
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={strictnessLevel}
+                        onChange={(e) => setStrictnessLevel(parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                        style={{
+                          WebkitAppearance: 'none',
+                          background: `linear-gradient(to right, #059669 0%, #059669 ${strictnessLevel}%, #e5e7eb ${strictnessLevel}%, #e5e7eb 100%)`
+                        }}
+                      />
                     </div>
                     <span className="text-sm text-gray-500">HIGH</span>
                   </div>
@@ -358,7 +384,11 @@ export default function Setup() {
                       <label key={type} className="flex items-center">
                         <input
                           type="checkbox"
-                          defaultChecked
+                          checked={commentTypes[type.toLowerCase() as keyof typeof commentTypes]}
+                          onChange={(e) => setCommentTypes({
+                            ...commentTypes,
+                            [type.toLowerCase()]: e.target.checked
+                          })}
                           className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
                         />
                         <span className="ml-2 text-sm text-gray-900">{type}</span>
@@ -391,21 +421,45 @@ export default function Setup() {
               <p className="text-gray-600 mb-6">Filters help you control which pull requests get reviewed.</p>
               
               <div className="text-left space-y-4 mb-6">
-                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <span className="text-sm font-medium text-gray-900">Labels</span>
-                  <span className="text-sm text-gray-500">None</span>
+                <div className="p-3 border border-gray-200 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-900 mb-2">Labels</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., bug, feature, hotfix"
+                    value={filters.labels}
+                    onChange={(e) => setFilters({...filters, labels: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
                 </div>
-                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <span className="text-sm font-medium text-gray-900">Authors</span>
-                  <span className="text-sm text-gray-500">None</span>
+                <div className="p-3 border border-gray-200 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-900 mb-2">Authors</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., @username1, @username2"
+                    value={filters.authors}
+                    onChange={(e) => setFilters({...filters, authors: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
                 </div>
-                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <span className="text-sm font-medium text-gray-900">Branches</span>
-                  <span className="text-sm text-gray-500">None</span>
+                <div className="p-3 border border-gray-200 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-900 mb-2">Branches</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., main, develop, feature/*"
+                    value={filters.branches}
+                    onChange={(e) => setFilters({...filters, branches: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
                 </div>
-                <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
-                  <span className="text-sm font-medium text-gray-900">Keywords</span>
-                  <span className="text-sm text-gray-500">None</span>
+                <div className="p-3 border border-gray-200 rounded-lg">
+                  <label className="block text-sm font-medium text-gray-900 mb-2">Keywords</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., TODO, FIXME, urgent"
+                    value={filters.keywords}
+                    onChange={(e) => setFilters({...filters, keywords: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
                 </div>
               </div>
 
