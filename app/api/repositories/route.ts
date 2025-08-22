@@ -29,15 +29,27 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('📊 API: Received repository data:', body);
     
-    // Clean and validate the data
+    // Clean and validate the data - REJECT if critical fields are missing
+    if (!body.name || !body.fullName || !body.url) {
+      console.error('❌ API: Missing critical repository data:', {
+        name: body.name,
+        fullName: body.fullName, 
+        url: body.url
+      });
+      return NextResponse.json({
+        error: 'Missing required fields: name, fullName, and url are required',
+        received: { name: body.name, fullName: body.fullName, url: body.url }
+      }, { status: 400 });
+    }
+
     const repoData = {
-      name: body.name || '',
-      fullName: body.fullName || '',
+      name: body.name,
+      fullName: body.fullName,
       description: body.description || null,
       stars: parseInt(body.stars) || 0,
       forks: parseInt(body.forks) || 0,
       language: body.language || null,
-      url: body.url || '',
+      url: body.url,
       bugs: parseInt(body.bugs) || 0,
       analyzing: Boolean(body.analyzing) || false,
       analysisResults: body.analysisResults || null

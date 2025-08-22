@@ -204,6 +204,13 @@ export default function Repositories() {
       
       console.log('📊 Repository data to save:', repoToAdd)
       
+      // Validate data before sending
+      if (!repoToAdd.name || !repoToAdd.fullName || !repoToAdd.url) {
+        console.error('❌ FRONTEND: Invalid repository data:', repoToAdd)
+        alert(`❌ Invalid repository data for ${repo.full_name}. Missing required fields.`)
+        return
+      }
+      
       const savedRepo = await saveRepository(repoToAdd)
       if (savedRepo) {
         console.log('✅ Repository saved successfully:', savedRepo)
