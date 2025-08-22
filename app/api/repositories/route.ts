@@ -78,4 +78,34 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// DELETE /api/repositories - Delete a repository
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = request.nextUrl
+    const fullName = searchParams.get('fullName')
+    
+    if (!fullName) {
+      return NextResponse.json(
+        { error: 'Repository fullName is required' },
+        { status: 400 }
+      );
+    }
+
+    console.log('🗑️ API: Deleting repository:', fullName);
+    
+    const deletedRepository = await prisma.repository.delete({
+      where: { fullName: fullName }
+    });
+
+    console.log('✅ API: Repository deleted successfully:', fullName);
+    return NextResponse.json({ success: true, deleted: deletedRepository });
+  } catch (error) {
+    console.error('❌ API: Failed to delete repository:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete repository', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
 } 

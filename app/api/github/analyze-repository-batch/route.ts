@@ -37,9 +37,15 @@ export async function POST(request: NextRequest) {
     const { repoUrl, owner, repo, batchIndex = 0, batchSize = 15 } = await request.json()
     
     console.log(`🚀 BATCH ${batchIndex + 1} - Analyzing ${owner}/${repo}`)
+    console.log('🔑 Environment check:', {
+      hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+      openaiInstance: !!openai,
+      keyLength: process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.length : 0
+    })
     
     if (!openai) {
       console.error('❌ OpenAI API key not configured')
+      console.error('❌ Environment variables:', Object.keys(process.env).filter(key => key.includes('OPENAI')))
       return NextResponse.json({ 
         success: false,
         error: 'OpenAI API key not configured. Please add OPENAI_API_KEY to environment variables.',

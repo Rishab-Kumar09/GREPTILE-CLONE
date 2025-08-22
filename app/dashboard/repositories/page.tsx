@@ -319,207 +319,111 @@ export default function Repositories() {
     setAnalyzing(repoKey)
     
     try {
-      console.log('🚀 Starting UNLIMITED batch analysis for:', repo.fullName)
+      console.log('🚀 Starting analysis for:', repo.fullName, 'using single-batch API (same as NodeGoat)')
       
       const [owner, repoName] = repo.fullName.split('/')
       
-      // Initialize batch processing
-      let batchIndex = 0
-      let allResults: any[] = []
-      let totalBugs = 0
-      let totalSecurityIssues = 0
-      let totalCodeSmells = 0
-      let totalFilesInRepo = 0
-      let totalFilesProcessed = 0
-      let hasMoreBatches = true
-      
-      // Process all batches until complete
-      while (hasMoreBatches) {
-        console.log(`📊 Processing BATCH ${batchIndex + 1}...`)
-        
-        const response = await fetch('/api/github/analyze-repository-batch', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            repoUrl: repo.htmlUrl,
-            owner: owner,
-            repo: repoName,
-            batchIndex: batchIndex,
-            batchSize: 15  // Smaller batches = faster completion
-          }),
-        })
-
-        if (!response.ok) {
-          console.error(`❌ Batch ${batchIndex + 1} failed with status ${response.status}`)
-          if (response.status === 500) {
-            console.error('🚨 API Error - stopping analysis')
-            alert('Analysis failed due to API error. Please check your OpenAI API key configuration.')
-            break // Exit the loop on 500 errors
-          }
-          if (response.status === 504 || response.status === 502) {
-            console.log(`⏰ Batch ${batchIndex + 1} timeout (${response.status}) - continuing with next batch...`)
-            batchIndex++
-            // Small delay before retrying next batch
-            await new Promise(resolve => setTimeout(resolve, 1000))
-            continue
-          }
-          batchIndex++
-          if (batchIndex > 20) { // Safety limit to prevent infinite loops
-            console.error('🚨 Too many failed batches - stopping analysis')
-            break
-          }
-          continue
-        }
-
-        let batchData
-        try {
-          batchData = await response.json()
-          console.log(`✅ BATCH ${batchIndex + 1} results:`, batchData)
-        } catch (jsonError) {
-          console.error('JSON parsing error for batch:', jsonError)
-          batchIndex++
-          continue
-        }
-
-        if (batchData.success) {
-          // Accumulate results from this batch
-          allResults.push(...(batchData.results || []))
-          totalBugs += batchData.totalBugs || 0
-          totalSecurityIssues += batchData.totalSecurityIssues || 0
-          totalCodeSmells += batchData.totalCodeSmells || 0
-          totalFilesInRepo = batchData.totalFilesInRepo || 0
-          totalFilesProcessed = batchData.progress?.filesProcessed || 0
-          
-          console.log(`📈 PROGRESS: ${totalFilesProcessed}/${totalFilesInRepo} files (${batchData.progress?.percentage || 0}%)`)
-          
-          // Check if there are more batches
-          hasMoreBatches = batchData.hasMoreBatches
-          batchIndex = batchData.nextBatchIndex || batchIndex + 1
-          
-          // Update UI with current progress (use TOTAL issues, not just bugs)
-          const currentTotalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
-          console.log(`📊 BATCH ${batchIndex + 1} UPDATE: Setting total issues to ${currentTotalIssues} (${totalBugs} bugs + ${totalSecurityIssues} security + ${totalCodeSmells} smells) for ${repo.fullName}`)
-          setRepositories(prev => prev.map(r => 
-            r.fullName === repo.fullName 
-              ? { ...r, bugs: currentTotalIssues, reviews: totalFilesProcessed, status: 'active' as const }
-              : r
-          ))
-          
-        } else {
-          console.error(`❌ Batch ${batchIndex + 1} failed:`, batchData.error)
-          batchIndex++
-          if (batchIndex > 20) break // Safety limit
-        }
-        
-        // Shorter delay between batches for faster processing
-        if (hasMoreBatches) {
-          await new Promise(resolve => setTimeout(resolve, 200))
-        }
-      }
-      
-      // Store final combined results
-      const finalResults = {
-        success: true,
-        repository: `${owner}/${repoName}`,
-        totalFilesFound: totalFilesInRepo,
-        filesAnalyzed: totalFilesProcessed,
-        totalBugs,
-        totalSecurityIssues,
-        totalCodeSmells,
-        results: allResults,
-        coverage: {
-          percentage: Math.round((totalFilesProcessed / totalFilesInRepo) * 100),
-          analyzed: totalFilesProcessed,
-          total: totalFilesInRepo
-        }
-      }
-      
-      setAnalysisResults(prev => ({
-        ...prev,
-        [repoKey]: finalResults
-      }))
-      
-      const coverage = finalResults.coverage ? `${finalResults.coverage.percentage}%` : '100%'
-      const totalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
-      
-      // Show results dialog
-      // Show detailed results in a better format
-      const detailedResults = `🚀 ANALYSIS COMPLETE!\n\n` +
-            `📊 Repository: ${finalResults.repository}\n` +
-            `📁 Total Files: ${totalFilesInRepo}\n` +
-            `🔍 Files Analyzed: ${totalFilesProcessed}\n` +
-            `📈 Coverage: ${coverage}\n\n` +
-            `🎯 ISSUES BREAKDOWN:\n` +
-            `🐛 Logic Bugs: ${totalBugs}\n` +
-            `🔒 Security Issues: ${totalSecurityIssues}\n` +
-            `💡 Code Smells: ${totalCodeSmells}\n` +
-            `📊 TOTAL: ${totalIssues} issues\n\n` +
-            `Click "View Details" to see specific issues!`
-      
-      alert(detailedResults)
-      
-      // Log detailed results to console for inspection
-      console.log('🔍 DETAILED ANALYSIS RESULTS:', {
-        repository: finalResults.repository,
-        totalIssues: totalIssues,
-        breakdown: { bugs: totalBugs, security: totalSecurityIssues, codeSmells: totalCodeSmells },
-        allResults: allResults
+      // Use the WORKING single-batch API (same as NodeGoat)
+      const response = await fetch('/api/github/analyze-repository', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          repoUrl: repo.htmlUrl || repo.url,
+          owner: owner,
+          repo: repoName
+        }),
       })
       
-      // Show first few issues as examples
-      if (allResults.length > 0) {
-        console.log('📋 SAMPLE ISSUES FOUND:')
-        allResults.slice(0, 3).forEach((result: any, index: number) => {
-          console.log(`\n📁 File ${index + 1}: ${result.file}`)
-          if (result.bugs?.length > 0) {
-            console.log('🐛 Bugs:', result.bugs.slice(0, 2))
-          }
-          if (result.securityIssues?.length > 0) {
-            console.log('🔒 Security:', result.securityIssues.slice(0, 2))
-          }
-          if (result.codeSmells?.length > 0) {
-            console.log('💡 Code Smells:', result.codeSmells.slice(0, 2))
-          }
-        })
-        console.log('\n💡 TIP: Check the browser console for detailed issue descriptions!')
+      if (!response.ok) {
+        console.error(`❌ Analysis failed with status ${response.status}`)
+        alert(`Analysis failed: ${response.status} error. Please try again.`)
+        setAnalyzing(null)
+        return
       }
       
-      // CRITICAL: Final UI update AFTER alert is dismissed (use TOTAL issues)
-      const finalTotalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
+      const analysisData = await response.json()
+      console.log('✅ Analysis completed:', analysisData)
       
-      // Update local state
+      const totalIssues = (analysisData.totalBugs || 0) + (analysisData.totalSecurityIssues || 0) + (analysisData.totalCodeSmells || 0)
+      const allResults = analysisData.results || []
+      
+      // Store analysis results
+      setAnalysisResults(prev => ({
+        ...prev,
+        [repo.fullName]: {
+          summary: { 
+            totalBugs: analysisData.totalBugs || 0,
+            totalSecurityIssues: analysisData.totalSecurityIssues || 0, 
+            totalCodeSmells: analysisData.totalCodeSmells || 0,
+            totalFilesProcessed: allResults.length
+          },
+          allResults: allResults
+        }
+      }))
+      
+      // Update repository with results
       setRepositories(prev => prev.map(r => 
         r.fullName === repo.fullName 
-          ? { ...r, bugs: finalTotalIssues, reviews: totalFilesProcessed, status: 'active' as const }
+          ? { ...r, bugs: totalIssues, reviews: allResults.length, status: 'active' as const }
           : r
       ))
       
-      // SAVE TO DATABASE - Update the repository with analysis results
+      // Save to database
       try {
-        const updatedRepo = repositories.find(r => r.fullName === repo.fullName)
-        if (updatedRepo) {
-          const repoToSave = {
-            ...updatedRepo,
-            bugs: finalTotalIssues,
-            analyzing: false,
-            analysisResults: finalResults // Save the complete analysis results
+        const updatedRepo = {
+          ...repo,
+          bugs: totalIssues,
+          analyzing: false,
+          analysisResults: {
+            summary: { 
+              totalBugs: analysisData.totalBugs || 0,
+              totalSecurityIssues: analysisData.totalSecurityIssues || 0, 
+              totalCodeSmells: analysisData.totalCodeSmells || 0,
+              totalFilesProcessed: allResults.length
+            },
+            allResults: allResults
           }
-          await saveRepository(repoToSave)
-          console.log(`💾 SAVED TO DATABASE: ${repo.fullName} with ${finalTotalIssues} issues and detailed results`)
         }
+        await saveRepository(updatedRepo)
+        console.log(`💾 SAVED TO DATABASE: ${repo.fullName} with ${totalIssues} issues`)
       } catch (dbError) {
         console.error('Failed to save analysis results to database:', dbError)
       }
       
-      console.log(`🔒 FINAL UPDATE: Setting total issues to ${finalTotalIssues} (${totalBugs} bugs + ${totalSecurityIssues} security + ${totalCodeSmells} smells) for ${repo.fullName}`)
-            
+      alert(`✅ Analysis complete! Found ${totalIssues} issues in ${allResults.length} files.`)
+      
     } catch (error) {
-      console.error('Batch analysis error:', error)
-      alert(`❌ Batch analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('Error analyzing repository:', error)
+      alert('Analysis failed. Please try again.')
     } finally {
       setAnalyzing(null)
+    }
+  }
+
+  // Delete repository function
+  const deleteRepository = async (repo: Repository) => {
+    if (!confirm(`Are you sure you want to delete ${repo.fullName}?`)) {
+      return
+    }
+    
+    try {
+      console.log('🗑️ Deleting repository:', repo.fullName)
+      const response = await fetch(`/api/repositories?fullName=${encodeURIComponent(repo.fullName)}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        setRepositories(prev => prev.filter(r => r.fullName !== repo.fullName))
+        console.log('✅ Repository deleted:', repo.fullName)
+      } else {
+        console.error('Failed to delete repository')
+        alert('Failed to delete repository. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error deleting repository:', error)
+      alert('Failed to delete repository. Please try again.')
     }
   }
 
@@ -756,10 +660,13 @@ export default function Repositories() {
                         📋 PR Analysis
                       </button>
                       
-                      <button className="p-1.5 text-gray-400 hover:text-gray-600">
+                      <button 
+                        onClick={() => deleteRepository(repo)}
+                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                        title="Delete repository"
+                      >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
                     </div>
