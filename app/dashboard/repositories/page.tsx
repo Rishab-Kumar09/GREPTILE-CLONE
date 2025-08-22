@@ -36,6 +36,12 @@ export default function Repositories() {
   const [analysisResults, setAnalysisResults] = useState<{[key: string]: any}>({})
   const [expandedResults, setExpandedResults] = useState<{[key: string]: boolean}>({})
   const [profilePic, setProfilePic] = useState<string | null>(null)
+  
+  // New states for GitHub OAuth repos
+  const [githubConnected, setGithubConnected] = useState(false)
+  const [availableGithubRepos, setAvailableGithubRepos] = useState<any[]>([])
+  const [showRepoDropdown, setShowRepoDropdown] = useState(false)
+  const [loadingGithubRepos, setLoadingGithubRepos] = useState(false)
 
   // Load repositories from database on component mount
   const loadRepositories = async () => {
@@ -85,9 +91,23 @@ export default function Repositories() {
     }
   }
 
+  // Check GitHub connection status
+  const checkGithubConnection = async () => {
+    try {
+      const response = await fetch('/api/profile')
+      const data = await response.json()
+      if (data.success && data.profile) {
+        setGithubConnected(data.profile.githubConnected || false)
+      }
+    } catch (error) {
+      console.error('Error checking GitHub connection:', error)
+    }
+  }
+
   // Load repositories on component mount
   useEffect(() => {
     loadRepositories()
+    checkGithubConnection()
     // Load profile picture from localStorage
     const savedProfilePic = localStorage.getItem('profileImage')
     if (savedProfilePic) {
@@ -117,9 +137,69 @@ export default function Repositories() {
     }
   }
 
+  // Fetch real GitHub repositories using OAuth
+  const fetchGithubRepos = async () => {
+    setLoadingGithubRepos(true)
+    try {
+      const response = await fetch('/api/github/repositories')
+      const data = await response.json()
+      
+      if (data.success && data.repositories) {
+        setAvailableGithubRepos(data.repositories)
+        setGithubConnected(true)
+        setShowRepoDropdown(true)
+        console.log('✅ Fetched GitHub repositories:', data.repositories.length)
+      } else {
+        console.log('❌ GitHub not connected or no repositories found')
+        alert('Please connect your GitHub account first in the Setup Bot')
+      }
+    } catch (error) {
+      console.error('Error fetching GitHub repositories:', error)
+      alert('Failed to fetch GitHub repositories. Please try again.')
+    } finally {
+      setLoadingGithubRepos(false)
+    }
+  }
+
   const handleFetchRepos = () => {
-    if (username.trim()) {
-      fetchRepositories(username.trim())
+    if (githubConnected) {
+      fetchGithubRepos()
+    } else {
+      // Fallback to username input method
+      if (username.trim()) {
+        fetchRepositories(username.trim())
+      }
+    }
+  }
+
+  // Add repository from GitHub dropdown
+  const addGithubRepository = async (repo: any) => {
+    try {
+      const repoToAdd = {
+        id: repo.id,
+        name: repo.name,
+        fullName: repo.full_name,
+        language: repo.language,
+        stars: repo.stargazers_count,
+        forks: repo.forks_count,
+        isPrivate: repo.private,
+        description: repo.description,
+        htmlUrl: repo.html_url,
+        url: repo.clone_url,
+        bugs: 0,
+        status: 'pending' as const,
+        analyzing: false,
+        updatedAt: repo.updated_at,
+        createdAt: repo.created_at
+      }
+      
+      await saveRepository(repoToAdd)
+      await loadRepositories()
+      setShowRepoDropdown(false)
+      console.log('✅ Added repository:', repo.full_name)
+    } catch (error) {
+      console.error('Error adding repository:', error)
+      alert('Failed to add repository. Please try again.')
     }
   }
 
@@ -438,10 +518,10 @@ export default function Repositories() {
               />
               <button 
                 onClick={handleFetchRepos}
-                disabled={loading}
+                disabled={loading || loadingGithubRepos}
                 className="btn-primary disabled:opacity-50"
               >
-                {loading ? 'Loading...' : 'Fetch Repos'}
+                {loadingGithubRepos ? 'Loading...' : (githubConnected ? 'Fetch GitHub Repos' : 'Fetch Repos')}
               </button>
             </div>
             <button 
@@ -634,6 +714,70 @@ export default function Repositories() {
             )}
           </div>
         </div>
+
+        {/* GitHub Repositories Dropdown Modal */}
+        {showRepoDropdown && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Select GitHub Repository</h3>
+                <button
+                  onClick={() => setShowRepoDropdown(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                {availableGithubRepos.map((repo) => (
+                  <div key={repo.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-medium text-gray-900">{repo.name}</h4>
+                          {repo.private && (
+                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">Private</span>
+                          )}
+                          {repo.language && (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">{repo.language}</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{repo.full_name}</p>
+                        {repo.description && (
+                          <p className="text-sm text-gray-500 mt-1">{repo.description}</p>
+                        )}
+                        <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                          <span className="flex items-center">
+                            ⭐ {repo.stargazers_count}
+                          </span>
+                          <span className="flex items-center">
+                            🍴 {repo.forks_count}
+                          </span>
+                          <span>Updated: {new Date(repo.updated_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => addGithubRepository(repo)}
+                        className="ml-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
+                      >
+                        Add Repository
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {availableGithubRepos.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No repositories found. Make sure your GitHub account is connected.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Add Repository Modal */}
         {showAddRepo && (
