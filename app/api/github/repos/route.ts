@@ -1,4 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client'; // Changed from relative import
+const prisma = new PrismaClient(); // Direct instantiation
+
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

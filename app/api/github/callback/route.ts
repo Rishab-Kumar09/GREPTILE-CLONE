@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 const prisma = new PrismaClient();
 
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
