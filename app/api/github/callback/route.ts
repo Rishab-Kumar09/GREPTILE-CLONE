@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     console.log('NODE_ENV:', process.env.NODE_ENV);
     console.log('All env keys:', Object.keys(process.env).filter(key => key.includes('GITHUB')));
     
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = request.nextUrl;
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     
