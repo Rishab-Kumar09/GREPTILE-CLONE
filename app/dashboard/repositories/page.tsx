@@ -373,22 +373,36 @@ export default function Repositories() {
       
       // Save to database
       try {
+        const analysisResultsToSave = {
+          summary: { 
+            totalBugs: analysisData.totalBugs || 0,
+            totalSecurityIssues: analysisData.totalSecurityIssues || 0, 
+            totalCodeSmells: analysisData.totalCodeSmells || 0,
+            totalFilesProcessed: allResults.length
+          },
+          allResults: allResults
+        }
+        
+        console.log('🔍 DEBUG: Analysis results to save:', JSON.stringify(analysisResultsToSave, null, 2))
+        
         const updatedRepo = {
           ...repo,
           bugs: totalIssues,
           analyzing: false,
-          analysisResults: {
-            summary: { 
-              totalBugs: analysisData.totalBugs || 0,
-              totalSecurityIssues: analysisData.totalSecurityIssues || 0, 
-              totalCodeSmells: analysisData.totalCodeSmells || 0,
-              totalFilesProcessed: allResults.length
-            },
-            allResults: allResults
-          }
+          analysisResults: analysisResultsToSave
         }
-        await saveRepository(updatedRepo)
+        
+        console.log('🔍 DEBUG: Updated repo object:', JSON.stringify(updatedRepo, null, 2))
+        
+        const saveResult = await saveRepository(updatedRepo)
         console.log(`💾 SAVED TO DATABASE: ${repo.fullName} with ${totalIssues} issues`)
+        console.log('💾 Save result:', saveResult)
+        
+        // Immediately reload repositories to verify save
+        setTimeout(() => {
+          loadRepositories()
+        }, 1000)
+        
       } catch (dbError) {
         console.error('Failed to save analysis results to database:', dbError)
       }
