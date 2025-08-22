@@ -96,19 +96,6 @@ export default function Repositories() {
     try {
       const response = await fetch('/api/profile')
       const data = await response.json()
-      if (data.success && data.profile) {
-        setGithubConnected(data.profile.githubConnected || false)
-      }
-    } catch (error) {
-      console.error('Error checking GitHub connection:', error)
-    }
-  }
-
-  // Check GitHub connection status
-  const checkGithubConnection = async () => {
-    try {
-      const response = await fetch('/api/profile')
-      const data = await response.json()
       if (data.success && data.profile && data.profile.githubConnected) {
         setGithubConnected(true)
         console.log('✅ GitHub is connected')
@@ -193,17 +180,19 @@ export default function Repositories() {
   // Add repository from GitHub dropdown
   const addGithubRepository = async (repo: any) => {
     try {
+      console.log('🔄 Adding GitHub repository:', repo.full_name)
+      
       const repoToAdd = {
         id: repo.id,
         name: repo.name,
         fullName: repo.full_name,
-        language: repo.language,
-        stars: repo.stargazers_count,
-        forks: repo.forks_count,
-        isPrivate: repo.private,
-        description: repo.description,
+        language: repo.language || 'Unknown',
+        stars: repo.stargazers_count || 0,
+        forks: repo.forks_count || 0,
+        isPrivate: repo.private || false,
+        description: repo.description || '',
         htmlUrl: repo.html_url,
-        url: repo.clone_url,
+        url: repo.clone_url || repo.html_url,
         bugs: 0,
         status: 'pending' as const,
         analyzing: false,
@@ -211,13 +200,21 @@ export default function Repositories() {
         createdAt: repo.created_at
       }
       
-      await saveRepository(repoToAdd)
-      await loadRepositories()
-      setShowRepoDropdown(false)
-      console.log('✅ Added repository:', repo.full_name)
+      console.log('📊 Repository data to save:', repoToAdd)
+      
+      const savedRepo = await saveRepository(repoToAdd)
+      if (savedRepo) {
+        console.log('✅ Repository saved successfully:', savedRepo)
+        await loadRepositories()
+        setShowRepoDropdown(false)
+        alert(`✅ Successfully added ${repo.full_name} to your repositories!`)
+      } else {
+        console.error('❌ Failed to save repository')
+        alert('Failed to save repository. Please check the console for details.')
+      }
     } catch (error) {
-      console.error('Error adding repository:', error)
-      alert('Failed to add repository. Please try again.')
+      console.error('❌ Error adding repository:', error)
+      alert(`Failed to add repository: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
