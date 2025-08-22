@@ -16,6 +16,15 @@ interface Repository {
   analyzing?: boolean
   createdAt?: string
   updatedAt?: string
+  analysisResults?: {
+    summary: {
+      totalBugs: number
+      totalSecurityIssues: number
+      totalCodeSmells: number
+      totalFilesProcessed: number
+    }
+    allResults: AnalysisResult[]
+  }
 }
 
 interface AnalysisResult {
@@ -79,16 +88,17 @@ export default function Reviews() {
         
         for (const repo of repos) {
           if (repo.analyzing === false && repo.bugs > 0) {
-            // Try to load analysis results for this repo
+            // Use analysis results directly from repository data
             let analysisResults: AnalysisResult[] = []
-            try {
-              const analysisResponse = await fetch(`/api/github/analysis-results?repo=${encodeURIComponent(repo.fullName)}`)
-              if (analysisResponse.ok) {
-                const analysisData = await analysisResponse.json()
-                analysisResults = analysisData.results || []
-              }
-            } catch (error) {
-              console.error(`Failed to load analysis for ${repo.fullName}:`, error)
+            
+            console.log(`🔍 REVIEWS: Loading analysis for ${repo.fullName}`)
+            console.log(`🔍 REVIEWS: Repository analysisResults:`, repo.analysisResults)
+            
+            if (repo.analysisResults && repo.analysisResults.allResults) {
+              analysisResults = repo.analysisResults.allResults
+              console.log(`✅ REVIEWS: Found ${analysisResults.length} analysis results for ${repo.fullName}`)
+            } else {
+              console.log(`❌ REVIEWS: No analysis results found for ${repo.fullName}`)
             }
 
             reviewsData.push({
