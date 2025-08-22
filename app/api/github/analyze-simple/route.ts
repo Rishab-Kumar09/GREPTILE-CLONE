@@ -85,11 +85,11 @@ export async function POST(request: NextRequest) {
           messages: [
             {
               role: "system",
-              content: `Analyze code for bugs, security issues, and code smells. Respond with valid JSON:
+              content: `Analyze code for bugs, security issues, and code smells. Include the actual problematic code snippet for each issue. Respond with valid JSON:
 {
-  "bugs": [{"line": 1, "severity": "high", "type": "Logic Error", "description": "...", "suggestion": "..."}],
-  "securityIssues": [{"line": 1, "severity": "critical", "type": "Security Issue", "description": "...", "suggestion": "..."}],
-  "codeSmells": [{"line": 1, "type": "Code Smell", "description": "...", "suggestion": "..."}]
+  "bugs": [{"line": 1, "severity": "high", "type": "Logic Error", "description": "...", "suggestion": "...", "codeSnippet": "actual code from that line"}],
+  "securityIssues": [{"line": 1, "severity": "critical", "type": "Security Issue", "description": "...", "suggestion": "...", "codeSnippet": "actual code from that line"}],
+  "codeSmells": [{"line": 1, "type": "Code Smell", "description": "...", "suggestion": "...", "codeSnippet": "actual code from that line"}]
 }`
             },
             {
