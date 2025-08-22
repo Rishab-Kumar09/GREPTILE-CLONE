@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 // GET /api/repositories - Get all repositories
 export async function GET() {
@@ -22,39 +24,57 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log('📊 API: Received repository data:', body);
+    
+    // Clean and validate the data
+    const repoData = {
+      name: body.name || '',
+      fullName: body.fullName || '',
+      description: body.description || null,
+      stars: parseInt(body.stars) || 0,
+      forks: parseInt(body.forks) || 0,
+      language: body.language || null,
+      url: body.url || '',
+      bugs: parseInt(body.bugs) || 0,
+      analyzing: Boolean(body.analyzing) || false,
+      analysisResults: body.analysisResults || null
+    };
+
+    console.log('🔧 API: Cleaned repository data:', repoData);
     
     const repository = await prisma.repository.upsert({
-      where: { fullName: body.fullName },
+      where: { fullName: repoData.fullName },
       update: {
-        name: body.name,
-        description: body.description,
-        stars: body.stars,
-        forks: body.forks,
-        language: body.language,
-        url: body.url,
-        bugs: body.bugs || 0,
-        analyzing: body.analyzing || false
-        // analysisResults: body.analysisResults || null // Temporarily disabled until Prisma client regenerated
+        name: repoData.name,
+        description: repoData.description,
+        stars: repoData.stars,
+        forks: repoData.forks,
+        language: repoData.language,
+        url: repoData.url,
+        bugs: repoData.bugs,
+        analyzing: repoData.analyzing,
+        analysisResults: repoData.analysisResults
       },
       create: {
-        name: body.name,
-        fullName: body.fullName,
-        description: body.description,
-        stars: body.stars,
-        forks: body.forks,
-        language: body.language,
-        url: body.url,
-        bugs: body.bugs || 0,
-        analyzing: body.analyzing || false
-        // analysisResults: body.analysisResults || null // Temporarily disabled until Prisma client regenerated
+        name: repoData.name,
+        fullName: repoData.fullName,
+        description: repoData.description,
+        stars: repoData.stars,
+        forks: repoData.forks,
+        language: repoData.language,
+        url: repoData.url,
+        bugs: repoData.bugs,
+        analyzing: repoData.analyzing,
+        analysisResults: repoData.analysisResults
       }
     });
 
+    console.log('✅ API: Repository saved successfully:', repository.fullName);
     return NextResponse.json(repository);
   } catch (error) {
-    console.error('Failed to save repository:', error);
+    console.error('❌ API: Failed to save repository:', error);
     return NextResponse.json(
-      { error: 'Failed to save repository' },
+      { error: 'Failed to save repository', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
