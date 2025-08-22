@@ -191,21 +191,15 @@ export default function Repositories() {
       console.log('🔄 Adding GitHub repository:', repo.full_name)
       
       const repoToAdd = {
-        id: repo.id,
         name: repo.name,
         fullName: repo.full_name,
         language: repo.language || 'Unknown',
         stars: repo.stargazers_count || 0,
         forks: repo.forks_count || 0,
-        isPrivate: repo.private || false,
         description: repo.description || '',
-        htmlUrl: repo.html_url,
-        url: repo.clone_url || repo.html_url,
+        url: repo.html_url, // Use html_url as the main URL
         bugs: 0,
-        status: 'pending' as const,
-        analyzing: false,
-        updatedAt: repo.updated_at,
-        createdAt: repo.created_at
+        analyzing: false
       }
       
       console.log('📊 Repository data to save:', repoToAdd)
@@ -330,7 +324,7 @@ export default function Repositories() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          repoUrl: repo.htmlUrl || repo.url,
+          repoUrl: repo.url || `https://github.com/${repo.fullName}`,
           owner: owner,
           repo: repoName
         }),
