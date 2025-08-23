@@ -19,8 +19,8 @@ export async function GET() {
     } else {
       // Create empty profile - user will fill in their own data
       await prisma.$executeRaw`
-        INSERT INTO "UserProfile" (id, "selectedIcon", "createdAt", "updatedAt")
-        VALUES ('default-user', '👤', NOW(), NOW())
+        INSERT INTO "UserProfile" (id, "selectedIcon", email, "createdAt", "updatedAt")
+        VALUES ('default-user', '👤', 'user@example.com', NOW(), NOW())
         ON CONFLICT (id) DO NOTHING
       `;
       
@@ -29,6 +29,7 @@ export async function GET() {
         profile: {
           id: 'default-user',
           name: null,
+          email: 'user@example.com',
           selectedIcon: '👤',
           userTitle: null,
           profileImage: null,
