@@ -12,12 +12,35 @@ export default function SignIn() {
     e.preventDefault()
     setIsLoading(true)
     
-    // Simulate signin process
-    setTimeout(() => {
-      // In a real app, you'd handle actual signin here
-      // For now, just redirect to dashboard
-      router.push('/dashboard')
-    }, 1500)
+    const formData = new FormData(e.target as HTMLFormElement)
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
+    
+    try {
+      const response = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        // Store user session in localStorage
+        localStorage.setItem('currentUser', JSON.stringify(data.user))
+        console.log('✅ SIGNIN SUCCESS: User logged in as', data.user.name)
+        router.push('/dashboard')
+      } else {
+        alert(data.error || 'Failed to sign in')
+        setIsLoading(false)
+      }
+    } catch (error) {
+      console.error('Signin error:', error)
+      alert('Failed to sign in. Please try again.')
+      setIsLoading(false)
+    }
   }
 
   const handleGithubSignIn = async () => {

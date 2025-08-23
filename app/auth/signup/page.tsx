@@ -12,12 +12,37 @@ export default function SignUp() {
     e.preventDefault()
     setIsLoading(true)
     
-    // Simulate signup process
-    setTimeout(() => {
-      // In a real app, you'd handle actual signup here
-      // For now, just redirect to dashboard
-      router.push('/dashboard')
-    }, 1500)
+    const formData = new FormData(e.target as HTMLFormElement)
+    const name = formData.get('full-name') as string
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
+    const company = formData.get('company') as string
+    
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password, company })
+      })
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        // Store user session in localStorage
+        localStorage.setItem('currentUser', JSON.stringify(data.user))
+        console.log('✅ SIGNUP SUCCESS: User created and logged in')
+        router.push('/dashboard')
+      } else {
+        alert(data.error || 'Failed to create account')
+        setIsLoading(false)
+      }
+    } catch (error) {
+      console.error('Signup error:', error)
+      alert('Failed to create account. Please try again.')
+      setIsLoading(false)
+    }
   }
 
   const handleGithubSignUp = async () => {

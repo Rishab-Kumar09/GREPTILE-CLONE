@@ -13,16 +13,38 @@ export default function Settings() {
   // Load profile settings from database
   const loadProfileSettings = async () => {
     try {
-      const response = await fetch('/api/profile')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, using localStorage fallback')
+        // Fallback to localStorage if no user session
+        const savedName = localStorage.getItem('userName')
+        const savedEmail = localStorage.getItem('userEmail') 
+        const savedIcon = localStorage.getItem('selectedIcon')
+        const savedImage = localStorage.getItem('profileImage')
+        
+        if (savedName) setUserName(savedName)
+        if (savedEmail) setUserEmail(savedEmail)
+        if (savedIcon) setSelectedIcon(savedIcon)
+        if (savedImage) setProfileImage(savedImage)
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔍 SETTINGS: Loading profile for user:', currentUser.id)
+      
+      const response = await fetch(`/api/profile?userId=${currentUser.id}`)
       if (response.ok) {
         const data = await response.json()
         const profile = data.profile
+        console.log('✅ SETTINGS: Profile loaded from database')
         if (profile.name) setUserName(profile.name)
         if (profile.email) setUserEmail(profile.email)
         else setUserEmail('user@example.com') // Default if no email in database
         if (profile.selectedIcon) setSelectedIcon(profile.selectedIcon)
         if (profile.profileImage) setProfileImage(profile.profileImage)
       } else {
+        console.log('❌ SETTINGS: Failed to load from database, using localStorage fallback')
         // Fallback to localStorage if database fails
         const savedName = localStorage.getItem('userName')
         const savedEmail = localStorage.getItem('userEmail') 
@@ -47,6 +69,24 @@ export default function Settings() {
   // Save profile settings to database and localStorage
   const saveProfileSettings = async () => {
     try {
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, saving to localStorage only')
+        // Fallback to localStorage only
+        localStorage.setItem('userName', userName)
+        localStorage.setItem('userEmail', userEmail)
+        localStorage.setItem('selectedIcon', selectedIcon)
+        if (profileImage) {
+          localStorage.setItem('profileImage', profileImage)
+        }
+        alert('Profile settings saved locally!')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('💾 SETTINGS: Saving profile for user:', currentUser.id)
+      
       // Save to database
       const response = await fetch('/api/profile', {
         method: 'POST',
@@ -54,6 +94,7 @@ export default function Settings() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          userId: currentUser.id,
           name: userName,
           email: userEmail,
           selectedIcon: selectedIcon,
