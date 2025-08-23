@@ -43,8 +43,17 @@ export default function Dashboard() {
       if (response.ok) {
         const repos = await response.json()
         
+        // Remove duplicates by fullName (keep the first occurrence)
+        const uniqueRepos = repos.filter((repo: Repository, index: number, self: Repository[]) => 
+          index === self.findIndex(r => r.fullName === repo.fullName)
+        )
+        
+        if (uniqueRepos.length !== repos.length) {
+          console.log(`🧹 DASHBOARD: Filtered out ${repos.length - uniqueRepos.length} duplicate repositories`)
+        }
+        
         // Calculate real stats from analyzed repositories
-        const analyzedRepos = repos.filter((repo: any) => repo.analyzing === false && repo.bugs > 0)
+        const analyzedRepos = uniqueRepos.filter((repo: any) => repo.analyzing === false && repo.bugs > 0)
         const totalIssuesFound = analyzedRepos.reduce((total: number, repo: any) => total + (repo.bugs || 0), 0)
         const totalReviewsCompleted = analyzedRepos.length
         const totalFilesReviewed = analyzedRepos.reduce((total: number, repo: any) => total + (repo.reviews || 0), 0)
@@ -115,7 +124,11 @@ export default function Dashboard() {
       const response = await fetch('/api/repositories')
       if (response.ok) {
         const repos = await response.json()
-        setRepositories(repos)
+        // Remove duplicates by fullName
+        const uniqueRepos = repos.filter((repo: Repository, index: number, self: Repository[]) => 
+          index === self.findIndex(r => r.fullName === repo.fullName)
+        )
+        setRepositories(uniqueRepos)
       }
     } catch (error) {
       console.error('Error loading repositories:', error)
@@ -124,7 +137,11 @@ export default function Dashboard() {
         const response = await fetch('/api/repositories')
         if (response.ok) {
           const repos = await response.json()
-          setRepositories(repos)
+          // Remove duplicates by fullName
+          const uniqueRepos = repos.filter((repo: Repository, index: number, self: Repository[]) => 
+            index === self.findIndex(r => r.fullName === repo.fullName)
+          )
+          setRepositories(uniqueRepos)
         }
       } catch (fallbackError) {
         console.error('Error loading fallback repositories:', fallbackError)
