@@ -19,6 +19,7 @@ export default function Settings() {
         const profile = data.profile
         if (profile.name) setUserName(profile.name)
         if (profile.email) setUserEmail(profile.email)
+        else setUserEmail('user@example.com') // Default if no email in database
         if (profile.selectedIcon) setSelectedIcon(profile.selectedIcon)
         if (profile.profileImage) setProfileImage(profile.profileImage)
       } else {

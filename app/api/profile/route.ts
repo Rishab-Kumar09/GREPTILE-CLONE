@@ -29,7 +29,7 @@ export async function GET() {
         profile: {
           id: 'default-user',
           name: null,
-          email: 'user@example.com',
+          email: null, // Optional field
           selectedIcon: '👤',
           userTitle: null,
           profileImage: null,
@@ -53,17 +53,33 @@ export async function POST(request: NextRequest) {
   try {
     const { name, email, profileImage, selectedIcon, userTitle } = await request.json();
     
-    // Use raw query to update profile (without email field for now)
-    await prisma.$executeRaw`
-      INSERT INTO "UserProfile" (id, name, "profileImage", "selectedIcon", "userTitle", "createdAt", "updatedAt")
-      VALUES ('default-user', ${name}, ${profileImage}, ${selectedIcon}, ${userTitle}, NOW(), NOW())
-      ON CONFLICT (id) DO UPDATE SET
-        name = ${name},
-        "profileImage" = ${profileImage},
-        "selectedIcon" = ${selectedIcon},
-        "userTitle" = ${userTitle},
-        "updatedAt" = NOW()
-    `;
+    // Try to update with email field first, fallback without email if it fails
+    try {
+      await prisma.$executeRaw`
+        INSERT INTO "UserProfile" (id, name, email, "profileImage", "selectedIcon", "userTitle", "createdAt", "updatedAt")
+        VALUES ('default-user', ${name}, ${email || null}, ${profileImage}, ${selectedIcon}, ${userTitle}, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          name = ${name},
+          email = ${email || null},
+          "profileImage" = ${profileImage},
+          "selectedIcon" = ${selectedIcon},
+          "userTitle" = ${userTitle},
+          "updatedAt" = NOW()
+      `;
+    } catch (emailError) {
+      console.log('Email field not available in database, saving without email:', emailError);
+      // Fallback: save without email field
+      await prisma.$executeRaw`
+        INSERT INTO "UserProfile" (id, name, "profileImage", "selectedIcon", "userTitle", "createdAt", "updatedAt")
+        VALUES ('default-user', ${name}, ${profileImage}, ${selectedIcon}, ${userTitle}, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          name = ${name},
+          "profileImage" = ${profileImage},
+          "selectedIcon" = ${selectedIcon},
+          "userTitle" = ${userTitle},
+          "updatedAt" = NOW()
+      `;
+    }
     
     return NextResponse.json({
       success: true,
