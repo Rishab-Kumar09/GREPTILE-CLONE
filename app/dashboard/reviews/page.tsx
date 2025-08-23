@@ -69,11 +69,28 @@ interface Review {
   analysisResults?: AnalysisResult[]
 }
 
+interface ChatMessage {
+  id: string
+  type: 'user' | 'assistant'
+  content: string
+  timestamp: Date
+  citations?: Array<{
+    file: string
+    line?: number
+    snippet?: string
+  }>
+}
+
 export default function Reviews() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [expandedReviews, setExpandedReviews] = useState<{[key: string]: boolean}>({})
   const [profilePic, setProfilePic] = useState<string | null>(null)
+  
+  // Chat functionality
+  const [chatMessages, setChatMessages] = useState<{[reviewId: string]: ChatMessage[]}>({})
+  const [chatInput, setChatInput] = useState<{[reviewId: string]: string}>({})
+  const [chatLoading, setChatLoading] = useState<{[reviewId: string]: boolean}>({})
 
   // Load repositories and their analysis results
   const loadReviews = async () => {
@@ -141,6 +158,89 @@ export default function Reviews() {
       ...prev,
       [reviewId]: !prev[reviewId]
     }))
+  }
+
+  // Chat functionality
+  const sendChatMessage = async (reviewId: string, message: string) => {
+    if (!message.trim()) return
+
+    const review = reviews.find(r => r.id.toString() === reviewId)
+    if (!review) return
+
+    // Add user message
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type: 'user',
+      content: message.trim(),
+      timestamp: new Date()
+    }
+
+    setChatMessages(prev => ({
+      ...prev,
+      [reviewId]: [...(prev[reviewId] || []), userMessage]
+    }))
+
+    setChatInput(prev => ({
+      ...prev,
+      [reviewId]: ''
+    }))
+
+    setChatLoading(prev => ({
+      ...prev,
+      [reviewId]: true
+    }))
+
+    try {
+      // Call AI chat API with repository context
+      const response = await fetch('/api/chat/repository', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message.trim(),
+          repository: review.repository,
+          analysisResults: review.analysisResults
+        }),
+      })
+
+      if (response.ok) {
+        const aiResponse = await response.json()
+        
+        const aiMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: aiResponse.response,
+          timestamp: new Date(),
+          citations: aiResponse.citations || []
+        }
+
+        setChatMessages(prev => ({
+          ...prev,
+          [reviewId]: [...(prev[reviewId] || []), aiMessage]
+        }))
+      } else {
+        throw new Error('Failed to get AI response')
+      }
+    } catch (error) {
+      console.error('Chat error:', error)
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: new Date()
+      }
+
+      setChatMessages(prev => ({
+        ...prev,
+        [reviewId]: [...(prev[reviewId] || []), errorMessage]
+      }))
+    } finally {
+      setChatLoading(prev => ({
+        ...prev,
+        [reviewId]: false
+      }))
+    }
   }
 
   // Get all issues from analysis results
@@ -523,6 +623,109 @@ export default function Reviews() {
                             <div className="text-2xl font-bold text-green-600">8/10</div>
                             <div className="text-sm text-green-800">Code Quality</div>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* AI Chat Box */}
+                      <div className="bg-white rounded-lg border border-gray-200">
+                        <div className="p-4 border-b border-gray-200">
+                          <h4 className="font-medium text-gray-900 flex items-center">
+                            <span className="mr-2">🤖</span>
+                            Ask AI about this repository
+                          </h4>
+                          <p className="text-sm text-gray-500 mt-1">
+                            Get answers with file citations and line references
+                          </p>
+                        </div>
+                        
+                        {/* Chat Messages */}
+                        <div className="max-h-80 overflow-y-auto p-4 space-y-4">
+                          {chatMessages[review.id.toString()]?.length > 0 ? (
+                            chatMessages[review.id.toString()].map((msg) => (
+                              <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                                  msg.type === 'user' 
+                                    ? 'bg-primary-600 text-white' 
+                                    : 'bg-gray-100 text-gray-900'
+                                }`}>
+                                  <p className="text-sm">{msg.content}</p>
+                                  
+                                  {/* Citations */}
+                                  {msg.citations && msg.citations.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-gray-200">
+                                      <p className="text-xs text-gray-600 mb-1">📎 Sources:</p>
+                                      {msg.citations.map((citation, idx) => (
+                                        <div key={idx} className="text-xs bg-gray-50 rounded p-2 mb-1">
+                                          <div className="font-mono text-blue-600">
+                                            {citation.file}
+                                            {citation.line && `:${citation.line}`}
+                                          </div>
+                                          {citation.snippet && (
+                                            <div className="mt-1 bg-gray-900 text-gray-100 p-1 rounded text-xs font-mono">
+                                              {citation.snippet}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  
+                                  <p className="text-xs opacity-75 mt-1">
+                                    {msg.timestamp.toLocaleTimeString()}
+                                  </p>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-center py-8 text-gray-500">
+                              <p className="text-sm">Start a conversation about this repository</p>
+                              <p className="text-xs mt-1">Ask about specific files, functions, or code patterns</p>
+                            </div>
+                          )}
+                          
+                          {/* Loading indicator */}
+                          {chatLoading[review.id.toString()] && (
+                            <div className="flex justify-start">
+                              <div className="bg-gray-100 rounded-lg px-4 py-2">
+                                <div className="flex items-center space-x-2">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                                  <span className="text-sm text-gray-600">AI is thinking...</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Chat Input */}
+                        <div className="p-4 border-t border-gray-200">
+                          <div className="flex space-x-2">
+                            <input
+                              type="text"
+                              value={chatInput[review.id.toString()] || ''}
+                              onChange={(e) => setChatInput(prev => ({
+                                ...prev,
+                                [review.id.toString()]: e.target.value
+                              }))}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter' && !chatLoading[review.id.toString()]) {
+                                  sendChatMessage(review.id.toString(), chatInput[review.id.toString()] || '')
+                                }
+                              }}
+                              placeholder="Ask about this code... (e.g., 'How does authentication work?')"
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
+                              disabled={chatLoading[review.id.toString()]}
+                            />
+                            <button
+                              onClick={() => sendChatMessage(review.id.toString(), chatInput[review.id.toString()] || '')}
+                              disabled={!chatInput[review.id.toString()]?.trim() || chatLoading[review.id.toString()]}
+                              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                              Send
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            💡 Try: "Show me the authentication code" or "What security issues are in user.py?"
+                          </p>
                         </div>
                       </div>
                     </div>
