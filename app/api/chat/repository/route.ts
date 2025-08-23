@@ -36,7 +36,8 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, repository, analysisResults } = await request.json()
+    const { message, repository, analysisResults, chatHistory } = await request.json()
+    const history = chatHistory || []
     
     if (!openai) {
       return NextResponse.json({
@@ -56,7 +57,10 @@ export async function POST(request: NextRequest) {
     let codeContext = ''
     let availableFiles: string[] = []
     
+    console.log('🔍 DEBUG: Received analysisResults:', JSON.stringify(analysisResults, null, 2))
+    
     if (analysisResults && analysisResults.allResults) {
+      console.log('✅ Found analysisResults.allResults with', analysisResults.allResults.length, 'files')
       codeContext = 'Available code analysis:\n\n'
       
       analysisResults.allResults.forEach((result: AnalysisResult) => {
@@ -98,6 +102,9 @@ export async function POST(request: NextRequest) {
         
         codeContext += '\n'
       })
+    } else {
+      console.log('❌ No analysisResults.allResults found')
+      codeContext = `No analysis results available for ${repository}. Please run analysis first.`
     }
 
     // Create AI prompt with context
@@ -105,27 +112,30 @@ export async function POST(request: NextRequest) {
 
 You have COMPLETE ACCESS to the actual code analysis results with specific bugs, security issues, and code smells found in this repository.
 
-🎯 YOUR ROLE:
-- Provide SPECIFIC, ACTIONABLE solutions based on the ACTUAL analysis results above
+YOUR ROLE:
+- Provide SPECIFIC, ACTIONABLE solutions based on the ACTUAL analysis results below
 - Give EXACT code fixes with line-by-line replacements
 - Reference the SPECIFIC issues found in the analysis
 - DO NOT give general advice - be repository-specific and issue-specific
+- When asked about errors, list the ACTUAL bugs, security issues, and code smells from the analysis
 
-📋 ANALYSIS RESULTS AVAILABLE:
+ACTUAL ANALYSIS RESULTS FOR ${repository}:
 ${codeContext}
 
-🔧 RESPONSE FORMAT:
+CRITICAL: The analysis results above contain the REAL issues found in this repository. Use ONLY these specific issues in your responses. Do not make up or assume other issues.
+
+RESPONSE FORMAT:
 1. Always cite EXACT files and line numbers: [filename.ext:line_number]
 2. Show the PROBLEMATIC code in the current analysis
 3. Provide EXACT replacement code
 4. Explain WHY this fix solves the specific issue found
 
-❌ DO NOT:
+DO NOT:
 - Give general programming tips
 - Suggest things not related to the actual analysis results
 - Provide vague advice
 
-✅ DO:
+DO:
 - Reference specific bugs/issues from the analysis above
 - Provide exact code replacements for the problematic lines
 - Explain how your solution fixes the specific issue found
@@ -135,18 +145,35 @@ Available files with issues: ${availableFiles.join(', ')}
 
 Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS found in this repository's analysis.`
 
+    // Build conversation history
+    const conversationMessages: Array<{role: 'system' | 'user' | 'assistant', content: string}> = [
+      {
+        role: "system" as const,
+        content: systemPrompt
+      }
+    ]
+
+    // Add previous chat history for context (last 25 messages)
+    if (history && history.length > 0) {
+      history.forEach((msg: any) => {
+        conversationMessages.push({
+          role: msg.type === 'user' ? 'user' as const : 'assistant' as const,
+          content: msg.content
+        })
+      })
+    }
+
+    // Add current message
+    conversationMessages.push({
+      role: "user" as const,
+      content: message
+    })
+
+    console.log('💬 Conversation with', conversationMessages.length, 'messages (including', history.length, 'history messages)')
+
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        {
-          role: "user",
-          content: message
-        }
-      ],
+      messages: conversationMessages,
       temperature: 0.3,
       max_tokens: 1000,
     })
@@ -156,26 +183,24 @@ Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS foun
     // Extract citations from the response
     const citations: Array<{file: string, line?: number, snippet?: string}> = []
     
-    // Look for file references [filename.ext] or [filename.ext:line]
     const citationRegex = /\[([^\]]+\.[a-zA-Z]+)(?::(\d+))?\]/g
     let match
-    
+
     while ((match = citationRegex.exec(aiResponse)) !== null) {
       const file = match[1]
       const line = match[2] ? parseInt(match[2]) : undefined
       
-      // Find the code snippet if line number is provided
+      // Try to find the code snippet for this citation
       let snippet = undefined
       if (line && analysisResults?.allResults) {
         const fileResult = analysisResults.allResults.find((r: AnalysisResult) => r.file === file)
         if (fileResult) {
-          // Look for code snippet in bugs, security issues, or code smells
+          // Look for the snippet in bugs, security issues, or code smells
           const allIssues = [
             ...(fileResult.bugs || []),
             ...(fileResult.securityIssues || []),
             ...(fileResult.codeSmells || [])
           ]
-          
           const issueWithSnippet = allIssues.find(issue => issue.line === line && issue.codeSnippet)
           if (issueWithSnippet) {
             snippet = issueWithSnippet.codeSnippet
@@ -186,8 +211,8 @@ Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS foun
       citations.push({ file, line, snippet })
     }
 
-    // Remove duplicates
-    const uniqueCitations = citations.filter((citation, index, self) => 
+    // Remove duplicate citations
+    const uniqueCitations = citations.filter((citation, index, self) =>
       index === self.findIndex(c => c.file === citation.file && c.line === citation.line)
     )
 
