@@ -29,7 +29,6 @@ interface Repository {
 export default function Repositories() {
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [loading, setLoading] = useState(false)
-  const [username, setUsername] = useState('octocat')
   const [showAddRepo, setShowAddRepo] = useState(false)
   const [repoUrl, setRepoUrl] = useState('')
   const [analyzing, setAnalyzing] = useState<string | null>(null)
@@ -50,7 +49,17 @@ export default function Repositories() {
       if (response.ok) {
         const repos = await response.json()
         console.log('🔍 FRONTEND: Loaded repositories from database:', repos)
-        setRepositories(repos)
+        
+        // Remove duplicates by fullName (keep the first occurrence)
+        const uniqueRepos = repos.filter((repo: Repository, index: number, self: Repository[]) => 
+          index === self.findIndex(r => r.fullName === repo.fullName)
+        )
+        
+        if (uniqueRepos.length !== repos.length) {
+          console.log(`🧹 CLEANUP: Removed ${repos.length - uniqueRepos.length} duplicate repositories`)
+        }
+        
+        setRepositories(uniqueRepos)
         
         // Load stored analysis results for each repository
         const analysisData: {[key: string]: any} = {}
@@ -128,27 +137,7 @@ export default function Repositories() {
     }
   }, [])
 
-  const fetchRepositories = async (githubUsername: string) => {
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/github/repos?username=${githubUsername}`)
-      if (response.ok) {
-        const repos = await response.json()
-        // Save each repository to database
-        for (const repo of repos) {
-          await saveRepository(repo)
-        }
-        // Reload from database to get the saved versions
-        await loadRepositories()
-      } else {
-        console.error('Failed to fetch repositories')
-      }
-    } catch (error) {
-      console.error('Error fetching repositories:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+
 
   // Fetch real GitHub repositories using OAuth
   const fetchGithubRepos = async () => {
@@ -178,10 +167,7 @@ export default function Repositories() {
     if (githubConnected) {
       fetchGithubRepos()
     } else {
-      // Fallback to username input method
-      if (username.trim()) {
-        fetchRepositories(username.trim())
-      }
+      alert('Please connect your GitHub account first to fetch repositories.')
     }
   }
 
@@ -454,43 +440,13 @@ export default function Repositories() {
             <p className="text-gray-600">Manage your connected repositories and their AI review settings</p>
           </div>
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="GitHub username"
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    handleFetchRepos()
-                  }
-                }}
-              />
-                          <button 
+            <button 
               onClick={handleFetchRepos}
               disabled={loading || loadingGithubRepos}
               className="btn-primary disabled:opacity-50"
             >
               {loadingGithubRepos ? 'Loading...' : (githubConnected ? 'Fetch GitHub Repos' : 'Fetch Repos')}
             </button>
-            
-            {/* Test PR Analysis Link */}
-            <button
-              onClick={() => window.open('/dashboard/pr-analysis?repo=OWASP/NodeGoat', '_blank')}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
-            >
-              🧪 Test PR Analysis
-            </button>
-            
-            {/* Test PR Analysis Link */}
-            <button
-              onClick={() => window.open('/dashboard/pr-analysis?repo=OWASP/NodeGoat', '_blank')}
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
-            >
-              🧪 Test PR Analysis
-            </button>
-            </div>
             <button 
               onClick={() => setShowAddRepo(true)}
               className="btn-outline"
@@ -584,27 +540,6 @@ export default function Repositories() {
                   >
                     Add Repository
                   </button>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="GitHub username"
-                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          handleFetchRepos()
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={handleFetchRepos}
-                      disabled={loading}
-                      className="btn-outline text-sm"
-                    >
-                      {loading ? 'Loading...' : 'Fetch Repos'}
-                    </button>
-                  </div>
                 </div>
               </div>
             ) : (
