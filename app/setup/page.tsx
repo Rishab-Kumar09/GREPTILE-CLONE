@@ -182,7 +182,17 @@ export default function Setup() {
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Connect GitHub</h2>
-              <p className="text-gray-600 mb-6">Connect your GitHub account to enable AI code reviews</p>
+              <p className="text-gray-600 mb-4">Connect your GitHub account to enable AI code reviews on your repositories</p>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 className="font-medium text-blue-900 mb-2">🔗 Why Connect GitHub?</h3>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• Access your private and public repositories</li>
+                  <li>• Automatically analyze code for bugs and security issues</li>
+                  <li>• Get AI-powered code reviews and suggestions</li>
+                  <li>• Track code quality across all your projects</li>
+                </ul>
+              </div>
               
               {loading ? (
                 <div className="text-gray-500">Checking connection status...</div>
