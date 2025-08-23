@@ -724,7 +724,7 @@ export default function Reviews() {
                             </button>
                           </div>
                           <p className="text-xs text-gray-500 mt-2">
-                            💡 Try: "Show me the authentication code" or "What security issues are in user.py?"
+💡 Try: "Fix the bug at line 1" or "How to resolve the security issue?" or "Show me exact code replacement"
                           </p>
                         </div>
                       </div>
