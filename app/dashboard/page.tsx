@@ -260,7 +260,7 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 1,
-      type: 'ai',
+      type: 'ai' as const,
       content: "Hello! I'm your AI code assistant. I have full context of your codebase. Ask me anything about your code, architecture, or specific functions.",
       timestamp: new Date(),
       citations: []
@@ -288,15 +288,15 @@ export default function Dashboard() {
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return
 
-    const userMessage = {
+    const userMessage: ChatMessage = {
       id: messages.length + 1,
-      type: 'user',
+      type: 'user' as const,
       content: inputMessage.trim(),
       timestamp: new Date(),
       citations: []
     }
 
-    setMessages(prev => [...prev, userMessage])
+    setMessages(prev => [...prev, userMessage as ChatMessage])
     setInputMessage('')
     setIsLoading(true)
 
@@ -328,7 +328,7 @@ export default function Dashboard() {
 
       const data = await response.json()
       
-      const aiResponse = {
+      const aiResponse: ChatMessage = {
         id: messages.length + 2,
         type: 'ai',
         content: selectedRepo ? (data.answer || 'Sorry, I encountered an error processing your request.') : (data.response || 'Sorry, I encountered an error processing your request.'),
@@ -336,17 +336,17 @@ export default function Dashboard() {
         citations: selectedRepo ? (data.citations || []) : []
       }
       
-      setMessages(prev => [...prev, aiResponse])
+      setMessages(prev => [...prev, aiResponse as ChatMessage])
     } catch (error) {
       console.error('Error calling AI API:', error)
-      const errorResponse = {
+      const errorResponse: ChatMessage = {
         id: messages.length + 2,
         type: 'ai',
         content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}. ${selectedRepo ? 'Repository-specific chat failed.' : 'General AI failed.'}`,
         timestamp: new Date(),
         citations: []
       }
-      setMessages(prev => [...prev, errorResponse])
+      setMessages(prev => [...prev, errorResponse as ChatMessage])
     } finally {
       setIsLoading(false)
     }
