@@ -50,14 +50,15 @@ export async function GET() {
 // POST /api/profile - Update profile
 export async function POST(request: NextRequest) {
   try {
-    const { name, profileImage, selectedIcon, userTitle } = await request.json();
+    const { name, email, profileImage, selectedIcon, userTitle } = await request.json();
     
     // Use raw query to update profile
     await prisma.$executeRaw`
-      INSERT INTO "UserProfile" (id, name, "profileImage", "selectedIcon", "userTitle", "createdAt", "updatedAt")
-      VALUES ('default-user', ${name}, ${profileImage}, ${selectedIcon}, ${userTitle}, NOW(), NOW())
+      INSERT INTO "UserProfile" (id, name, email, "profileImage", "selectedIcon", "userTitle", "createdAt", "updatedAt")
+      VALUES ('default-user', ${name}, ${email}, ${profileImage}, ${selectedIcon}, ${userTitle}, NOW(), NOW())
       ON CONFLICT (id) DO UPDATE SET
         name = ${name},
+        email = ${email},
         "profileImage" = ${profileImage},
         "selectedIcon" = ${selectedIcon},
         "userTitle" = ${userTitle},

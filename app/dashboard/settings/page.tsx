@@ -15,7 +15,8 @@ export default function Settings() {
     try {
       const response = await fetch('/api/profile')
       if (response.ok) {
-        const profile = await response.json()
+        const data = await response.json()
+        const profile = data.profile
         if (profile.name) setUserName(profile.name)
         if (profile.email) setUserEmail(profile.email)
         if (profile.selectedIcon) setSelectedIcon(profile.selectedIcon)
