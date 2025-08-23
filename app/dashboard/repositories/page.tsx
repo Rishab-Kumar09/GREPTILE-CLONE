@@ -59,7 +59,14 @@ export default function Repositories() {
           console.log(`🧹 CLEANUP: Removed ${repos.length - uniqueRepos.length} duplicate repositories`)
         }
         
-        setRepositories(uniqueRepos)
+        // Set proper status for each repository
+        const reposWithStatus = uniqueRepos.map((repo: Repository) => ({
+          ...repo,
+          status: repo.analyzing ? 'pending' : (repo.bugs > 0 ? 'active' : 'pending'),
+          reviews: repo.analysisResults ? 1 : 0
+        }))
+        
+        setRepositories(reposWithStatus)
         
         // Load stored analysis results for each repository
         const analysisData: {[key: string]: any} = {}

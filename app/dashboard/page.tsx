@@ -443,7 +443,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="p-6">
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-80 overflow-y-auto">
                 {repositories.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -19,10 +19,10 @@ export default function Settings() {
     }
   })
   
-  // Profile settings (synced with localStorage)
-  const [userName, setUserName] = useState('John Doe')
-  const [userEmail, setUserEmail] = useState('john@example.com')
-  const [userCompany, setUserCompany] = useState('Acme Inc.')
+  // Profile settings (loaded from database)
+  const [userName, setUserName] = useState('R.K.')
+  const [userEmail, setUserEmail] = useState('user@example.com')
+  const [userCompany, setUserCompany] = useState('')
   const [userTimezone, setUserTimezone] = useState('UTC-8 (Pacific Time)')
   const [selectedIcon, setSelectedIcon] = useState('👤')
   const [profileImage, setProfileImage] = useState<string | null>(null)
@@ -59,22 +59,30 @@ export default function Settings() {
     details?: any
   }>({ status: 'idle' })
 
-  // Load profile settings from localStorage
-  const loadProfileSettings = () => {
+  // Load profile settings from database
+  const loadProfileSettings = async () => {
     try {
-      const savedName = localStorage.getItem('userName')
-      const savedEmail = localStorage.getItem('userEmail') 
-      const savedCompany = localStorage.getItem('userCompany')
-      const savedTimezone = localStorage.getItem('userTimezone')
-      const savedIcon = localStorage.getItem('selectedIcon')
-      const savedImage = localStorage.getItem('profileImage')
-      
-      if (savedName) setUserName(savedName)
-      if (savedEmail) setUserEmail(savedEmail)
-      if (savedCompany) setUserCompany(savedCompany)
-      if (savedTimezone) setUserTimezone(savedTimezone)
-      if (savedIcon) setSelectedIcon(savedIcon)
-      if (savedImage) setProfileImage(savedImage)
+      const response = await fetch('/api/profile')
+      if (response.ok) {
+        const profile = await response.json()
+        if (profile.name) setUserName(profile.name)
+        if (profile.email) setUserEmail(profile.email)
+        if (profile.company) setUserCompany(profile.company)
+        if (profile.timezone) setUserTimezone(profile.timezone)
+        if (profile.selectedIcon) setSelectedIcon(profile.selectedIcon)
+        if (profile.profileImage) setProfileImage(profile.profileImage)
+      } else {
+        // Fallback to localStorage if database fails
+        const savedName = localStorage.getItem('userName')
+        const savedEmail = localStorage.getItem('userEmail') 
+        const savedIcon = localStorage.getItem('selectedIcon')
+        const savedImage = localStorage.getItem('profileImage')
+        
+        if (savedName) setUserName(savedName)
+        if (savedEmail) setUserEmail(savedEmail)
+        if (savedIcon) setSelectedIcon(savedIcon)
+        if (savedImage) setProfileImage(savedImage)
+      }
     } catch (error) {
       console.error('Error loading profile settings:', error)
     }
