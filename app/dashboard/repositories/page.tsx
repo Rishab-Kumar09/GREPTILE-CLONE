@@ -325,7 +325,7 @@ export default function Repositories() {
       const [owner, repoName] = repo.fullName.split('/')
       
       // Use the simplified analysis API (no complex logging)
-      const response = await fetch('/api/github/analyze-simple', {
+      const response = await fetch('/api/github/analyze-repository-batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

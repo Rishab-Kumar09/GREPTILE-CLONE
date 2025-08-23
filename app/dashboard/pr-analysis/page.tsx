@@ -36,7 +36,15 @@ interface Repository {
   name: string
   fullName: string
   bugs: number
-  analysisResults?: AnalysisResult[]
+  analysisResults?: {
+    summary: {
+      totalBugs: number
+      totalSecurityIssues: number
+      totalCodeSmells: number
+      totalFilesProcessed: number
+    }
+    allResults: AnalysisResult[]
+  }
 }
 
 function PRAnalysisContent() {
@@ -66,12 +74,17 @@ function PRAnalysisContent() {
         if (repo) {
           setRepository(repo)
           
-          // Load analysis results
-                     const analysisResponse = await fetch(`/api/github/analysis-results?repo=${encodeURIComponent(repoName || '')}`)
-           if (analysisResponse.ok) {
-             const analysisData = await analysisResponse.json()
-             setAnalysisResults(analysisData.results || [])
-           }
+          console.log(`🔍 PR-ANALYSIS: Loading analysis for ${repoName}`)
+          console.log(`🔍 PR-ANALYSIS: Repository analysisResults:`, repo.analysisResults)
+          
+          // Use analysis results directly from repository data
+          if (repo.analysisResults && repo.analysisResults.allResults) {
+            setAnalysisResults(repo.analysisResults.allResults)
+            console.log(`✅ PR-ANALYSIS: Found ${repo.analysisResults.allResults.length} analysis results`)
+          } else {
+            console.log(`❌ PR-ANALYSIS: No analysis results found for ${repoName}`)
+            setAnalysisResults([])
+          }
         }
       }
     } catch (error) {
