@@ -313,44 +313,81 @@ export default function Repositories() {
     setAnalyzing(repoKey)
     
     try {
-      console.log('🚀 Starting analysis for:', repo.fullName, 'using single-batch API (same as NodeGoat)')
+      console.log('🚀 Starting MULTI-BATCH analysis for:', repo.fullName)
       
       const [owner, repoName] = repo.fullName.split('/')
       
-      // Use the simplified analysis API (no complex logging)
-      const response = await fetch('/api/github/analyze-repository-batch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          repoUrl: repo.url || `https://github.com/${repo.fullName}`,
-          owner: owner,
-          repo: repoName
-        }),
-      })
+      // Multi-batch processing - call API multiple times until all files are processed
+      let batchIndex = 0
+      let hasMoreBatches = true
+      let allResults: any[] = []
+      let totalBugs = 0
+      let totalSecurityIssues = 0
+      let totalCodeSmells = 0
+      let totalBatches = 0
       
-      if (!response.ok) {
-        console.error(`❌ Analysis failed with status ${response.status}`)
-        alert(`Analysis failed: ${response.status} error. Please try again.`)
-        setAnalyzing(null)
-        return
+      while (hasMoreBatches) {
+        console.log(`📦 Processing batch ${batchIndex + 1} for ${repo.fullName}`)
+        
+        const response = await fetch('/api/github/analyze-repository-batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            repoUrl: repo.url || `https://github.com/${repo.fullName}`,
+            owner: owner,
+            repo: repoName,
+            batchIndex: batchIndex,
+            batchSize: 15
+          }),
+        })
+
+        if (!response.ok) {
+          console.error(`❌ Batch ${batchIndex + 1} failed with status ${response.status}`)
+          alert(`Batch ${batchIndex + 1} failed: ${response.status} error. Please try again.`)
+          setAnalyzing(null)
+          return
+        }
+
+        const batchData = await response.json()
+        console.log(`✅ Batch ${batchIndex + 1} completed:`, batchData.progress)
+        
+        // Accumulate results from this batch
+        allResults = allResults.concat(batchData.results || [])
+        totalBugs += batchData.totalBugs || 0
+        totalSecurityIssues += batchData.totalSecurityIssues || 0
+        totalCodeSmells += batchData.totalCodeSmells || 0
+        totalBatches++
+        
+        // Check if there are more batches
+        hasMoreBatches = batchData.hasMoreBatches
+        batchIndex = batchData.nextBatchIndex || batchIndex + 1
+        
+        // Show progress
+        if (batchData.progress) {
+          console.log(`📈 Progress: ${batchData.progress.percentage}% (${batchData.progress.filesProcessed}/${batchData.progress.totalFiles} files)`)
+        }
       }
       
-      const analysisData = await response.json()
-      console.log('✅ Analysis completed:', analysisData)
+      console.log(`🎉 MULTI-BATCH analysis completed for ${repo.fullName}:`, {
+        totalBatches,
+        totalFiles: allResults.length,
+        totalBugs,
+        totalSecurityIssues,
+        totalCodeSmells
+      })
       
-      const totalIssues = (analysisData.totalBugs || 0) + (analysisData.totalSecurityIssues || 0) + (analysisData.totalCodeSmells || 0)
-      const allResults = analysisData.results || []
+      const totalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
       
       // Store analysis results
       setAnalysisResults(prev => ({
         ...prev,
         [repo.fullName]: {
           summary: { 
-            totalBugs: analysisData.totalBugs || 0,
-            totalSecurityIssues: analysisData.totalSecurityIssues || 0, 
-            totalCodeSmells: analysisData.totalCodeSmells || 0,
+            totalBugs,
+            totalSecurityIssues, 
+            totalCodeSmells,
             totalFilesProcessed: allResults.length
           },
           allResults: allResults
@@ -368,15 +405,15 @@ export default function Repositories() {
       try {
         const analysisResultsToSave = {
           summary: { 
-            totalBugs: analysisData.totalBugs || 0,
-            totalSecurityIssues: analysisData.totalSecurityIssues || 0, 
-            totalCodeSmells: analysisData.totalCodeSmells || 0,
+            totalBugs,
+            totalSecurityIssues, 
+            totalCodeSmells,
             totalFilesProcessed: allResults.length
           },
           allResults: allResults
         }
         
-        console.log('🔍 DEBUG: Analysis results to save:', JSON.stringify(analysisResultsToSave, null, 2))
+        console.log('🔍 DEBUG: Multi-batch analysis results to save:', JSON.stringify(analysisResultsToSave, null, 2))
         
         const updatedRepo = {
           ...repo,
@@ -388,7 +425,7 @@ export default function Repositories() {
         console.log('🔍 DEBUG: Updated repo object:', JSON.stringify(updatedRepo, null, 2))
         
         const saveResult = await saveRepository(updatedRepo)
-        console.log(`💾 SAVED TO DATABASE: ${repo.fullName} with ${totalIssues} issues`)
+        console.log(`💾 SAVED TO DATABASE: ${repo.fullName} with ${totalIssues} issues from ${totalBatches} batches`)
         console.log('💾 Save result:', saveResult)
         
         // Immediately reload repositories to verify save
@@ -400,11 +437,11 @@ export default function Repositories() {
         console.error('Failed to save analysis results to database:', dbError)
       }
       
-      alert(`✅ Analysis complete! Found ${totalIssues} issues in ${allResults.length} files.`)
+      alert(`✅ Multi-batch analysis complete! Found ${totalIssues} issues in ${allResults.length} files across ${totalBatches} batches.`)
       
     } catch (error) {
       console.error('Error analyzing repository:', error)
-      alert('Analysis failed. Please try again.')
+      alert('Multi-batch analysis failed. Please try again.')
     } finally {
       setAnalyzing(null)
     }
