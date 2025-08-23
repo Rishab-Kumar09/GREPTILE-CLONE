@@ -22,6 +22,18 @@ interface Repository {
   updatedAt?: string
 }
 
+interface ChatMessage {
+  id: number
+  type: 'user' | 'ai'
+  content: string
+  timestamp: Date
+  citations: Array<{
+    file: string
+    line?: number
+    snippet?: string
+  }>
+}
+
 export default function Dashboard() {
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null)
@@ -245,12 +257,13 @@ export default function Dashboard() {
     loadAnalysisStats()
   }, [])
 
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 1,
       type: 'ai',
       content: "Hello! I'm your AI code assistant. I have full context of your codebase. Ask me anything about your code, architecture, or specific functions.",
-      timestamp: new Date()
+      timestamp: new Date(),
+      citations: []
     }
   ])
 
@@ -279,7 +292,8 @@ export default function Dashboard() {
       id: messages.length + 1,
       type: 'user',
       content: inputMessage.trim(),
-      timestamp: new Date()
+      timestamp: new Date(),
+      citations: []
     }
 
     setMessages(prev => [...prev, userMessage])
@@ -318,7 +332,8 @@ export default function Dashboard() {
         id: messages.length + 2,
         type: 'ai',
         content: selectedRepo ? (data.answer || 'Sorry, I encountered an error processing your request.') : (data.response || 'Sorry, I encountered an error processing your request.'),
-        timestamp: new Date()
+        timestamp: new Date(),
+        citations: selectedRepo ? (data.citations || []) : []
       }
       
       setMessages(prev => [...prev, aiResponse])
@@ -328,7 +343,8 @@ export default function Dashboard() {
         id: messages.length + 2,
         type: 'ai',
         content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}. ${selectedRepo ? 'Repository-specific chat failed.' : 'General AI failed.'}`,
-        timestamp: new Date()
+        timestamp: new Date(),
+        citations: []
       }
       setMessages(prev => [...prev, errorResponse])
     } finally {
@@ -549,6 +565,26 @@ export default function Dashboard() {
                       <p className={`text-sm ${message.type === 'user' ? 'text-white' : 'text-gray-900'}`}>
                         {message.content}
                       </p>
+                      
+                      {/* Citations for AI messages */}
+                      {message.type === 'ai' && message.citations && message.citations.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <p className="text-xs text-gray-600 mb-1">📎 Sources:</p>
+                          {message.citations.map((citation: any, idx: number) => (
+                            <div key={idx} className="text-xs bg-gray-50 rounded p-2 mb-1">
+                              <div className="font-mono text-blue-600">
+                                {citation.file}
+                                {citation.line && `:${citation.line}`}
+                              </div>
+                              {citation.snippet && (
+                                <div className="mt-1 bg-gray-900 text-gray-100 p-1 rounded text-xs font-mono">
+                                  {citation.snippet}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {message.type === 'user' && (
                       <div className="w-6 h-6 bg-gray-300 rounded-full flex-shrink-0 flex items-center justify-center text-sm">
