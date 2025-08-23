@@ -19,8 +19,8 @@ export async function GET() {
     } else {
       // Create empty profile - user will fill in their own data
       await prisma.$executeRaw`
-        INSERT INTO "UserProfile" (id, "selectedIcon", email, "createdAt", "updatedAt")
-        VALUES ('default-user', '👤', 'user@example.com', NOW(), NOW())
+        INSERT INTO "UserProfile" (id, "selectedIcon", "createdAt", "updatedAt")
+        VALUES ('default-user', '👤', NOW(), NOW())
         ON CONFLICT (id) DO NOTHING
       `;
       
@@ -53,13 +53,12 @@ export async function POST(request: NextRequest) {
   try {
     const { name, email, profileImage, selectedIcon, userTitle } = await request.json();
     
-    // Use raw query to update profile
+    // Use raw query to update profile (without email field for now)
     await prisma.$executeRaw`
-      INSERT INTO "UserProfile" (id, name, email, "profileImage", "selectedIcon", "userTitle", "createdAt", "updatedAt")
-      VALUES ('default-user', ${name}, ${email}, ${profileImage}, ${selectedIcon}, ${userTitle}, NOW(), NOW())
+      INSERT INTO "UserProfile" (id, name, "profileImage", "selectedIcon", "userTitle", "createdAt", "updatedAt")
+      VALUES ('default-user', ${name}, ${profileImage}, ${selectedIcon}, ${userTitle}, NOW(), NOW())
       ON CONFLICT (id) DO UPDATE SET
         name = ${name},
-        email = ${email},
         "profileImage" = ${profileImage},
         "selectedIcon" = ${selectedIcon},
         "userTitle" = ${userTitle},
