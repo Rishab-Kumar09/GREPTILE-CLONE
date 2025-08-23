@@ -200,7 +200,9 @@ export default function Reviews() {
         body: JSON.stringify({
           message: message.trim(),
           repository: review.repository,
-          analysisResults: review.analysisResults,
+          analysisResults: {
+            allResults: review.analysisResults || []
+          },
           chatHistory: (chatMessages[reviewId] || []).slice(-25) // Last 25 messages for context
         }),
       })
