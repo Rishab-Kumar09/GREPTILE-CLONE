@@ -19,13 +19,32 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
   // Load profile settings from DATABASE (with localStorage fallback)
   const loadProfileSettings = async () => {
     try {
-      console.log('🔄 Loading profile from DATABASE...')
-      const response = await fetch('/api/profile')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('HEADER: No current user found, using localStorage fallback')
+        // Fallback to localStorage if no user session
+        const savedIcon = localStorage.getItem('selectedIcon')
+        const savedImage = localStorage.getItem('profileImage')
+        const savedName = localStorage.getItem('userName')
+        const savedTitle = localStorage.getItem('userTitle')
+        
+        if (savedIcon) setSelectedIcon(savedIcon)
+        if (savedImage) setProfileImage(savedImage)
+        if (savedName) setUserName(savedName)
+        if (savedTitle) setUserTitle(savedTitle)
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔄 HEADER: Loading profile for user:', currentUser.id)
+      
+      const response = await fetch(`/api/profile?userId=${currentUser.id}`)
       
       if (response.ok) {
         const data = await response.json()
         if (data.success && data.profile) {
-          console.log('✅ Loaded from DATABASE:', data.profile)
+          console.log('✅ HEADER: Loaded from DATABASE:', data.profile)
           const profile = data.profile
           
           setUserName(profile.name || 'User')
@@ -39,7 +58,7 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
       }
       
       // Fallback to localStorage only if database fails
-      console.log('⚠️ Database failed, using localStorage fallback')
+      console.log('⚠️ HEADER: Database failed, using localStorage fallback')
       const savedIcon = localStorage.getItem('selectedIcon')
       const savedImage = localStorage.getItem('profileImage')
       const savedName = localStorage.getItem('userName')
@@ -51,7 +70,7 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
       if (savedTitle) setUserTitle(savedTitle)
       
     } catch (error) {
-      console.error('❌ Profile loading error:', error)
+      console.error('❌ HEADER: Profile loading error:', error)
     }
   }
 
