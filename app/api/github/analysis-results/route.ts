@@ -8,14 +8,26 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl
     const repo = searchParams.get('repo')
+    const userId = searchParams.get('userId')
 
     if (!repo) {
       return NextResponse.json({ error: 'Repository name is required' }, { status: 400 })
     }
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+    }
 
-    // Get repository from database
+    console.log('🔍 ANALYSIS-RESULTS: Looking for repository:', repo, 'for user:', userId)
+
+    // Get repository from database using compound unique key
     const repository = await prisma.repository.findUnique({
-      where: { fullName: repo }
+      where: { 
+        userId_fullName: {
+          userId: userId,
+          fullName: repo
+        }
+      }
     })
 
     if (!repository) {

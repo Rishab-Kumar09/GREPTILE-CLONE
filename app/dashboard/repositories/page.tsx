@@ -489,8 +489,18 @@ export default function Repositories() {
     }
     
     try {
-      console.log('🗑️ Deleting repository:', repo.fullName)
-      const response = await fetch(`/api/repositories?fullName=${encodeURIComponent(repo.fullName)}`, {
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, cannot delete repository')
+        alert('Please sign in to delete repositories')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🗑️ Deleting repository:', repo.fullName, 'for user:', currentUser.id)
+      
+      const response = await fetch(`/api/repositories?fullName=${encodeURIComponent(repo.fullName)}&userId=${encodeURIComponent(currentUser.id)}`, {
         method: 'DELETE'
       })
       

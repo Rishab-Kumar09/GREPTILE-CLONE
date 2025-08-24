@@ -76,7 +76,12 @@ export async function POST(request: NextRequest) {
     console.log('🔧 API: Cleaned repository data:', repoData);
     
     const repository = await prisma.repository.upsert({
-      where: { fullName: repoData.fullName },
+      where: { 
+        userId_fullName: {
+          userId: repoData.userId,
+          fullName: repoData.fullName
+        }
+      },
       update: {
         name: repoData.name,
         description: repoData.description,
@@ -122,8 +127,10 @@ export async function DELETE(request: NextRequest) {
     
     const { searchParams } = request.nextUrl
     const fullName = searchParams.get('fullName')
+    const userId = searchParams.get('userId')
     
     console.log('🗑️ API: Extracted fullName:', fullName);
+    console.log('🗑️ API: Extracted userId:', userId);
     console.log('🗑️ API: All search params:', Object.fromEntries(searchParams.entries()));
     
     if (!fullName) {
@@ -133,11 +140,24 @@ export async function DELETE(request: NextRequest) {
         { status: 400 }
       );
     }
+    
+    if (!userId) {
+      console.log('❌ API: Missing userId parameter');
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
 
-    console.log('🗑️ API: Attempting to delete repository:', fullName);
+    console.log('🗑️ API: Attempting to delete repository:', fullName, 'for user:', userId);
     
     const deletedRepository = await prisma.repository.delete({
-      where: { fullName: fullName }
+      where: { 
+        userId_fullName: {
+          userId: userId,
+          fullName: fullName
+        }
+      }
     });
 
     console.log('✅ API: Repository deleted successfully:', fullName);
