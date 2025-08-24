@@ -6,13 +6,27 @@ const prisma = new PrismaClient();
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
 
-// GET /api/repositories - Get all repositories
-export async function GET() {
+// GET /api/repositories - Get user-specific repositories
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'User ID is required' },
+        { status: 400 }
+      );
+    }
+    
+    console.log('🔍 REPOSITORIES GET: Loading repositories for user:', userId);
+    
     const repositories = await prisma.repository.findMany({
+      where: { userId: userId },
       orderBy: { createdAt: 'desc' }
     });
-
+    
+    console.log(`✅ REPOSITORIES GET: Found ${repositories.length} repositories for user ${userId}`);
     return NextResponse.json(repositories);
   } catch (error) {
     console.error('Failed to fetch repositories:', error);
@@ -30,19 +44,23 @@ export async function POST(request: NextRequest) {
     console.log('📊 API: Received repository data:', body);
     
     // Clean and validate the data - REJECT if critical fields are missing
-    if (!body.name || !body.fullName || !body.url) {
+    if (!body.userId || !body.name || !body.fullName || !body.url) {
       console.error('❌ API: Missing critical repository data:', {
+        userId: body.userId,
         name: body.name,
         fullName: body.fullName, 
         url: body.url
       });
       return NextResponse.json({
-        error: 'Missing required fields: name, fullName, and url are required',
-        received: { name: body.name, fullName: body.fullName, url: body.url }
+        error: 'Missing required fields: userId, name, fullName, and url are required',
+        received: { userId: body.userId, name: body.name, fullName: body.fullName, url: body.url }
       }, { status: 400 });
     }
 
+    console.log('📊 API: Saving repository for user:', body.userId);
+
     const repoData = {
+      userId: body.userId,
       name: body.name,
       fullName: body.fullName,
       description: body.description || null,

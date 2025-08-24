@@ -17,8 +17,9 @@ model HealthCheck {
 
 model Repository {
   id          String   @id @default(cuid())
+  userId      String   // Owner of this repository
   name        String
-  fullName    String   @unique
+  fullName    String   // Remove @unique since multiple users can have same repo
   description String?
   stars       Int      @default(0)
   forks       Int      @default(0)
@@ -29,6 +30,8 @@ model Repository {
   analysisResults Json? // Store detailed analysis results as JSON
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  
+  @@unique([userId, fullName]) // Unique per user
 }
 
 model UserProfile {

@@ -45,10 +45,20 @@ export default function Repositories() {
   // Load repositories from database on component mount
   const loadRepositories = async () => {
     try {
-      const response = await fetch('/api/repositories')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, cannot load repositories')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔍 REPOSITORIES: Loading repositories for user:', currentUser.id)
+      
+      const response = await fetch(`/api/repositories?userId=${currentUser.id}`)
       if (response.ok) {
         const repos = await response.json()
-        console.log('🔍 FRONTEND: Loaded repositories from database:', repos)
+        console.log(`✅ REPOSITORIES: Loaded ${repos.length} repositories for user ${currentUser.id}:`, repos)
         
         // Remove duplicates by fullName (keep the first occurrence)
         const uniqueRepos = repos.filter((repo: Repository, index: number, self: Repository[]) => 
@@ -97,12 +107,28 @@ export default function Repositories() {
   // Save repository to database
   const saveRepository = async (repo: Repository) => {
     try {
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, cannot save repository')
+        return null
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('💾 REPOSITORIES: Saving repository for user:', currentUser.id)
+      
+      // Add userId to repository data
+      const repoWithUser = {
+        ...repo,
+        userId: currentUser.id
+      }
+      
       const response = await fetch('/api/repositories', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(repo),
+        body: JSON.stringify(repoWithUser),
       })
       if (response.ok) {
         const savedRepo = await response.json()
