@@ -35,6 +35,7 @@ model UserProfile {
   id           String   @id @default("default-user")
   name         String   @default("R.K.")
   email        String?  @default("user@example.com")
+  password     String?  // Hashed password
   profileImage String?  // Base64 encoded image
   selectedIcon String?  @default("👤")
   userTitle    String?  @default("Developer")

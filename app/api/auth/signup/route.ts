@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -12,6 +13,11 @@ export async function POST(request: NextRequest) {
     console.log('🔄 SIGNUP: Creating new user profile...')
     console.log('Name:', name)
     console.log('Email:', email)
+    
+    // Hash the password
+    const saltRounds = 12
+    const hashedPassword = await bcrypt.hash(password, saltRounds)
+    console.log('🔐 SIGNUP: Password hashed successfully')
     
     // Generate a unique user ID based on email
     const userId = email.toLowerCase().replace(/[^a-z0-9]/g, '-')
@@ -34,6 +40,7 @@ export async function POST(request: NextRequest) {
         id: userId,
         name: name,
         email: email,
+        password: hashedPassword,
         profileImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10b981&color=fff&size=128`,
         selectedIcon: '👤',
         userTitle: 'Developer',

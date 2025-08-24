@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -27,7 +28,25 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
     
-    console.log('✅ SIGNIN: User found successfully')
+    // Validate password
+    if (!user.password) {
+      console.log('⚠️ SIGNIN: User has no password set (legacy account)')
+      return NextResponse.json({
+        success: false,
+        error: 'This account needs to be updated. Please contact support or sign up again.'
+      }, { status: 400 })
+    }
+    
+    const isPasswordValid = await bcrypt.compare(password, user.password)
+    if (!isPasswordValid) {
+      console.log('❌ SIGNIN: Invalid password')
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid password. Please try again.'
+      }, { status: 401 })
+    }
+    
+    console.log('✅ SIGNIN: User found and password validated')
     console.log('User ID:', userId)
     console.log('User Name:', user.name)
     
