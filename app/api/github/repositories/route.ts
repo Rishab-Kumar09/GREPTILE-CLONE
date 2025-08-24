@@ -7,15 +7,25 @@ const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
 
 // GET /api/github/repositories - Fetch user's GitHub repositories
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 REPOS: Checking GitHub connection status...');
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    
+    if (!userId) {
+      return NextResponse.json({
+        success: false,
+        error: 'User ID is required'
+      }, { status: 400 });
+    }
+    
+    console.log('🔍 REPOS: Checking GitHub connection status for user:', userId);
     
     // Get user's GitHub connection info
     const result = await prisma.$queryRaw`
       SELECT "githubConnected", "githubTokenRef", "githubUsername" 
       FROM "UserProfile" 
-      WHERE id = 'default-user' 
+      WHERE id = ${userId}
       LIMIT 1
     ` as any[];
 

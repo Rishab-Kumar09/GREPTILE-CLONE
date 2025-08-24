@@ -138,7 +138,7 @@ export default function Dashboard() {
       const currentUser = JSON.parse(currentUserStr)
       
       // First try to load real GitHub repositories if connected
-      const githubResponse = await fetch('/api/github/repositories')
+      const githubResponse = await fetch(`/api/github/repositories?userId=${currentUser.id}`)
       const githubData = await githubResponse.json()
       
       if (githubData.success && githubData.repositories) {
