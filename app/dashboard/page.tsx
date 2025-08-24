@@ -164,13 +164,32 @@ export default function Dashboard() {
   // Load profile settings from DATABASE (with localStorage fallback)
   const loadProfileSettings = async () => {
     try {
-      console.log('🔄 Loading profile from DATABASE...')
-      const response = await fetch('/api/profile')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, using localStorage fallback')
+        // Fallback to localStorage if no user session
+        const savedIcon = localStorage.getItem('selectedIcon')
+        const savedImage = localStorage.getItem('profileImage')
+        const savedName = localStorage.getItem('userName')
+        const savedTitle = localStorage.getItem('userTitle')
+        
+        if (savedIcon) setSelectedIcon(savedIcon)
+        if (savedImage) setProfileImage(savedImage)
+        if (savedName) setUserName(savedName)
+        if (savedTitle) setUserTitle(savedTitle)
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔄 DASHBOARD: Loading profile for user:', currentUser.id)
+      
+      const response = await fetch(`/api/profile?userId=${currentUser.id}`)
       
       if (response.ok) {
         const data = await response.json()
         if (data.success && data.profile) {
-          console.log('✅ Loaded from DATABASE:', data.profile)
+          console.log('✅ DASHBOARD: Loaded from DATABASE:', data.profile)
           const profile = data.profile
           
           setUserName(profile.name || 'R.K.')
