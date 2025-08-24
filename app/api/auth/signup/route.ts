@@ -7,12 +7,11 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password, company } = await request.json()
+    const { name, email, password } = await request.json()
     
     console.log('🔄 SIGNUP: Creating new user profile...')
     console.log('Name:', name)
     console.log('Email:', email)
-    console.log('Company:', company)
     
     // Generate a unique user ID based on email
     const userId = email.toLowerCase().replace(/[^a-z0-9]/g, '-')
@@ -35,13 +34,13 @@ export async function POST(request: NextRequest) {
         id: userId,
         name: name,
         email: email,
-        company: company || null,
-        profilePicture: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10b981&color=fff&size=128`,
+        profileImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10b981&color=fff&size=128`,
+        selectedIcon: '👤',
+        userTitle: 'Developer',
         githubConnected: false,
         githubUsername: null,
         githubAvatarUrl: null,
-        githubTokenRef: null,
-        analysisResults: []
+        githubTokenRef: null
       }
     })
     
@@ -55,8 +54,7 @@ export async function POST(request: NextRequest) {
         id: newUser.id,
         name: newUser.name,
         email: newUser.email,
-        company: newUser.company,
-        profilePicture: newUser.profilePicture
+        profilePicture: newUser.profileImage
       }
     })
     

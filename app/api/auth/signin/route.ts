@@ -38,8 +38,7 @@ export async function POST(request: NextRequest) {
         id: user.id,
         name: user.name,
         email: user.email,
-        company: user.company,
-        profilePicture: user.profilePicture,
+        profilePicture: user.profileImage,
         githubConnected: user.githubConnected,
         githubUsername: user.githubUsername
       }

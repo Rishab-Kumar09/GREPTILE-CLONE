@@ -16,7 +16,6 @@ export default function SignUp() {
     const name = formData.get('full-name') as string
     const email = formData.get('email') as string
     const password = formData.get('password') as string
-    const company = formData.get('company') as string
     
     try {
       const response = await fetch('/api/auth/signup', {
@@ -24,7 +23,7 @@ export default function SignUp() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password, company })
+        body: JSON.stringify({ name, email, password })
       })
       
       const data = await response.json()
