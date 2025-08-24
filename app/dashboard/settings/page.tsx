@@ -46,9 +46,9 @@ export default function Settings() {
         if (profile.profileImage) setProfileImage(profile.profileImage)
         
         // Check GitHub connection status
-        const isGithubConnected = profile.githubAccessToken && profile.githubUsername
+        const isGithubConnected = profile.githubConnected || (profile.githubUsername && profile.githubUsername !== null)
         setGithubConnected(isGithubConnected)
-        console.log('🔍 SETTINGS: GitHub connected:', isGithubConnected)
+        console.log('🔍 SETTINGS: GitHub connected:', isGithubConnected, 'githubConnected field:', profile.githubConnected, 'githubUsername:', profile.githubUsername)
       } else {
         console.log('❌ SETTINGS: Failed to load from database, using localStorage fallback')
         // Fallback to localStorage if database fails
