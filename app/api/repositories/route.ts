@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
         analysisResults: repoData.analysisResults
       },
       create: {
+        userId: repoData.userId,
         name: repoData.name,
         fullName: repoData.fullName,
         description: repoData.description,
