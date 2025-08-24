@@ -445,7 +445,7 @@ export default function Dashboard() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Reviews Completed</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {loadingStats ? '...' : (realStats?.reviewsCompleted || (githubConnected ? Math.floor(repositories.length * 0.3) : 1))}
+                  {loadingStats ? '...' : (realStats?.reviewsCompleted || (githubConnected ? Math.floor(repositories.length * 0.3) : repositories.length))}
                 </p>
               </div>
             </div>

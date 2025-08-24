@@ -95,9 +95,20 @@ export default function Reviews() {
   // Load repositories and their analysis results
   const loadReviews = async () => {
     try {
-      const response = await fetch('/api/repositories')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, cannot load reviews')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔍 REVIEWS: Loading repositories for user:', currentUser.id)
+      
+      const response = await fetch(`/api/repositories?userId=${currentUser.id}`)
       if (response.ok) {
         const repos: Repository[] = await response.json()
+        console.log(`✅ REVIEWS: Loaded ${repos.length} repositories for user ${currentUser.id}`)
         setRepositories(repos)
         
         // Convert repositories with analysis results to review format  
