@@ -224,9 +224,25 @@ export default function Dashboard() {
   // Save profile settings to DATABASE (with localStorage backup)
   const saveProfileSettings = async () => {
     try {
-      console.log('💾 Saving profile to DATABASE...')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, saving to localStorage only')
+        // Fallback to localStorage only
+        localStorage.setItem('selectedIcon', selectedIcon)
+        localStorage.setItem('userName', userName)
+        localStorage.setItem('userTitle', userTitle)
+        if (profileImage) {
+          localStorage.setItem('profileImage', profileImage)
+        }
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('💾 DASHBOARD: Saving profile for user:', currentUser.id)
       
       const profileData = {
+        userId: currentUser.id,
         name: userName,
         profileImage: profileImage,
         selectedIcon: selectedIcon,

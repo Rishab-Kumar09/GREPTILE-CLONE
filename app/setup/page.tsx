@@ -35,7 +35,15 @@ export default function Setup() {
   useEffect(() => {
     const checkGithubConnection = async () => {
       try {
-        const response = await fetch('/api/profile')
+        // Get current user from localStorage
+        const currentUserStr = localStorage.getItem('currentUser')
+        if (!currentUserStr) {
+          console.log('No current user found in setup')
+          return
+        }
+        
+        const currentUser = JSON.parse(currentUserStr)
+        const response = await fetch(`/api/profile?userId=${currentUser.id}`)
         const data = await response.json()
         
         if (data.success && data.profile) {
