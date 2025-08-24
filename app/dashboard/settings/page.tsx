@@ -9,6 +9,7 @@ export default function Settings() {
   const [userEmail, setUserEmail] = useState('user@example.com')
   const [selectedIcon, setSelectedIcon] = useState('👤')
   const [profileImage, setProfileImage] = useState<string | null>(null)
+  const [githubConnected, setGithubConnected] = useState(false)
   
   // Load profile settings from database
   const loadProfileSettings = async () => {
@@ -43,6 +44,11 @@ export default function Settings() {
         else setUserEmail('user@example.com') // Default if no email in database
         if (profile.selectedIcon) setSelectedIcon(profile.selectedIcon)
         if (profile.profileImage) setProfileImage(profile.profileImage)
+        
+        // Check GitHub connection status
+        const isGithubConnected = profile.githubAccessToken && profile.githubUsername
+        setGithubConnected(isGithubConnected)
+        console.log('🔍 SETTINGS: GitHub connected:', isGithubConnected)
       } else {
         console.log('❌ SETTINGS: Failed to load from database, using localStorage fallback')
         // Fallback to localStorage if database fails
@@ -250,8 +256,12 @@ export default function Settings() {
                       <p className="text-sm text-gray-500">Access your repositories</p>
                     </div>
                   </div>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Connected
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    githubConnected 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {githubConnected ? 'Connected' : 'Not Connected'}
                   </span>
                 </div>
               </div>
