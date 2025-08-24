@@ -50,8 +50,17 @@ export default function Dashboard() {
   // Load real analysis statistics from analyzed repositories
   const loadAnalysisStats = async () => {
     try {
-      console.log('📊 DASHBOARD: Loading real analysis statistics from analyzed repositories...')
-      const response = await fetch('/api/repositories')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, cannot load analysis stats')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('📊 DASHBOARD: Loading analysis statistics for user:', currentUser.id)
+      
+      const response = await fetch(`/api/repositories?userId=${currentUser.id}`)
       if (response.ok) {
         const repos = await response.json()
         
@@ -119,6 +128,15 @@ export default function Dashboard() {
   // Load repositories from database or GitHub
   const loadRepositories = async () => {
     try {
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, cannot load repositories')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      
       // First try to load real GitHub repositories if connected
       const githubResponse = await fetch('/api/github/repositories')
       const githubData = await githubResponse.json()
@@ -131,11 +149,12 @@ export default function Dashboard() {
         return
       }
       
-      // Fallback to demo repositories
-      console.log('📋 Loading demo repositories (GitHub not connected)')
-      const response = await fetch('/api/repositories')
+      // Fallback to user repositories
+      console.log('📋 DASHBOARD: Loading user repositories for:', currentUser.id)
+      const response = await fetch(`/api/repositories?userId=${currentUser.id}`)
       if (response.ok) {
         const repos = await response.json()
+        console.log(`✅ DASHBOARD: Loaded ${repos.length} repositories for user ${currentUser.id}`)
         // Remove duplicates by fullName
         const uniqueRepos = repos.filter((repo: Repository, index: number, self: Repository[]) => 
           index === self.findIndex(r => r.fullName === repo.fullName)
@@ -144,16 +163,20 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error loading repositories:', error)
-      // Load demo data as final fallback
+      // Load user data as final fallback
       try {
-        const response = await fetch('/api/repositories')
-        if (response.ok) {
-          const repos = await response.json()
-          // Remove duplicates by fullName
-          const uniqueRepos = repos.filter((repo: Repository, index: number, self: Repository[]) => 
-            index === self.findIndex(r => r.fullName === repo.fullName)
-          )
-          setRepositories(uniqueRepos)
+        const currentUserStr = localStorage.getItem('currentUser')
+        if (currentUserStr) {
+          const currentUser = JSON.parse(currentUserStr)
+          const response = await fetch(`/api/repositories?userId=${currentUser.id}`)
+          if (response.ok) {
+            const repos = await response.json()
+            // Remove duplicates by fullName
+            const uniqueRepos = repos.filter((repo: Repository, index: number, self: Repository[]) => 
+              index === self.findIndex(r => r.fullName === repo.fullName)
+            )
+            setRepositories(uniqueRepos)
+          }
         }
       } catch (fallbackError) {
         console.error('Error loading fallback repositories:', fallbackError)
