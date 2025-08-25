@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
     githubAuthUrl.searchParams.append('redirect_uri', GITHUB_REDIRECT_URI);
     githubAuthUrl.searchParams.append('scope', 'repo read:user user:email');
     githubAuthUrl.searchParams.append('state', state);
+    githubAuthUrl.searchParams.append('prompt', 'login'); // Force re-authentication
 
     return NextResponse.json({
       success: true,

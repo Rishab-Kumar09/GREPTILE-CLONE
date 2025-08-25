@@ -131,27 +131,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_user_failed'));
     }
     
-    console.log('✅ CALLBACK: User data validated, checking for existing connections...');
+    console.log('✅ CALLBACK: User data validated, checking if THIS user is already connected...');
 
-    // Check if this GitHub account is already connected to another user
-    console.log('🔍 CALLBACK: Checking if GitHub username is already connected:', userData.login);
-    const existingConnection = await prisma.$queryRaw`
-      SELECT id, name FROM "UserProfile" 
-      WHERE "githubUsername" = ${userData.login} AND id != ${userId}
+    // Check if THIS user is already connected to GitHub (not if GitHub account is used elsewhere)
+    console.log('🔍 CALLBACK: Checking if user is already connected to GitHub:', userId);
+    const userConnection = await prisma.$queryRaw`
+      SELECT "githubConnected", "githubUsername" FROM "UserProfile" 
+      WHERE id = ${userId}
       LIMIT 1
     ` as any[];
     
-    if (existingConnection.length > 0) {
-      const existingUser = existingConnection[0];
-      console.error('🚨 CALLBACK SECURITY ERROR: GitHub account already connected!');
-      console.error('- GitHub account:', userData.login);
-      console.error('- Already connected to user:', existingUser.id, `(${existingUser.name})`);
-      console.error('- Attempted by user:', userId);
-      
-      return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_already_connected&existing_user=${encodeURIComponent(existingUser.name)}`));
+    if (userConnection.length > 0 && userConnection[0].githubConnected) {
+      console.log('⚠️ CALLBACK: User already connected to GitHub:', userConnection[0].githubUsername);
+      console.log('🔄 CALLBACK: Updating connection with new GitHub account:', userData.login);
+    } else {
+      console.log('✅ CALLBACK: User not connected to GitHub, proceeding with new connection...');
     }
-    
-    console.log('✅ CALLBACK: GitHub account not connected elsewhere, proceeding...');
 
     // Store GitHub connection info in database
     console.log('💾 CALLBACK: Updating database with GitHub connection for user:', userId);
