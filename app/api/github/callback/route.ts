@@ -147,15 +147,14 @@ export async function GET(request: NextRequest) {
     
     if (existingConnection.length > 0) {
       const existingUser = existingConnection[0];
-      console.error('🚨 CALLBACK SECURITY ERROR: GitHub account already connected!');
-      console.error('- GitHub account:', userData.login);
-      console.error('- Already connected to user:', existingUser.id, `(${existingUser.name})`);
-      console.error('- Attempted by user:', userId);
-      
-      return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_already_connected&existing_user=${encodeURIComponent(existingUser.name)}`));
+      console.log('⚠️ CALLBACK: GitHub account already connected to another user');
+      console.log('- GitHub account:', userData.login);
+      console.log('- Already connected to user:', existingUser.id, `(${existingUser.name})`);
+      console.log('- Current user:', userId);
+      console.log('✅ CALLBACK: Allowing multi-user GitHub sharing - OAuth proves authentication');
     }
     
-    console.log('✅ CALLBACK: GitHub account not connected elsewhere, proceeding...');
+    console.log('✅ CALLBACK: Proceeding with GitHub connection...');
 
     // Store GitHub connection info in database
     console.log('💾 CALLBACK: Updating database with GitHub connection for user:', userId);
