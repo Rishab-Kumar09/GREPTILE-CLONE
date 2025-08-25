@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID;
 const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'https://master.d3dp89x98knsw0.amplifyapp.com/api/github/callback';
 
 // GET /api/github/oauth - Initiate GitHub OAuth flow
@@ -11,16 +10,28 @@ export async function GET(request: NextRequest) {
     
     console.log('🔄 OAUTH: Initiating GitHub OAuth for user:', userId);
     
-    // DEBUG: Log environment variables in OAuth initiation
-    console.log('🔍 OAUTH DEBUG - Environment Variables:');
-    console.log('GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'Present' : 'Missing');
-    console.log('GITHUB_REDIRECT_URI:', GITHUB_REDIRECT_URI);
-    console.log('All env keys:', Object.keys(process.env).filter(key => key.includes('GITHUB')));
+    // Fetch GitHub credentials from internal endpoint (same pattern as callback)
+    console.log('🔄 OAUTH: Fetching GitHub credentials from internal endpoint...');
+    let GITHUB_CLIENT_ID;
     
-    if (!GITHUB_CLIENT_ID) {
-      console.log('❌ OAUTH ERROR: GITHUB_CLIENT_ID is missing');
+    try {
+      const credentialsResponse = await fetch('https://master.d3dp89x98knsw0.amplifyapp.com/api/github/get-credentials');
+      const credentialsData = await credentialsResponse.json();
+      
+      if (credentialsData.success) {
+        GITHUB_CLIENT_ID = credentialsData.clientId;
+        console.log('✅ OAUTH: GitHub credentials fetched successfully');
+      } else {
+        console.error('❌ OAUTH: Failed to fetch GitHub credentials:', credentialsData.error);
+        return NextResponse.json(
+          { error: 'GitHub OAuth not configured' },
+          { status: 500 }
+        );
+      }
+    } catch (error) {
+      console.error('❌ OAUTH: Error fetching GitHub credentials:', error);
       return NextResponse.json(
-        { error: 'GitHub OAuth not configured' },
+        { error: 'Failed to fetch GitHub credentials' },
         { status: 500 }
       );
     }
