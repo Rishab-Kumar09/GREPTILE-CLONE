@@ -61,6 +61,20 @@ export async function GET(request: NextRequest) {
       console.log('URL params:', Object.fromEntries(searchParams.entries()));
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_auth_failed'));
     }
+
+    // Decode user ID from state parameter
+    let userId = 'default-user'; // fallback for legacy flows
+    if (state) {
+      try {
+        const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+        userId = stateData.userId || 'default-user';
+        console.log('🔓 CALLBACK: Decoded userId from state:', userId);
+      } catch (error) {
+        console.log('⚠️ CALLBACK: Failed to decode state, using default-user fallback');
+      }
+    } else {
+      console.log('⚠️ CALLBACK: No state parameter, using default-user fallback');
+    }
     
     console.log('✅ CALLBACK: Authorization code received');
 
@@ -120,8 +134,8 @@ export async function GET(request: NextRequest) {
     console.log('✅ CALLBACK: User data validated, saving to database...');
 
     // Store GitHub connection info in database
-    console.log('💾 CALLBACK: Updating database with GitHub connection...');
-    await prisma.$executeRaw`
+    console.log('💾 CALLBACK: Updating database with GitHub connection for user:', userId);
+    const updateResult = await prisma.$executeRaw`
       UPDATE "UserProfile" 
       SET 
         "githubConnected" = true,
@@ -129,8 +143,10 @@ export async function GET(request: NextRequest) {
         "githubAvatarUrl" = ${userData.avatar_url},
         "githubTokenRef" = ${tokenData.access_token},
         "updatedAt" = NOW()
-      WHERE id = 'default-user'
+      WHERE id = ${userId}
     `;
+    
+    console.log('📊 CALLBACK: Database update result - rows affected:', updateResult);
     
     console.log('✅ CALLBACK SUCCESS: Database updated, redirecting to dashboard');
     console.log(`🎉 CALLBACK: User @${userData.login} successfully connected to GitHub!`);

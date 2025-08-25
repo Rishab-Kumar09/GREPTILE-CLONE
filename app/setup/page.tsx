@@ -63,14 +63,26 @@ export default function Setup() {
   // Handle GitHub OAuth initiation
   const handleGithubConnect = async () => {
     try {
-      const response = await fetch('/api/github/oauth')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        alert('Please log in first')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔄 SETUP: Initiating GitHub OAuth for user:', currentUser.id)
+      
+      const response = await fetch(`/api/github/oauth?userId=${currentUser.id}`)
       const data = await response.json()
       
       if (data.success && data.authUrl) {
+        console.log('✅ SETUP: Redirecting to GitHub OAuth')
         // Redirect to GitHub OAuth
         window.location.href = data.authUrl
       } else {
-        alert('Failed to initiate GitHub connection')
+        console.error('❌ SETUP: OAuth initiation failed:', data.error)
+        alert('Failed to initiate GitHub connection: ' + (data.error || 'Unknown error'))
       }
     } catch (error) {
       console.error('GitHub connection error:', error)
