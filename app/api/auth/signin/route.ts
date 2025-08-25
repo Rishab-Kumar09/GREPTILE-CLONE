@@ -16,18 +16,20 @@ export async function POST(request: NextRequest) {
     // Generate user ID from email (same as signup)
     const userId = email.toLowerCase().replace(/[^a-z0-9]/g, '-')
     
-    // Find user profile
-    const user = await prisma.userProfile.findUnique({
-      where: { id: userId }
-    })
-    
-    if (!user) {
+    // Find user profile using raw SQL to access password field
+    const users = await prisma.$queryRaw`
+      SELECT * FROM "UserProfile" WHERE id = ${userId} LIMIT 1
+    ` as any[]
+
+    if (users.length === 0) {
       return NextResponse.json({
         success: false,
         error: 'No account found with this email. Please sign up first.'
       }, { status: 404 })
     }
-    
+
+    const user = users[0]
+
     // Validate password
     if (!user.password) {
       console.log('⚠️ SIGNIN: User has no password set (legacy account)')
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
         error: 'This account needs to be updated. Please contact support or sign up again.'
       }, { status: 400 })
     }
-    
+
     const isPasswordValid = await bcrypt.compare(password, user.password)
     if (!isPasswordValid) {
       console.log('❌ SIGNIN: Invalid password')

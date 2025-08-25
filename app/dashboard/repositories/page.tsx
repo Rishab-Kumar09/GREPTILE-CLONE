@@ -41,6 +41,7 @@ export default function Repositories() {
   const [availableGithubRepos, setAvailableGithubRepos] = useState<any[]>([])
   const [showRepoDropdown, setShowRepoDropdown] = useState(false)
   const [loadingGithubRepos, setLoadingGithubRepos] = useState(false)
+  const [refreshingGithub, setRefreshingGithub] = useState(false)
 
   // Load repositories from database on component mount
   const loadRepositories = async () => {
@@ -210,6 +211,35 @@ export default function Repositories() {
       fetchGithubRepos()
     } else {
       alert('Please connect your GitHub account first to fetch repositories.')
+    }
+  }
+
+  // Simple refresh GitHub connection
+  const refreshGithubConnection = async () => {
+    if (!confirm('This will refresh your GitHub connection. You may need to re-authenticate. Continue?')) {
+      return
+    }
+
+    try {
+      setRefreshingGithub(true)
+      
+      // Get current user
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        alert('Please log in first')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔄 REFRESH: Starting GitHub refresh for user:', currentUser.id)
+      
+      // Start OAuth flow - this will redirect to GitHub
+      window.location.href = `/api/github/oauth?userId=${currentUser.id}`
+      
+    } catch (error) {
+      console.error('❌ REFRESH: Error refreshing GitHub connection:', error)
+      alert('Failed to refresh GitHub connection. Please try again.')
+      setRefreshingGithub(false)
     }
   }
 
@@ -531,11 +561,20 @@ export default function Repositories() {
           <div className="flex items-center space-x-4">
             <button 
               onClick={handleFetchRepos}
-              disabled={loading || loadingGithubRepos}
+              disabled={loading || loadingGithubRepos || refreshingGithub}
               className="btn-primary disabled:opacity-50"
             >
               {loadingGithubRepos ? 'Loading...' : (githubConnected ? 'Fetch GitHub Repos' : 'Fetch Repos')}
             </button>
+            {githubConnected && (
+              <button 
+                onClick={refreshGithubConnection}
+                disabled={loading || loadingGithubRepos || refreshingGithub}
+                className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed"
+              >
+                {refreshingGithub ? '🔄 Refreshing...' : '🔄 Refresh GitHub'}
+              </button>
+            )}
             <button 
               onClick={() => setShowAddRepo(true)}
               className="btn-outline"

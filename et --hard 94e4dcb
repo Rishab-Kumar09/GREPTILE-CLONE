@@ -1,0 +1,50 @@
+[33me56b4aa[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m)[m  FEATURE: Add 'Refresh GitHub Connection' Button
+[33m327c266[m  FIX: Setup Bot Missing userId Parameter for GitHub Repositories
+[33m42dd579[m  FIX: Signin Route Password Field Access Error
+[33mf7e7097[m  FIX: Update package-lock.json to sync with dependencies
+[33m7abddac[m  CRITICAL FIX: Fetch Repos Button Missing userId Parameter
+[33m53d71e0[m  UPDATE: README Deployment Trigger - Setup Bot Fixes Deployed
+[33mbf05b6c[m  HOTFIX: Revert Aggressive OAuth Logout - Broke Existing Users
+[33m7fa185b[m  ADD: Comprehensive Integration Testing Suite
+[33me503070[m  FIX: Setup Bot GitHub Connection Validation Issues
+[33m5be82f3[m  IMPLEMENT: Proper Multi-User GitHub Sharing with Authentication
+[33m94e4dcb[m  EMERGENCY SECURITY REVERT: Restore GitHub Account Protection
+[33mfc40029[m  FIX: Allow Multiple Users to Connect Same GitHub Account
+[33m47aeb83[m  EMERGENCY: Migration to Disconnect test-company-com from GitHub
+[33md4e39f0[m  CRITICAL SECURITY FIX: Prevent Multiple Users Connecting to Same GitHub Account
+[33me6ecf25[m  FIX: OAuth Credentials Fetch Issue
+[33m327dbd4[m  FIX: GitHub OAuth User Isolation - CRITICAL SECURITY FIX
+[33mc6bdd64[m  FIX: GitHub Connection Status Logic Error
+[33mf702e21[m  FIX: GitHub Connection Status Display Bug
+[33mb38cfdb[m  FIX: Reviews Completed Counter & Reviews Page API Call
+[33m371fb9c[m  FIX: CRITICAL - GitHub Repositories API Hardcoded to default-user
+[33m108f3ee[m  FIX: Dashboard Repository API Calls - Add Missing userId Parameters
+[33mdf83fd0[m  FIX: Missing userId in Repository Create Operation
+[33mb49fe05[m  FIX: TypeScript Build Errors - Update Repository Schema References
+[33m0105852[m  IMPLEMENT: User-Specific Repositories System
+[33m19789c6[m  FIX: FINAL Database Error - DashboardHeader Missing userId
+[33ma465341[m  FIX: Final Database Connection Issues - Fix Remaining API Calls
+[33mc93b8a0[m  FIX: Database Connection Issues - Add Missing userId Parameters
+[33m308a6ee[m  ADD: Proper Password Authentication System
+[33mdb24470[m  ADD: Migration to fix default-user profile
+[33m58ad5a7[m  ADD: Debug endpoint for user profiles
+[33mbc34ac5[m  FIX: TypeScript Build Error - Remove Company Field
+[33mfdecba2[m  FIX: Individual User Profiles System
+[33m70bca3f[m  FIX: GitHub Integration & Remove GitLab
+[33mb54faf9[m  ADD: Database Migration API for Email Column
+[33m8e9fd9b[m  MAKE: Email Field Optional with Graceful Fallback
+[33m0a71554[m  HOTFIX: Remove Email Field from Database Queries
+[33mb8ec2a1[m  FIX: Add Email Field to UserProfile Schema
+[33m7fcbae7[m  FIX: AI Chat Data Structure - Now Uses Real Analysis Results
+[33m1972f31[m  FIX: Settings Profile Picture Storage & Loading
+[33m6b1df86[m  COMPLETE: Chat History & Context Memory
+[33mfa91149[m  ADD: Chat History Context to Reviews
+[33m2146e45[m  TEST: Reduce Batch Size to Force Multi-Batch Processing
+[33m474b3c0[m  FIX: Reviews Page UI + Complete AI Enhancement
+[33m36e3dd5[m  ENHANCE: AI Chat - Repository-Specific Expert Solutions
+[33m49e5552[m  FIX: TypeScript Errors in Dashboard Chat
+[33mbc981a9[m  ADD: File Citations to Dashboard Chat
+[33mc399a6a[m  ADD: AI Chat with File Citations in Reviews Page
+[33ma791948[m  IMPLEMENT: True multi-batch processing for comprehensive analysis
+[33ma9d1a8e[m  FIX: All four reported issues
+[33m141ebc7[m  ADD: Force cleanup endpoint for problematic repositories
