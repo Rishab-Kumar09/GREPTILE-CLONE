@@ -7,8 +7,10 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const returnTo = searchParams.get('returnTo') || '/dashboard';
     
     console.log('🔄 OAUTH: Initiating GitHub OAuth for user:', userId);
+    console.log('🔄 OAUTH: Will return to:', returnTo);
     
     // Fetch GitHub credentials from internal endpoint (same pattern as callback)
     console.log('🔄 OAUTH: Fetching GitHub credentials from internal endpoint...');
@@ -44,26 +46,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Generate state with user ID encoded for callback
+    // Generate state with user ID and return URL encoded for callback
     const stateData = {
       userId: userId,
+      returnTo: returnTo,
       random: Math.random().toString(36).substring(2, 15)
     };
     const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
     
     console.log('🔒 OAUTH: Generated state for user:', userId);
     
-    // GitHub OAuth URL with required scopes for repository access
-    const githubAuthUrl = new URL('https://github.com/login/oauth/authorize');
-    githubAuthUrl.searchParams.append('client_id', GITHUB_CLIENT_ID);
-    githubAuthUrl.searchParams.append('redirect_uri', GITHUB_REDIRECT_URI);
-    githubAuthUrl.searchParams.append('scope', 'repo read:user user:email');
-    githubAuthUrl.searchParams.append('state', state);
-    githubAuthUrl.searchParams.append('prompt', 'login'); // Force re-authentication
+    // Create GitHub OAuth URL
+    const oauthUrl = new URL('https://github.com/login/oauth/authorize');
+    oauthUrl.searchParams.append('client_id', GITHUB_CLIENT_ID);
+    oauthUrl.searchParams.append('redirect_uri', GITHUB_REDIRECT_URI);
+    oauthUrl.searchParams.append('scope', 'repo read:user user:email');
+    oauthUrl.searchParams.append('state', state);
+    oauthUrl.searchParams.append('allow_signup', 'false'); // Require existing account
+    
+    // Force logout first, then redirect to OAuth
+    const githubLogoutUrl = new URL('https://github.com/logout');
+    githubLogoutUrl.searchParams.append('return_to', oauthUrl.toString());
+
+    console.log('🔐 OAUTH: Generated logout-then-OAuth URL for fresh authentication');
+    console.log('🔄 OAUTH: Will logout first, then redirect to OAuth');
 
     return NextResponse.json({
       success: true,
-      authUrl: githubAuthUrl.toString(),
+      authUrl: githubLogoutUrl.toString(),
       state,
       debug: {
         clientId: GITHUB_CLIENT_ID ? 'Present' : 'Missing',

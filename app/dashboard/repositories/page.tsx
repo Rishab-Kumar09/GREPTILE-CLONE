@@ -578,13 +578,21 @@ export default function Repositories() {
             >
               {loadingGithubRepos ? 'Loading...' : (githubConnected ? 'Fetch GitHub Repos' : 'Fetch Repos')}
             </button>
-            {githubConnected && (
+            {githubConnected ? (
               <button 
                 onClick={refreshGithubConnection}
                 disabled={loading || loadingGithubRepos || refreshingGithub}
                 className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-blue-400 disabled:cursor-not-allowed"
               >
                 {refreshingGithub ? '🔄 Refreshing...' : '🔄 Refresh GitHub'}
+              </button>
+            ) : (
+              <button 
+                onClick={refreshGithubConnection}
+                disabled={loading || loadingGithubRepos || refreshingGithub}
+                className="px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-green-400 disabled:cursor-not-allowed"
+              >
+                {refreshingGithub ? '🔗 Connecting...' : '🔗 Connect GitHub'}
               </button>
             )}
             <button 

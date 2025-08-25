@@ -62,13 +62,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_auth_failed'));
     }
 
-    // Decode user ID from state parameter
+    // Decode user ID and return URL from state parameter
     let userId = 'default-user'; // fallback for legacy flows
+    let returnTo = 'dashboard'; // default return location
     if (state) {
       try {
         const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
         userId = stateData.userId || 'default-user';
+        returnTo = stateData.returnTo || 'dashboard';
         console.log('🔓 CALLBACK: Decoded userId from state:', userId);
+        console.log('🔓 CALLBACK: Will return to:', returnTo);
       } catch (error) {
         console.log('⚠️ CALLBACK: Failed to decode state, using default-user fallback');
       }
@@ -169,11 +172,15 @@ export async function GET(request: NextRequest) {
     
     console.log('📊 CALLBACK: Database update result - rows affected:', updateResult);
     
-    console.log('✅ CALLBACK SUCCESS: Database updated, redirecting to dashboard');
+    console.log('✅ CALLBACK SUCCESS: Database updated, redirecting to:', returnTo);
     console.log(`🎉 CALLBACK: User @${userData.login} successfully connected to GitHub!`);
 
-    // Redirect back to dashboard with success
-    return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?github=connected'));
+    // Redirect back to the appropriate page
+    const redirectUrl = returnTo === 'setup' 
+      ? 'https://master.d3dp89x98knsw0.amplifyapp.com/setup?github=connected'
+      : 'https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?github=connected';
+    
+    return NextResponse.redirect(new URL(redirectUrl));
 
   } catch (error) {
     console.error('🚨 CALLBACK FATAL ERROR:', error);
