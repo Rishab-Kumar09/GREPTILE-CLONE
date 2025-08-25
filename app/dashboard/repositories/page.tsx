@@ -245,7 +245,8 @@ export default function Repositories() {
       const currentUser = JSON.parse(currentUserStr)
       console.log('🔄 REFRESH: Starting GitHub refresh for user:', currentUser.id)
       
-      // Start OAuth flow - this will redirect to GitHub
+      // Direct redirect to OAuth endpoint - it will handle the redirect automatically
+      console.log('🔄 REPOS: Redirecting to GitHub OAuth endpoint')
       window.location.href = `/api/github/oauth?userId=${currentUser.id}`
       
     } catch (error) {

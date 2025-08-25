@@ -73,17 +73,9 @@ export default function Setup() {
       const currentUser = JSON.parse(currentUserStr)
       console.log('🔄 SETUP: Initiating GitHub OAuth for user:', currentUser.id)
       
-      const response = await fetch(`/api/github/oauth?userId=${currentUser.id}`)
-      const data = await response.json()
-      
-      if (data.success && data.authUrl) {
-        console.log('✅ SETUP: Redirecting to GitHub OAuth')
-        // Redirect to GitHub OAuth
-        window.location.href = data.authUrl
-      } else {
-        console.error('❌ SETUP: OAuth initiation failed:', data.error)
-        alert('Failed to initiate GitHub connection: ' + (data.error || 'Unknown error'))
-      }
+      // Direct redirect to OAuth endpoint - it will handle the redirect automatically
+      console.log('✅ SETUP: Redirecting to GitHub OAuth endpoint')
+      window.location.href = `/api/github/oauth?userId=${currentUser.id}`
     } catch (error) {
       console.error('GitHub connection error:', error)
       alert('Failed to connect to GitHub')

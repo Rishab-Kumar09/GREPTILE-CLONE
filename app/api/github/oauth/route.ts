@@ -70,18 +70,10 @@ export async function GET(request: NextRequest) {
 
     console.log('🔐 OAUTH: Generated logout-then-OAuth URL for fresh authentication');
     console.log('🔄 OAUTH: Will logout first, then redirect to OAuth');
+    console.log('🚀 OAUTH: Automatically redirecting to:', githubLogoutUrl.toString());
 
-    return NextResponse.json({
-      success: true,
-      authUrl: githubLogoutUrl.toString(),
-      state,
-      debug: {
-        clientId: GITHUB_CLIENT_ID ? 'Present' : 'Missing',
-        redirectUri: GITHUB_REDIRECT_URI,
-        envKeys: Object.keys(process.env).filter(key => key.includes('GITHUB')),
-        nodeEnv: process.env.NODE_ENV
-      }
-    });
+    // Automatically redirect instead of returning JSON
+    return NextResponse.redirect(githubLogoutUrl.toString());
   } catch (error) {
     console.error('GitHub OAuth initiation error:', error);
     return NextResponse.json(
