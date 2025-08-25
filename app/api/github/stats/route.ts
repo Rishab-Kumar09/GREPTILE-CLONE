@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 // Force dynamic rendering for this route
@@ -6,9 +6,20 @@ export const dynamic = 'force-dynamic';
 
 const prisma = new PrismaClient();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    console.log('📊 STATS: Fetching real GitHub statistics...');
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    
+    if (!userId) {
+      console.log('❌ STATS ERROR: userId is required');
+      return NextResponse.json({
+        success: false,
+        error: 'User ID is required for GitHub stats'
+      }, { status: 400 });
+    }
+    
+    console.log('📊 STATS: Fetching real GitHub statistics for user:', userId);
     
     // Get GitHub credentials from internal endpoint
     const credentialsResponse = await fetch('https://master.d3dp89x98knsw0.amplifyapp.com/api/github/get-credentials');
@@ -35,7 +46,7 @@ export async function GET() {
     const result = await prisma.$queryRaw`
       SELECT "githubTokenRef", "githubUsername" 
       FROM "UserProfile" 
-      WHERE id = 'default-user' AND "githubConnected" = true 
+      WHERE id = ${userId} AND "githubConnected" = true 
       LIMIT 1
     ` as any[];
     

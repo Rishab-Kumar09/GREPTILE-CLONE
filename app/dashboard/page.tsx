@@ -104,15 +104,25 @@ export default function Dashboard() {
     
     setLoadingStats(true)
     try {
-      console.log('📊 DASHBOARD: Loading real GitHub statistics...')
-      const response = await fetch('/api/github/stats')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, cannot load GitHub statistics')
+        setLoadingStats(false)
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('📊 DASHBOARD: Loading real GitHub statistics for user:', currentUser.id)
+      
+      const response = await fetch(`/api/github/stats?userId=${currentUser.id}`)
       const data = await response.json()
       
       if (data.success && data.stats) {
         console.log('✅ DASHBOARD: Loaded real GitHub stats:', data.stats)
         setRealStats(data.stats)
       } else {
-        console.log('❌ DASHBOARD: Failed to load real stats:', data.error)
+        console.log('❌ DASHBOARD: Failed to load real stats for user:', currentUser.id, 'Error:', data.error)
         // Fallback to analysis stats
         loadAnalysisStats()
       }

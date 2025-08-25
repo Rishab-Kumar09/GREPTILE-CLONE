@@ -96,13 +96,24 @@ export default function Setup() {
 
     setLoadingRepos(true)
     try {
-      const response = await fetch('/api/github/repositories')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, cannot fetch GitHub repositories')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔄 SETUP: Fetching GitHub repositories for user:', currentUser.id)
+      
+      const response = await fetch(`/api/github/repositories?userId=${currentUser.id}`)
       const data = await response.json()
       
       if (data.success && data.repositories) {
         setGithubRepos(data.repositories)
+        console.log('✅ SETUP: Fetched GitHub repositories:', data.repositories.length, 'for user:', currentUser.id)
       } else {
-        console.error('Failed to fetch GitHub repositories:', data.error)
+        console.error('Failed to fetch GitHub repositories for user:', currentUser.id, 'Error:', data.error)
       }
     } catch (error) {
       console.error('Error fetching GitHub repositories:', error)

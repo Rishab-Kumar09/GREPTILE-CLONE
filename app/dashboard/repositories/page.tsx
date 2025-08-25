@@ -186,16 +186,28 @@ export default function Repositories() {
   const fetchGithubRepos = async () => {
     setLoadingGithubRepos(true)
     try {
-      const response = await fetch('/api/github/repositories')
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found, cannot fetch GitHub repositories')
+        alert('Please sign in to fetch repositories')
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔄 REPOS: Fetching GitHub repositories for user:', currentUser.id)
+      
+      const response = await fetch(`/api/github/repositories?userId=${currentUser.id}`)
       const data = await response.json()
       
       if (data.success && data.repositories) {
         setAvailableGithubRepos(data.repositories)
         setGithubConnected(true)
         setShowRepoDropdown(true)
-        console.log('✅ Fetched GitHub repositories:', data.repositories.length)
+        console.log('✅ Fetched GitHub repositories:', data.repositories.length, 'for user:', currentUser.id)
       } else {
-        console.log('❌ GitHub not connected or no repositories found')
+        console.log('❌ GitHub not connected or no repositories found for user:', currentUser.id)
+        console.log('Error details:', data.error)
         alert('Please connect your GitHub account first in the Setup Bot')
       }
     } catch (error) {
