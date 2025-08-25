@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
     
     console.log('🔒 OAUTH: Generated state for user:', userId);
     
-    // Create GitHub OAuth URL
+    // Create GitHub OAuth URL with parameters to force fresh authentication
     const oauthUrl = new URL('https://github.com/login/oauth/authorize');
     oauthUrl.searchParams.append('client_id', GITHUB_CLIENT_ID);
     oauthUrl.searchParams.append('redirect_uri', GITHUB_REDIRECT_URI);
@@ -64,16 +64,14 @@ export async function GET(request: NextRequest) {
     oauthUrl.searchParams.append('state', state);
     oauthUrl.searchParams.append('allow_signup', 'false'); // Require existing account
     
-    // Force logout first, then redirect to OAuth
-    const githubLogoutUrl = new URL('https://github.com/logout');
-    githubLogoutUrl.searchParams.append('return_to', oauthUrl.toString());
+    // Add cache-busting parameter to force fresh authentication
+    oauthUrl.searchParams.append('_t', Date.now().toString());
 
-    console.log('🔐 OAUTH: Generated logout-then-OAuth URL for fresh authentication');
-    console.log('🔄 OAUTH: Will logout first, then redirect to OAuth');
-    console.log('🚀 OAUTH: Automatically redirecting to:', githubLogoutUrl.toString());
+    console.log('🔐 OAUTH: Generated direct OAuth URL for authentication');
+    console.log('🚀 OAUTH: Automatically redirecting to:', oauthUrl.toString());
 
-    // Automatically redirect instead of returning JSON
-    return NextResponse.redirect(githubLogoutUrl.toString());
+    // Directly redirect to OAuth (GitHub will handle login if needed)
+    return NextResponse.redirect(oauthUrl.toString());
   } catch (error) {
     console.error('GitHub OAuth initiation error:', error);
     return NextResponse.json(
