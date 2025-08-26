@@ -417,7 +417,7 @@ export default function Repositories() {
             owner: owner,
             repo: repoName,
             batchIndex: batchIndex,
-            batchSize: 2
+            batchSize: 4
           }),
         })
 

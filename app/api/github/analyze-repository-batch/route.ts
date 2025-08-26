@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const requestData = await request.json()
-    const requestBody = { repoUrl: '', owner: '', repo: '', batchIndex: 0, batchSize: 2, ...requestData }
+    const requestBody = { repoUrl: '', owner: '', repo: '', batchIndex: 0, batchSize: 4, ...requestData }
     const { repoUrl, batchSize } = requestBody
     owner = requestBody.owner
     repo = requestBody.repo
@@ -408,33 +408,30 @@ async function analyzeSingleChunk(filePath: string, code: string, chunkNum: numb
       messages: [
         {
           role: "system",
-          content: `You are an expert code reviewer. Analyze the provided code line by line for:
-1. BUGS: Logic errors, null pointer exceptions, infinite loops, type errors, undefined variables
-2. SECURITY ISSUES: SQL injection, XSS, insecure data handling, authentication bypasses, path traversal
-3. CODE SMELLS: Poor naming, duplicated code, complex functions, performance issues, code style violations
+          content: `You are a professional senior code reviewer with 10+ years of experience in software security and code quality. Your expertise includes identifying critical vulnerabilities, performance bottlenecks, and maintainability issues across multiple programming languages.
 
-CRITICAL: You must provide ACCURATE line numbers by counting from line 1. Look at the line numbers in the code.
+Analyze the provided code with the precision of a professional security audit for:
+
+1. BUGS: Logic errors, null pointer exceptions, infinite loops, type errors, race conditions
+2. SECURITY ISSUES: SQL injection, XSS, CSRF, authentication bypasses, data exposure, path traversal
+3. CODE SMELLS: Poor naming, duplicated code, complex functions, performance issues, architectural problems
+
+As a professional reviewer, provide accurate line numbers and actionable recommendations.
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "bugs": [{"line": 45, "severity": "high", "type": "NoSQL Injection", "description": "Unvalidated user input used in database query", "suggestion": "Use parameterized queries or validate input", "codeSnippet": "return db.users.findOne({ id: userId });"}],
-  "securityIssues": [{"line": 23, "severity": "critical", "type": "XSS Vulnerability", "description": "User input rendered without sanitization", "suggestion": "Sanitize user input before rendering", "codeSnippet": "res.send('<h1>' + userInput + '</h1>');"}],
-  "codeSmells": [{"line": 67, "type": "Complex Function", "description": "Function has too many responsibilities", "suggestion": "Break down into smaller, focused functions", "codeSnippet": "function processUserData(data) {"}]
+  "bugs": [{"line": 1, "severity": "high", "type": "Logic Error", "description": "...", "suggestion": "..."}],
+  "securityIssues": [{"line": 1, "severity": "critical", "type": "SQL Injection", "description": "...", "suggestion": "..."}],
+  "codeSmells": [{"line": 1, "type": "Complex Function", "description": "...", "suggestion": "..."}]
 }
 
-IMPORTANT: 
-- Count line numbers accurately from the provided code
-- Include the EXACT line of code in "codeSnippet"
-- Look for real issues, not hypothetical ones
-- Severity levels: critical, high, medium, low`
+Severity levels: critical, high, medium, low`
         },
         {
           role: "user",
-          content: `Analyze this ${filePath} file${totalChunks > 1 ? ` (chunk ${chunkNum}/${totalChunks}, starting at line ${startLineOffset})` : ''}.
+          content: `Analyze this ${filePath} file${totalChunks > 1 ? ` (chunk ${chunkNum}/${totalChunks})` : ''}:
 
-Please analyze each line carefully. Line numbers start from ${startLineOffset}:
-
-${code.split('\n').map((line, index) => `${startLineOffset + index}: ${line}`).join('\n')}`
+${code}`
         }
       ],
       temperature: 0.1,
