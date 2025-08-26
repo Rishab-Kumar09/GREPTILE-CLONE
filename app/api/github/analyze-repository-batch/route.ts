@@ -31,8 +31,8 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  // 🎯 AGGRESSIVE TIMEOUT: Much shorter to prevent 504 errors
-  const TIMEOUT_MS = 15000 // 15 seconds (very conservative for stability)
+  // 🚨 ULTRA-AGGRESSIVE TIMEOUT: Extremely short to prevent ANY 504 errors
+  const TIMEOUT_MS = 8000 // 8 seconds (ultra-conservative - AWS Lambda limit might be 10s)
   
   // Initialize variables at function scope for catch block access
   let analysisResults: AnalysisResult[] = []
@@ -262,9 +262,9 @@ export async function POST(request: NextRequest) {
         const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
         console.log(`📄 Analyzing ${file.path} (${content.length} chars)`)
 
-        // 🔍 ENHANCED CHUNKING: Analyze long files in smaller chunks to check every line
-        const shouldChunk = content.length > 3000 || content.split('\n').length > 100
-        console.log(`📄 File analysis: ${file.path} (${content.length} chars, ${content.split('\n').length} lines) - Chunking: ${shouldChunk}`)
+        // 🚨 TEMPORARY: Disable chunking to speed up analysis and identify bottleneck
+        const shouldChunk = false // Force no chunking for speed
+        console.log(`📄 File analysis: ${file.path} (${content.length} chars, ${content.split('\n').length} lines) - Chunking: DISABLED for speed`)
         
         const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
         
@@ -277,8 +277,8 @@ export async function POST(request: NextRequest) {
           console.log(`✅ ${file.path}: ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security issues`)
         }
 
-        // Reduced delay for faster processing
-        await new Promise(resolve => setTimeout(resolve, 50))
+        // No delay - maximum speed
+        // await new Promise(resolve => setTimeout(resolve, 50)) // DISABLED for speed test
         
       } catch (error) {
         console.error(`❌ Error processing ${file.path}:`, error)
