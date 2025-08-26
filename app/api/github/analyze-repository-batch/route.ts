@@ -31,8 +31,8 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  // 🚨 ULTRA-AGGRESSIVE TIMEOUT: Extremely short to prevent ANY 504 errors
-  const TIMEOUT_MS = 8000 // 8 seconds (ultra-conservative - AWS Lambda limit might be 10s)
+  // 🎯 ORIGINAL WORKING TIMEOUT: Restore proven working timeout
+  const TIMEOUT_MS = 18000 // 18 seconds (original working timeout)
   
   // Initialize variables at function scope for catch block access
   let analysisResults: AnalysisResult[] = []
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const requestData = await request.json()
-    const requestBody = { repoUrl: '', owner: '', repo: '', batchIndex: 0, batchSize: 1, ...requestData }
+    const requestBody = { repoUrl: '', owner: '', repo: '', batchIndex: 0, batchSize: 2, ...requestData }
     const { repoUrl, batchSize } = requestBody
     owner = requestBody.owner
     repo = requestBody.repo
@@ -262,9 +262,9 @@ export async function POST(request: NextRequest) {
         const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
         console.log(`📄 Analyzing ${file.path} (${content.length} chars)`)
 
-        // 🚨 TEMPORARY: Disable chunking to speed up analysis and identify bottleneck
-        const shouldChunk = false // Force no chunking for speed
-        console.log(`📄 File analysis: ${file.path} (${content.length} chars, ${content.split('\n').length} lines) - Chunking: DISABLED for speed`)
+        // 🎯 ORIGINAL WORKING CHUNKING: Only chunk very large files
+        const shouldChunk = content.length > 10000 // Original working threshold
+        console.log(`📄 File analysis: ${file.path} (${content.length} chars, ${content.split('\n').length} lines) - Chunking: ${shouldChunk}`)
         
         const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
         
@@ -277,8 +277,8 @@ export async function POST(request: NextRequest) {
           console.log(`✅ ${file.path}: ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security issues`)
         }
 
-        // No delay - maximum speed
-        // await new Promise(resolve => setTimeout(resolve, 50)) // DISABLED for speed test
+        // Original working delay
+        await new Promise(resolve => setTimeout(resolve, 25))
         
       } catch (error) {
         console.error(`❌ Error processing ${file.path}:`, error)
@@ -364,67 +364,28 @@ export async function POST(request: NextRequest) {
 async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: boolean = false): Promise<AnalysisResult | null> {
   if (!openai) return null
 
-  // 🔍 ENHANCED CHUNKING: Analyze files by logical sections to check every line
-  if (needsChunking) {
-    const lines = code.split('\n')
-    console.log(`🔄 Chunking file: ${filePath} (${code.length} chars, ${lines.length} lines)`)
+  // 🎯 ORIGINAL WORKING CHUNKING: Simple character-based chunking for massive files
+  if (needsChunking && code.length > 10000) {
+    console.log(`🔄 Chunking large file: ${filePath} (${code.length} chars)`)
     
-    // 🚀 SMART CHUNKING: Smaller chunks for faster processing and better timeout handling
-    const linesPerChunk = 30 // Optimized chunk size for speed + thoroughness
+    const chunkSize = 8000 // Original working chunk size
     const chunks = []
-    
-    for (let i = 0; i < lines.length; i += linesPerChunk) {
-      const chunkLines = lines.slice(i, Math.min(i + linesPerChunk, lines.length))
-      const chunkContent = chunkLines.join('\n')
-      const startLine = i + 1
-      const endLine = i + chunkLines.length
-      
-      chunks.push({
-        content: chunkContent,
-        startLine,
-        endLine,
-        chunkLines: chunkLines.length
-      })
+    for (let i = 0; i < code.length; i += chunkSize) {
+      chunks.push(code.slice(i, i + chunkSize))
     }
-    
-    console.log(`📦 Created ${chunks.length} chunks for ${filePath} (${linesPerChunk} lines each)`)
     
     const allBugs: any[] = []
     const allSecurityIssues: any[] = []
     const allCodeSmells: any[] = []
     
     for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i]
-      console.log(`🔍 Analyzing chunk ${i + 1}/${chunks.length}: lines ${chunk.startLine}-${chunk.endLine}`)
-      
-      const chunkResult = await analyzeSingleChunk(filePath, chunk.content, i + 1, chunks.length, chunk.startLine)
+      const chunkResult = await analyzeSingleChunk(filePath, chunks[i], i + 1, chunks.length)
       if (chunkResult) {
-        // Adjust line numbers to be relative to the full file
-        const adjustedBugs = chunkResult.bugs.map((bug: any) => ({
-          ...bug,
-          line: bug.line + chunk.startLine - 1,
-          absoluteLine: bug.line + chunk.startLine - 1
-        }))
-        const adjustedSecurity = chunkResult.securityIssues.map((issue: any) => ({
-          ...issue,
-          line: issue.line + chunk.startLine - 1,
-          absoluteLine: issue.line + chunk.startLine - 1
-        }))
-        const adjustedSmells = chunkResult.codeSmells.map((smell: any) => ({
-          ...smell,
-          line: smell.line + chunk.startLine - 1,
-          absoluteLine: smell.line + chunk.startLine - 1
-        }))
-        
-        allBugs.push(...adjustedBugs)
-        allSecurityIssues.push(...adjustedSecurity)
-        allCodeSmells.push(...adjustedSmells)
-        
-        console.log(`✅ Chunk ${i + 1}: Found ${adjustedBugs.length} bugs, ${adjustedSecurity.length} security issues, ${adjustedSmells.length} smells`)
+        allBugs.push(...chunkResult.bugs)
+        allSecurityIssues.push(...chunkResult.securityIssues)
+        allCodeSmells.push(...chunkResult.codeSmells)
       }
-      
-      // Shorter delay between chunks for faster processing
-      await new Promise(resolve => setTimeout(resolve, 75))
+      await new Promise(resolve => setTimeout(resolve, 25))
     }
     
     return {
