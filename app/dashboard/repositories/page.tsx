@@ -417,7 +417,7 @@ export default function Repositories() {
             owner: owner,
             repo: repoName,
             batchIndex: batchIndex,
-            batchSize: 3
+            batchSize: 2
           }),
         })
 
@@ -438,13 +438,27 @@ export default function Repositories() {
         totalCodeSmells += batchData.totalCodeSmells || 0
         totalBatches++
         
+        // 📊 DETAILED FRONTEND BATCH LOGGING
+        console.log(`📊 FRONTEND BATCH ${batchIndex + 1} SUMMARY:`)
+        console.log(`   Repository: ${repo.fullName}`)
+        console.log(`   Files processed in batch: ${batchData.filesProcessedInBatch || 0}`)
+        console.log(`   Issues found in batch: ${batchData.totalBugs || 0} bugs, ${batchData.totalSecurityIssues || 0} security, ${batchData.totalCodeSmells || 0} smells`)
+        console.log(`   Cumulative totals: ${totalBugs} bugs, ${totalSecurityIssues} security, ${totalCodeSmells} smells`)
+        console.log(`   Batches completed: ${totalBatches}`)
+        
         // Check if there are more batches
         hasMoreBatches = batchData.hasMoreBatches
         batchIndex = batchData.nextBatchIndex || batchIndex + 1
         
         // Show progress
         if (batchData.progress) {
-          console.log(`📈 Progress: ${batchData.progress.percentage}% (${batchData.progress.filesProcessed}/${batchData.progress.totalFiles} files)`)
+          console.log(`📈 Repository Progress: ${batchData.progress.percentage}% (${batchData.progress.filesProcessed}/${batchData.progress.totalFiles} files)`)
+        }
+        
+        if (hasMoreBatches) {
+          console.log(`🔄 More batches remaining for ${repo.fullName}. Starting batch ${batchIndex + 1}...`)
+        } else {
+          console.log(`🏁 All batches completed for ${repo.fullName}!`)
         }
       }
       

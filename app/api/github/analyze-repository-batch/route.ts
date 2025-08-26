@@ -122,12 +122,32 @@ export async function POST(request: NextRequest) {
       return sizeA - sizeB
     })
 
+    // 📊 DETAILED FILE ANALYSIS LOGGING
+    console.log(`📁 REPOSITORY FILE ANALYSIS for ${owner}/${repo}:`)
+    console.log(`   Total files in repo: ${treeData.tree.length}`)
+    console.log(`   Code files found: ${codeFiles.length}`)
+    console.log(`   Files after sorting: ${sortedFiles.length}`)
+    console.log(`   Batch size: ${batchSize}`)
+    console.log(`   Total batches needed: ${Math.ceil(sortedFiles.length / batchSize)}`)
+    
+    // Log file types breakdown
+    const fileTypes: { [key: string]: number } = {}
+    codeFiles.forEach((file: any) => {
+      const ext = file.path.split('.').pop()?.toLowerCase() || 'no-ext'
+      fileTypes[ext] = (fileTypes[ext] || 0) + 1
+    })
+    console.log(`   File types found:`, fileTypes)
+
     // Calculate batch boundaries
     const startIndex = batchIndex * batchSize
     const endIndex = Math.min(startIndex + batchSize, sortedFiles.length)
     const filesToAnalyze = sortedFiles.slice(startIndex, endIndex)
     
     console.log(`📊 BATCH ${batchIndex + 1}: Processing files ${startIndex + 1}-${endIndex} of ${sortedFiles.length}`)
+    console.log(`📋 Files in this batch:`)
+    filesToAnalyze.forEach((file: any, index: number) => {
+      console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes)`)
+    })
 
     const analysisResults: AnalysisResult[] = []
     let totalBugs = 0
@@ -193,7 +213,19 @@ export async function POST(request: NextRequest) {
     const hasMoreBatches = endIndex < sortedFiles.length
     const nextBatchIndex = hasMoreBatches ? batchIndex + 1 : null
 
-    console.log(`🎉 BATCH ${batchIndex + 1} COMPLETE: ${totalBugs} bugs, ${totalSecurityIssues} security issues, ${totalCodeSmells} code smells`)
+    // 📈 DETAILED BATCH COMPLETION STATS
+    console.log(`🎉 BATCH ${batchIndex + 1} COMPLETE:`)
+    console.log(`   Files scheduled for batch: ${filesToAnalyze.length}`)
+    console.log(`   Files actually processed: ${filesProcessed}`)
+    console.log(`   Files with analysis results: ${analysisResults.length}`)
+    console.log(`   Issues found: ${totalBugs} bugs, ${totalSecurityIssues} security issues, ${totalCodeSmells} code smells`)
+    console.log(`   Processing efficiency: ${Math.round((filesProcessed / filesToAnalyze.length) * 100)}%`)
+    console.log(`   Overall progress: ${endIndex}/${sortedFiles.length} files (${Math.round((endIndex / sortedFiles.length) * 100)}%)`)
+    if (hasMoreBatches) {
+      console.log(`   Next batch: ${nextBatchIndex + 1} (will process files ${endIndex + 1}-${Math.min(endIndex + batchSize, sortedFiles.length)})`)
+    } else {
+      console.log(`   ✅ All batches complete! Repository analysis finished.`)
+    }
 
     return NextResponse.json({
       success: true,
