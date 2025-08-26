@@ -66,8 +66,19 @@ function PRAnalysisContent() {
 
   const loadAnalysisData = async () => {
     try {
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.error('❌ PR-ANALYSIS: No current user found')
+        setLoading(false)
+        return
+      }
+      
+      const currentUser = JSON.parse(currentUserStr)
+      console.log('🔍 PR-ANALYSIS: Loading data for user:', currentUser.id)
+      
       // Load repository data
-      const repoResponse = await fetch('/api/repositories')
+      const repoResponse = await fetch(`/api/repositories?userId=${currentUser.id}`)
       if (repoResponse.ok) {
         const repos = await repoResponse.json()
         const repo = repos.find((r: any) => r.fullName === repoName)
