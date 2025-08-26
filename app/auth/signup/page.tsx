@@ -47,19 +47,13 @@ export default function SignUp() {
   const handleGithubSignUp = async () => {
     try {
       // For signup page, use default-user for GitHub OAuth
-      // This will connect to the default user account
+      // Direct redirect approach (same as repositories and setup pages)
       console.log('🔗 SIGNUP: Starting GitHub OAuth for default user')
       
-      const response = await fetch('/api/github/oauth?userId=default-user')
-      const data = await response.json()
+      // Direct redirect to OAuth endpoint - it will handle the redirect automatically
+      console.log('🔗 SIGNUP: Redirecting to GitHub OAuth endpoint')
+      window.location.href = '/api/github/oauth?userId=default-user'
       
-      if (data.success && data.authUrl) {
-        console.log('🔗 SIGNUP: Redirecting to GitHub OAuth...')
-        window.location.href = data.authUrl
-      } else {
-        console.error('Failed to initiate GitHub OAuth:', data.error)
-        alert('Failed to sign up with GitHub. Please try again.')
-      }
     } catch (error) {
       console.error('Error initiating GitHub OAuth:', error)
       alert('Failed to sign up with GitHub. Please try again.')
