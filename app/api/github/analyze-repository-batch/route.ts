@@ -33,9 +33,25 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
   const TIMEOUT_MS = 18000 // 18 seconds per batch (safer margin)
   
+  // Initialize variables at function scope for catch block access
+  let analysisResults: AnalysisResult[] = []
+  let totalBugs = 0
+  let totalSecurityIssues = 0
+  let totalCodeSmells = 0
+  let filesProcessed = 0
+  let startIndex = 0
+  let endIndex = 0
+  let batchIndex = 0
+  let owner = ''
+  let repo = ''
+  
   try {
     const requestData = await request.json()
-    const { repoUrl, owner, repo, batchIndex = 0, batchSize = 2 } = requestData
+    const requestBody = { repoUrl: '', owner: '', repo: '', batchIndex: 0, batchSize: 2, ...requestData }
+    const { repoUrl, batchSize } = requestBody
+    owner = requestBody.owner
+    repo = requestBody.repo
+    batchIndex = requestBody.batchIndex
     
     console.log(`🚀 BATCH ${batchIndex + 1} - Analyzing ${owner}/${repo}`)
     console.log(`📦 Request data:`, { 
@@ -193,14 +209,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Initialize variables at the top for proper scope
-    let analysisResults: AnalysisResult[] = []
-    let totalBugs = 0
-    let totalSecurityIssues = 0
-    let totalCodeSmells = 0
-    let filesProcessed = 0
-    let startIndex = 0
-    let endIndex = 0
+
 
     // Calculate batch boundaries
     startIndex = batchIndex * batchSize
