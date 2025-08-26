@@ -215,6 +215,7 @@ export async function POST(request: NextRequest) {
       // Check timeout for this batch
       if (Date.now() - startTime > TIMEOUT_MS) {
         console.log(`⏰ Batch timeout reached, processed ${filesProcessed}/${filesToAnalyze.length} files in this batch`)
+        console.log(`⏰ Time elapsed: ${Math.round((Date.now() - startTime) / 1000)}s / ${TIMEOUT_MS / 1000}s`)
         break
       }
       
@@ -244,8 +245,11 @@ export async function POST(request: NextRequest) {
         const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
         console.log(`📄 Analyzing ${file.path} (${content.length} chars)`)
 
-        // Analyze with OpenAI (with chunking for large files)
-        const analysis = await analyzeCodeWithAI(file.path, content, content.length > 10000)
+        // 🔍 ENHANCED CHUNKING: Analyze long files in smaller chunks to check every line
+        const shouldChunk = content.length > 3000 || content.split('\n').length > 100
+        console.log(`📄 File analysis: ${file.path} (${content.length} chars, ${content.split('\n').length} lines) - Chunking: ${shouldChunk}`)
+        
+        const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
         
         if (analysis) {
           analysisResults.push(analysis)
@@ -256,8 +260,8 @@ export async function POST(request: NextRequest) {
           console.log(`✅ ${file.path}: ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security issues`)
         }
 
-        // Ultra-minimal delay for speed
-        await new Promise(resolve => setTimeout(resolve, 25))
+        // Add delay to avoid OpenAI rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100))
         
       } catch (error) {
         console.error(`❌ Error processing ${file.path}:`, error)
@@ -304,14 +308,38 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('Batch analysis error:', error)
+    console.error('🚨 Batch analysis error:', error)
+    console.error('🚨 Error details:', {
+      message: error.message,
+      stack: error.stack?.slice(0, 500),
+      name: error.name,
+      code: error.code
+    })
+    
+    // Return partial results if we processed some files successfully
+    const hasPartialResults = analysisResults && analysisResults.length > 0
+    
     return NextResponse.json({ 
-      success: false, 
-      error: error.message || 'Unknown error during batch analysis',
-      batchIndex: 0,
-      totalBugs: 0,
-      results: []
-    }, { status: 500 })
+      success: hasPartialResults, // Mark as success if we have some results
+      error: hasPartialResults ? `Partial analysis completed. Error: ${error.message}` : error.message || 'Unknown error during batch analysis',
+      batchIndex: batchIndex || 0,
+      repository: `${owner}/${repo}`,
+      totalFilesInRepo: 0,
+      batchStartIndex: startIndex || 0,
+      batchEndIndex: endIndex || 0,
+      filesProcessedInBatch: analysisResults?.length || 0,
+      totalBugs: totalBugs || 0,
+      totalSecurityIssues: totalSecurityIssues || 0,
+      totalCodeSmells: totalCodeSmells || 0,
+      results: analysisResults || [],
+      hasMoreBatches: false, // Stop processing on error
+      nextBatchIndex: null,
+      progress: {
+        filesProcessed: endIndex || 0,
+        totalFiles: 0,
+        percentage: 0
+      }
+    }, { status: hasPartialResults ? 200 : 500 })
   }
 }
 
@@ -319,28 +347,67 @@ export async function POST(request: NextRequest) {
 async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: boolean = false): Promise<AnalysisResult | null> {
   if (!openai) return null
 
-  // For massive files, analyze in chunks
-  if (needsChunking && code.length > 10000) {
-    console.log(`🔄 Chunking large file: ${filePath} (${code.length} chars)`)
+  // 🔍 ENHANCED CHUNKING: Analyze files by logical sections to check every line
+  if (needsChunking) {
+    const lines = code.split('\n')
+    console.log(`🔄 Chunking file: ${filePath} (${code.length} chars, ${lines.length} lines)`)
     
-    const chunkSize = 8000
+    // Chunk by lines instead of characters for better analysis
+    const linesPerChunk = 50 // Smaller chunks for thorough analysis
     const chunks = []
-    for (let i = 0; i < code.length; i += chunkSize) {
-      chunks.push(code.slice(i, i + chunkSize))
+    
+    for (let i = 0; i < lines.length; i += linesPerChunk) {
+      const chunkLines = lines.slice(i, Math.min(i + linesPerChunk, lines.length))
+      const chunkContent = chunkLines.join('\n')
+      const startLine = i + 1
+      const endLine = i + chunkLines.length
+      
+      chunks.push({
+        content: chunkContent,
+        startLine,
+        endLine,
+        chunkLines: chunkLines.length
+      })
     }
+    
+    console.log(`📦 Created ${chunks.length} chunks for ${filePath} (${linesPerChunk} lines each)`)
     
     const allBugs: any[] = []
     const allSecurityIssues: any[] = []
     const allCodeSmells: any[] = []
     
     for (let i = 0; i < chunks.length; i++) {
-      const chunkResult = await analyzeSingleChunk(filePath, chunks[i], i + 1, chunks.length)
+      const chunk = chunks[i]
+      console.log(`🔍 Analyzing chunk ${i + 1}/${chunks.length}: lines ${chunk.startLine}-${chunk.endLine}`)
+      
+      const chunkResult = await analyzeSingleChunk(filePath, chunk.content, i + 1, chunks.length, chunk.startLine)
       if (chunkResult) {
-        allBugs.push(...chunkResult.bugs)
-        allSecurityIssues.push(...chunkResult.securityIssues)
-        allCodeSmells.push(...chunkResult.codeSmells)
+        // Adjust line numbers to be relative to the full file
+        const adjustedBugs = chunkResult.bugs.map((bug: any) => ({
+          ...bug,
+          line: bug.line + chunk.startLine - 1,
+          absoluteLine: bug.line + chunk.startLine - 1
+        }))
+        const adjustedSecurity = chunkResult.securityIssues.map((issue: any) => ({
+          ...issue,
+          line: issue.line + chunk.startLine - 1,
+          absoluteLine: issue.line + chunk.startLine - 1
+        }))
+        const adjustedSmells = chunkResult.codeSmells.map((smell: any) => ({
+          ...smell,
+          line: smell.line + chunk.startLine - 1,
+          absoluteLine: smell.line + chunk.startLine - 1
+        }))
+        
+        allBugs.push(...adjustedBugs)
+        allSecurityIssues.push(...adjustedSecurity)
+        allCodeSmells.push(...adjustedSmells)
+        
+        console.log(`✅ Chunk ${i + 1}: Found ${adjustedBugs.length} bugs, ${adjustedSecurity.length} security issues, ${adjustedSmells.length} smells`)
       }
-      await new Promise(resolve => setTimeout(resolve, 25))
+      
+      // Longer delay between chunks to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 150))
     }
     
     return {
@@ -351,10 +418,10 @@ async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: 
     }
   }
 
-  return await analyzeSingleChunk(filePath, code, 1, 1)
+  return await analyzeSingleChunk(filePath, code, 1, 1, 1)
 }
 
-async function analyzeSingleChunk(filePath: string, code: string, chunkNum: number, totalChunks: number): Promise<AnalysisResult | null> {
+async function analyzeSingleChunk(filePath: string, code: string, chunkNum: number, totalChunks: number, startLineOffset: number = 1): Promise<AnalysisResult | null> {
   if (!openai) return null
 
   try {
@@ -385,11 +452,11 @@ IMPORTANT:
         },
         {
           role: "user",
-          content: `Analyze this ${filePath} file${totalChunks > 1 ? ` (chunk ${chunkNum}/${totalChunks})` : ''}.
+          content: `Analyze this ${filePath} file${totalChunks > 1 ? ` (chunk ${chunkNum}/${totalChunks}, starting at line ${startLineOffset})` : ''}.
 
-Please number each line for reference:
+Please analyze each line carefully. Line numbers start from ${startLineOffset}:
 
-${code.split('\n').map((line, index) => `${index + 1}: ${line}`).join('\n')}`
+${code.split('\n').map((line, index) => `${startLineOffset + index}: ${line}`).join('\n')}`
         }
       ],
       temperature: 0.1,
