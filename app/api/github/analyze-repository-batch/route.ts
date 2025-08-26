@@ -227,8 +227,12 @@ export async function POST(request: NextRequest) {
     }> = []
     
     console.log(`🔄 Pre-processing files to create chunks...`)
+    console.log(`🔍 DEBUG: Starting to process ${sortedFiles.length} sorted files`)
     
+    let processedFileCount = 0
     for (const file of sortedFiles) {
+      processedFileCount++
+      console.log(`📁 Pre-processing file ${processedFileCount}/${sortedFiles.length}: ${file.path} (${file.size || 0} bytes)`)
       try {
         // Get file content first
         const fileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${file.path}`, {
@@ -246,9 +250,13 @@ export async function POST(request: NextRequest) {
         const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
         const lines = content.split('\n')
         
+        console.log(`📄 File content: ${file.path} - ${content.length} chars, ${lines.length} lines`)
+        
         // Create chunks for this file
         const linesPerChunk = 30
         const shouldChunk = content.length > 3000 || lines.length > 100
+        
+        console.log(`🔍 Chunking decision for ${file.path}: shouldChunk=${shouldChunk} (chars: ${content.length}, lines: ${lines.length})`)
         
         if (shouldChunk) {
           // Split file into multiple chunks
@@ -267,9 +275,12 @@ export async function POST(request: NextRequest) {
               endLine,
               fileSize: content.length
             })
+            
+            console.log(`📦 Created chunk ${Math.floor(i / linesPerChunk) + 1} for ${file.path}: lines ${startLine}-${endLine}`)
           }
         } else {
           // Small file = single chunk
+          console.log(`📄 Creating single chunk for small file: ${file.path}`)
           allChunks.push({
             filePath: file.path,
             chunkIndex: 0,
