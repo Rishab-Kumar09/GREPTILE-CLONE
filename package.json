@@ -8,6 +8,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:api": "jest --testPathPattern=api",
+    "test:ci": "jest --ci --coverage --watchAll=false",
     "migrate:trigger": "powershell -ExecutionPolicy Bypass -File scripts/trigger-migration.ps1",
     "deploy": "git push && timeout /t 120 && npm run migrate:trigger",
     "deploy:safe": "git push && timeout /t 180 && npm run migrate:trigger",
@@ -56,11 +62,18 @@
     "zustand": "^4.4.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^30.0.0",
     "@types/react-syntax-highlighter": "^15.5.0",
     "eslint": "^8.0.0",
     "eslint-config-next": "^14.0.0",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
     "prettier": "^3.0.0",
-    "prettier-plugin-tailwindcss": "^0.5.0"
+    "prettier-plugin-tailwindcss": "^0.5.0",
+    "supertest": "^7.1.4"
   },
   "keywords": [
     "ai",
