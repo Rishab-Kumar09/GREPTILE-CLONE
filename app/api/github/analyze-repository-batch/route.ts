@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
     console.log(`   Code files found: ${codeFiles.length}`)
     console.log(`   Files after sorting: ${sortedFiles.length}`)
     console.log(`   Batch size: ${batchSize}`)
-    console.log(`   Total batches needed: ${Math.ceil(sortedFiles.length / batchSize)}`)
+    console.log(`   Total batches needed: ${batchSize > 0 ? Math.ceil(sortedFiles.length / batchSize) : 0}`)
     
     // Log file types breakdown
     const fileTypes: { [key: string]: number } = {}
@@ -290,9 +290,9 @@ export async function POST(request: NextRequest) {
     console.log(`   Files actually processed: ${filesProcessed}`)
     console.log(`   Files with analysis results: ${analysisResults.length}`)
     console.log(`   Issues found: ${totalBugs} bugs, ${totalSecurityIssues} security issues, ${totalCodeSmells} code smells`)
-    console.log(`   Processing efficiency: ${Math.round((filesProcessed / filesToAnalyze.length) * 100)}%`)
-    console.log(`   Overall progress: ${endIndex}/${sortedFiles.length} files (${Math.round((endIndex / sortedFiles.length) * 100)}%)`)
-    if (hasMoreBatches) {
+    console.log(`   Processing efficiency: ${filesToAnalyze.length > 0 ? Math.round((filesProcessed / filesToAnalyze.length) * 100) : 0}%`)
+    console.log(`   Overall progress: ${endIndex}/${sortedFiles.length} files (${sortedFiles.length > 0 ? Math.round((endIndex / sortedFiles.length) * 100) : 0}%)`)
+    if (hasMoreBatches && nextBatchIndex !== null) {
       console.log(`   Next batch: ${nextBatchIndex + 1} (will process files ${endIndex + 1}-${Math.min(endIndex + batchSize, sortedFiles.length)})`)
     } else {
       console.log(`   ✅ All batches complete! Repository analysis finished.`)
@@ -315,7 +315,7 @@ export async function POST(request: NextRequest) {
       progress: {
         filesProcessed: endIndex,
         totalFiles: sortedFiles.length,
-        percentage: Math.round((endIndex / sortedFiles.length) * 100)
+        percentage: sortedFiles.length > 0 ? Math.round((endIndex / sortedFiles.length) * 100) : 0
       }
     })
 
