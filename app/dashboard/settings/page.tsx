@@ -278,6 +278,24 @@ export default function Settings() {
             </div>
           </div>
         </div>
+
+        {/* Hidden Integration Test Access */}
+        <div className="mt-8">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">System Diagnostics</h2>
+            <div className="flex items-center space-x-4">
+              <a
+                href="/test-integration"
+                className="px-4 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors"
+              >
+                🧪 Run Integration Tests
+              </a>
+              <p className="text-sm text-gray-600">
+                Test all system integrations on the live deployed system
+              </p>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   )
