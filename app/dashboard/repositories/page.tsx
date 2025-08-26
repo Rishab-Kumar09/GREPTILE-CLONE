@@ -431,6 +431,19 @@ export default function Repositories() {
         const batchData = await response.json()
         console.log(`✅ Batch ${batchIndex + 1} completed:`, batchData.progress)
         
+        // 🔍 DEBUG: Log the complete batch response to see what backend returned
+        console.log(`🔍 DEBUG: Complete batch ${batchIndex + 1} response:`, {
+          success: batchData.success,
+          repository: batchData.repository,
+          totalFilesInRepo: batchData.totalFilesInRepo,
+          batchStartIndex: batchData.batchStartIndex,
+          batchEndIndex: batchData.batchEndIndex,
+          filesProcessedInBatch: batchData.filesProcessedInBatch,
+          hasMoreBatches: batchData.hasMoreBatches,
+          nextBatchIndex: batchData.nextBatchIndex,
+          resultsCount: batchData.results?.length || 0
+        })
+        
         // Accumulate results from this batch
         allResults = allResults.concat(batchData.results || [])
         totalBugs += batchData.totalBugs || 0
