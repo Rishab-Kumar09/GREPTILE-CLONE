@@ -193,6 +193,15 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Initialize variables at the top for proper scope
+    let analysisResults: AnalysisResult[] = []
+    let totalBugs = 0
+    let totalSecurityIssues = 0
+    let totalCodeSmells = 0
+    let filesProcessed = 0
+    let startIndex = 0
+    let endIndex = 0
+
     // Calculate batch boundaries
     startIndex = batchIndex * batchSize
     endIndex = Math.min(startIndex + batchSize, sortedFiles.length)
@@ -203,14 +212,6 @@ export async function POST(request: NextRequest) {
     filesToAnalyze.forEach((file: any, index: number) => {
       console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes)`)
     })
-
-    let analysisResults: AnalysisResult[] = []
-    let totalBugs = 0
-    let totalSecurityIssues = 0
-    let totalCodeSmells = 0
-    let filesProcessed = 0
-    let startIndex = 0
-    let endIndex = 0
 
     // Analyze each file in this batch
     for (const file of filesToAnalyze) {
