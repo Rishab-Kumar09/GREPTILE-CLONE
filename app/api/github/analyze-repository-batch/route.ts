@@ -31,7 +31,8 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  const TIMEOUT_MS = 18000 // 18 seconds per batch (safer margin)
+  // 🎯 DYNAMIC TIMEOUT: Use platform-specific limits (GitHub/Vercel: 30s, AWS: 30s)
+  const TIMEOUT_MS = 25000 // 25 seconds (safe margin for 30s platform limit)
   
   // Initialize variables at function scope for catch block access
   let analysisResults: AnalysisResult[] = []
@@ -211,30 +212,25 @@ export async function POST(request: NextRequest) {
 
 
 
-    // Calculate batch boundaries
-    startIndex = batchIndex * batchSize
-    endIndex = Math.min(startIndex + batchSize, sortedFiles.length)
-    const filesToAnalyze = sortedFiles.slice(startIndex, endIndex)
+    // 🚀 REVOLUTIONARY BATCH SYSTEM: Files can span multiple batches!
+    // Instead of "batchSize files per batch", we use "batchSize chunks per batch"
     
-    console.log(`📊 BATCH ${batchIndex + 1}: Processing files ${startIndex + 1}-${endIndex} of ${sortedFiles.length}`)
-    console.log(`📋 Files in this batch:`)
-    filesToAnalyze.forEach((file: any, index: number) => {
-      console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes)`)
-    })
-
-    // Analyze each file in this batch
-    for (const file of filesToAnalyze) {
-      // Check timeout for this batch
-      if (Date.now() - startTime > TIMEOUT_MS) {
-        console.log(`⏰ Batch timeout reached, processed ${filesProcessed}/${filesToAnalyze.length} files in this batch`)
-        console.log(`⏰ Time elapsed: ${Math.round((Date.now() - startTime) / 1000)}s / ${TIMEOUT_MS / 1000}s`)
-        break
-      }
-      
-      filesProcessed++
-      console.log(`📁 Processing ${filesProcessed}/${filesToAnalyze.length}: ${file.path}`)
-      
+    // First, create ALL chunks from ALL files
+    const allChunks: Array<{
+      filePath: string,
+      chunkIndex: number,
+      totalChunks: number,
+      content: string,
+      startLine: number,
+      endLine: number,
+      fileSize: number
+    }> = []
+    
+    console.log(`🔄 Pre-processing files to create chunks...`)
+    
+    for (const file of sortedFiles) {
       try {
+        // Get file content first
         const fileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${file.path}`, {
           headers: {
             'Accept': 'application/vnd.github.v3+json',
@@ -242,58 +238,145 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        if (!fileResponse.ok) {
-          console.log(`❌ Failed to fetch ${file.path}: ${fileResponse.status}`)
-          continue
-        }
+        if (!fileResponse.ok) continue
 
         const fileData = await fileResponse.json()
-        
-        if (!fileData.content) {
-          console.log(`⚠️ No content for ${file.path}`)
-          continue
-        }
+        if (!fileData.content) continue
 
         const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
-        console.log(`📄 Analyzing ${file.path} (${content.length} chars)`)
-
-        // 🔍 ENHANCED CHUNKING: Analyze long files in smaller chunks to check every line
-        const shouldChunk = content.length > 3000 || content.split('\n').length > 100
-        console.log(`📄 File analysis: ${file.path} (${content.length} chars, ${content.split('\n').length} lines) - Chunking: ${shouldChunk}`)
+        const lines = content.split('\n')
         
-        const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
+        // Create chunks for this file
+        const linesPerChunk = 30
+        const shouldChunk = content.length > 3000 || lines.length > 100
+        
+        if (shouldChunk) {
+          // Split file into multiple chunks
+          for (let i = 0; i < lines.length; i += linesPerChunk) {
+            const chunkLines = lines.slice(i, Math.min(i + linesPerChunk, lines.length))
+            const chunkContent = chunkLines.join('\n')
+            const startLine = i + 1
+            const endLine = i + chunkLines.length
+            
+            allChunks.push({
+              filePath: file.path,
+              chunkIndex: Math.floor(i / linesPerChunk),
+              totalChunks: Math.ceil(lines.length / linesPerChunk),
+              content: chunkContent,
+              startLine,
+              endLine,
+              fileSize: content.length
+            })
+          }
+        } else {
+          // Small file = single chunk
+          allChunks.push({
+            filePath: file.path,
+            chunkIndex: 0,
+            totalChunks: 1,
+            content,
+            startLine: 1,
+            endLine: lines.length,
+            fileSize: content.length
+          })
+        }
+      } catch (error) {
+        console.error(`❌ Error pre-processing ${file.path}:`, error)
+        continue
+      }
+    }
+    
+    console.log(`📦 Created ${allChunks.length} total chunks from ${sortedFiles.length} files`)
+    
+    // Now batch by CHUNKS, not files!
+    startIndex = batchIndex * batchSize
+    endIndex = Math.min(startIndex + batchSize, allChunks.length)
+    const chunksToAnalyze = allChunks.slice(startIndex, endIndex)
+    
+    console.log(`📊 BATCH ${batchIndex + 1}: Processing chunks ${startIndex + 1}-${endIndex} of ${allChunks.length}`)
+    console.log(`📋 Chunks in this batch:`)
+    chunksToAnalyze.forEach((chunk, index) => {
+      console.log(`   ${index + 1}. ${chunk.filePath} [lines ${chunk.startLine}-${chunk.endLine}] (chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks})`)
+    })
+
+    // Analyze each chunk in this batch
+    for (const chunk of chunksToAnalyze) {
+      // Check timeout for this batch
+      if (Date.now() - startTime > TIMEOUT_MS) {
+        console.log(`⏰ Batch timeout reached, processed ${filesProcessed}/${chunksToAnalyze.length} chunks in this batch`)
+        console.log(`⏰ Time elapsed: ${Math.round((Date.now() - startTime) / 1000)}s / ${TIMEOUT_MS / 1000}s`)
+        break
+      }
+      
+      filesProcessed++
+      console.log(`📄 Processing chunk ${filesProcessed}/${chunksToAnalyze.length}: ${chunk.filePath} [lines ${chunk.startLine}-${chunk.endLine}]`)
+      
+      try {
+        // 🚀 DIRECT CHUNK ANALYSIS: No need to fetch file content again!
+        console.log(`📄 Analyzing ${chunk.filePath} chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks} (${chunk.content.length} chars, lines ${chunk.startLine}-${chunk.endLine})`)
+        
+        // Analyze this specific chunk
+        const analysis = await analyzeSingleChunk(chunk.filePath, chunk.content, chunk.chunkIndex + 1, chunk.totalChunks, chunk.startLine)
         
         if (analysis) {
-          analysisResults.push(analysis)
-          totalBugs += analysis.bugs.length
-          totalSecurityIssues += analysis.securityIssues.length
-          totalCodeSmells += analysis.codeSmells.length
+          // Adjust line numbers to be absolute within the file
+          const adjustedBugs = analysis.bugs.map((bug: any) => ({
+            ...bug,
+            line: bug.line + chunk.startLine - 1,
+            absoluteLine: bug.line + chunk.startLine - 1,
+            chunkInfo: `chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks}`
+          }))
+          const adjustedSecurity = analysis.securityIssues.map((issue: any) => ({
+            ...issue,
+            line: issue.line + chunk.startLine - 1,
+            absoluteLine: issue.line + chunk.startLine - 1,
+            chunkInfo: `chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks}`
+          }))
+          const adjustedSmells = analysis.codeSmells.map((smell: any) => ({
+            ...smell,
+            line: smell.line + chunk.startLine - 1,
+            absoluteLine: smell.line + chunk.startLine - 1,
+            chunkInfo: `chunk ${chunk.chunkIndex + 1}/${chunk.totalChunks}`
+          }))
           
-          console.log(`✅ ${file.path}: ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security issues`)
+          // Create analysis result for this chunk
+          const chunkAnalysis = {
+            file: chunk.filePath,
+            bugs: adjustedBugs,
+            securityIssues: adjustedSecurity,
+            codeSmells: adjustedSmells
+          }
+          
+          analysisResults.push(chunkAnalysis)
+          totalBugs += adjustedBugs.length
+          totalSecurityIssues += adjustedSecurity.length
+          totalCodeSmells += adjustedSmells.length
+          
+          console.log(`✅ ${chunk.filePath} chunk ${chunk.chunkIndex + 1}: ${adjustedBugs.length} bugs, ${adjustedSecurity.length} security issues, ${adjustedSmells.length} smells`)
         }
 
         // Add delay to avoid OpenAI rate limiting
         await new Promise(resolve => setTimeout(resolve, 100))
         
       } catch (error) {
-        console.error(`❌ Error processing ${file.path}:`, error)
+        console.error(`❌ Error processing ${chunk.filePath} chunk ${chunk.chunkIndex + 1}:`, error)
         continue
       }
     }
 
-    const hasMoreBatches = endIndex < sortedFiles.length
+    const hasMoreBatches = endIndex < allChunks.length
     const nextBatchIndex = hasMoreBatches ? batchIndex + 1 : null
 
     // 📈 DETAILED BATCH COMPLETION STATS
     console.log(`🎉 BATCH ${batchIndex + 1} COMPLETE:`)
-    console.log(`   Files scheduled for batch: ${filesToAnalyze.length}`)
-    console.log(`   Files actually processed: ${filesProcessed}`)
-    console.log(`   Files with analysis results: ${analysisResults.length}`)
+    console.log(`   Chunks scheduled for batch: ${chunksToAnalyze.length}`)
+    console.log(`   Chunks actually processed: ${filesProcessed}`)
+    console.log(`   Chunks with analysis results: ${analysisResults.length}`)
     console.log(`   Issues found: ${totalBugs} bugs, ${totalSecurityIssues} security issues, ${totalCodeSmells} code smells`)
-    console.log(`   Processing efficiency: ${filesToAnalyze.length > 0 ? Math.round((filesProcessed / filesToAnalyze.length) * 100) : 0}%`)
-    console.log(`   Overall progress: ${endIndex}/${sortedFiles.length} files (${sortedFiles.length > 0 ? Math.round((endIndex / sortedFiles.length) * 100) : 0}%)`)
+    console.log(`   Processing efficiency: ${chunksToAnalyze.length > 0 ? Math.round((filesProcessed / chunksToAnalyze.length) * 100) : 0}%`)
+    console.log(`   Overall progress: ${endIndex}/${allChunks.length} chunks (${allChunks.length > 0 ? Math.round((endIndex / allChunks.length) * 100) : 0}%)`)
     if (hasMoreBatches && nextBatchIndex !== null) {
-      console.log(`   Next batch: ${nextBatchIndex + 1} (will process files ${endIndex + 1}-${Math.min(endIndex + batchSize, sortedFiles.length)})`)
+      console.log(`   Next batch: ${nextBatchIndex + 1} (will process chunks ${endIndex + 1}-${Math.min(endIndex + batchSize, allChunks.length)})`)
     } else {
       console.log(`   ✅ All batches complete! Repository analysis finished.`)
     }
@@ -303,9 +386,10 @@ export async function POST(request: NextRequest) {
       batchIndex,
       repository: `${owner}/${repo}`,
       totalFilesInRepo: sortedFiles.length,
+      totalChunksInRepo: allChunks.length,
       batchStartIndex: startIndex,
       batchEndIndex: endIndex,
-      filesProcessedInBatch: analysisResults.length,
+      chunksProcessedInBatch: analysisResults.length,
       totalBugs,
       totalSecurityIssues,
       totalCodeSmells,
@@ -313,9 +397,11 @@ export async function POST(request: NextRequest) {
       hasMoreBatches,
       nextBatchIndex,
       progress: {
-        filesProcessed: endIndex,
+        chunksProcessed: endIndex,
+        totalChunks: allChunks.length,
+        filesProcessed: new Set(analysisResults.map(r => r.file)).size,
         totalFiles: sortedFiles.length,
-        percentage: sortedFiles.length > 0 ? Math.round((endIndex / sortedFiles.length) * 100) : 0
+        percentage: allChunks.length > 0 ? Math.round((endIndex / allChunks.length) * 100) : 0
       }
     })
 
@@ -364,8 +450,8 @@ async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: 
     const lines = code.split('\n')
     console.log(`🔄 Chunking file: ${filePath} (${code.length} chars, ${lines.length} lines)`)
     
-    // Chunk by lines instead of characters for better analysis
-    const linesPerChunk = 50 // Smaller chunks for thorough analysis
+    // 🚀 SMART CHUNKING: Smaller chunks for faster processing and better timeout handling
+    const linesPerChunk = 30 // Optimized chunk size for speed + thoroughness
     const chunks = []
     
     for (let i = 0; i < lines.length; i += linesPerChunk) {
