@@ -194,8 +194,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate batch boundaries
-    const startIndex = batchIndex * batchSize
-    const endIndex = Math.min(startIndex + batchSize, sortedFiles.length)
+    startIndex = batchIndex * batchSize
+    endIndex = Math.min(startIndex + batchSize, sortedFiles.length)
     const filesToAnalyze = sortedFiles.slice(startIndex, endIndex)
     
     console.log(`📊 BATCH ${batchIndex + 1}: Processing files ${startIndex + 1}-${endIndex} of ${sortedFiles.length}`)
@@ -204,11 +204,13 @@ export async function POST(request: NextRequest) {
       console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes)`)
     })
 
-    const analysisResults: AnalysisResult[] = []
+    let analysisResults: AnalysisResult[] = []
     let totalBugs = 0
     let totalSecurityIssues = 0
     let totalCodeSmells = 0
     let filesProcessed = 0
+    let startIndex = 0
+    let endIndex = 0
 
     // Analyze each file in this batch
     for (const file of filesToAnalyze) {
