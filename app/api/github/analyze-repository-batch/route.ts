@@ -31,8 +31,8 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  // 🎯 DYNAMIC TIMEOUT: Use platform-specific limits (GitHub/Vercel: 30s, AWS: 30s)
-  const TIMEOUT_MS = 25000 // 25 seconds (safe margin for 30s platform limit)
+  // 🎯 AGGRESSIVE TIMEOUT: Much shorter to prevent 504 errors
+  const TIMEOUT_MS = 15000 // 15 seconds (very conservative for stability)
   
   // Initialize variables at function scope for catch block access
   let analysisResults: AnalysisResult[] = []
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const requestData = await request.json()
-    const requestBody = { repoUrl: '', owner: '', repo: '', batchIndex: 0, batchSize: 2, ...requestData }
+    const requestBody = { repoUrl: '', owner: '', repo: '', batchIndex: 0, batchSize: 1, ...requestData }
     const { repoUrl, batchSize } = requestBody
     owner = requestBody.owner
     repo = requestBody.repo
@@ -277,8 +277,8 @@ export async function POST(request: NextRequest) {
           console.log(`✅ ${file.path}: ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security issues`)
         }
 
-        // Add delay to avoid OpenAI rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100))
+        // Reduced delay for faster processing
+        await new Promise(resolve => setTimeout(resolve, 50))
         
       } catch (error) {
         console.error(`❌ Error processing ${file.path}:`, error)
@@ -423,8 +423,8 @@ async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: 
         console.log(`✅ Chunk ${i + 1}: Found ${adjustedBugs.length} bugs, ${adjustedSecurity.length} security issues, ${adjustedSmells.length} smells`)
       }
       
-      // Longer delay between chunks to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 150))
+      // Shorter delay between chunks for faster processing
+      await new Promise(resolve => setTimeout(resolve, 75))
     }
     
     return {
