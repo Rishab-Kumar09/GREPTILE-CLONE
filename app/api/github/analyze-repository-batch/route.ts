@@ -34,9 +34,17 @@ export async function POST(request: NextRequest) {
   const TIMEOUT_MS = 18000 // 18 seconds per batch (safer margin)
   
   try {
-    const { repoUrl, owner, repo, batchIndex = 0, batchSize = 15 } = await request.json()
+    const requestData = await request.json()
+    const { repoUrl, owner, repo, batchIndex = 0, batchSize = 2 } = requestData
     
     console.log(`🚀 BATCH ${batchIndex + 1} - Analyzing ${owner}/${repo}`)
+    console.log(`📦 Request data:`, { 
+      owner, 
+      repo, 
+      batchIndex, 
+      requestedBatchSize: requestData.batchSize, 
+      actualBatchSize: batchSize 
+    })
     console.log('🔑 Environment check:', {
       hasOpenAIKey: !!process.env.OPENAI_API_KEY,
       openaiInstance: !!openai,
@@ -137,6 +145,20 @@ export async function POST(request: NextRequest) {
       fileTypes[ext] = (fileTypes[ext] || 0) + 1
     })
     console.log(`   File types found:`, fileTypes)
+    
+    // 🔍 DEBUG: Show first few files found
+    console.log(`📝 First 10 code files found:`)
+    codeFiles.slice(0, 10).forEach((file: any, index: number) => {
+      console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes, type: ${file.type})`)
+    })
+    
+    if (codeFiles.length === 0) {
+      console.log(`❌ NO CODE FILES FOUND! Check file extensions and exclude paths.`)
+      console.log(`📄 All files in repo:`)
+      treeData.tree.slice(0, 20).forEach((file: any, index: number) => {
+        console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes, type: ${file.type})`)
+      })
+    }
 
     // Calculate batch boundaries
     const startIndex = batchIndex * batchSize
