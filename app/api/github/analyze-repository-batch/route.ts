@@ -93,9 +93,41 @@ export async function POST(request: NextRequest) {
 
     const treeData = await treeResponse.json()
     
-    // Filter for code files
-    const codeExtensions = ['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.cpp', '.c', '.cs', '.php', '.rb', '.go', '.rust', '.swift', '.kt', '.html', '.css', '.vue', '.svelte', '.sql', '.sh', '.yml', '.yaml', '.json']
-    const excludePaths = ['node_modules', '.git', 'dist', 'build', 'vendor', 'deps', 'target', 'bin', 'obj', 'out', 'coverage', 'test', 'tests', '__pycache__', '.next', '.nuxt', 'public', 'static', 'assets', 'images', 'fonts']
+    // Filter for code files - EXPANDED to catch more files like NodeGoat analysis
+    const codeExtensions = [
+      '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
+      '.py', '.pyx', '.pyi', 
+      '.java', '.scala', '.kt', '.groovy',
+      '.cpp', '.cc', '.c', '.h', '.hpp', '.cxx',
+      '.cs', '.vb', '.fs',
+      '.php', '.phtml', '.php3', '.php4', '.php5',
+      '.rb', '.rbw', '.rake', '.gemspec',
+      '.go', '.mod', '.sum',
+      '.rust', '.rs', '.toml',
+      '.swift', '.m', '.mm',
+      '.html', '.htm', '.xhtml', '.jsp', '.asp', '.aspx',
+      '.css', '.scss', '.sass', '.less', '.stylus',
+      '.vue', '.svelte', '.angular', '.jsx', '.tsx',
+      '.sql', '.mysql', '.pgsql', '.sqlite',
+      '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat', '.cmd',
+      '.yml', '.yaml', '.toml', '.ini', '.cfg', '.conf',
+      '.json', '.json5', '.jsonc',
+      '.xml', '.xsd', '.xsl', '.xslt',
+      '.md', '.markdown', '.rst', '.txt',
+      '.dockerfile', '.makefile', '.gradle', '.maven',
+      '.r', '.R', '.rmd', '.ipynb'
+    ]
+    
+    // LESS restrictive exclude paths - only exclude obvious non-code directories
+    const excludePaths = [
+      'node_modules', '.git', '.svn', '.hg',
+      'dist', 'build', 'out', 'target', 'bin', 'obj',
+      '__pycache__', '.pytest_cache', '.mypy_cache',
+      'vendor', 'deps', 'packages',
+      '.next', '.nuxt', '.cache', '.tmp', 'tmp',
+      'coverage', '.nyc_output',
+      'logs', 'log'
+    ]
     
     const codeFiles = treeData.tree.filter((item: any) => {
       if (item.type !== 'blob') return false
@@ -111,22 +143,23 @@ export async function POST(request: NextRequest) {
       return true
     })
     
-    // Sort files for optimal processing (prioritize small, important files)
+    // Sort files for optimal processing - ANALYZE ALL FILES like NodeGoat
     const sortedFiles = codeFiles.sort((a: any, b: any) => {
-      // Prioritize smaller files first (they process faster)
-      const sizeA = a.size || 0
-      const sizeB = b.size || 0
-      
-      // Skip very large files that might cause timeouts
-      if (sizeA > 50000) return 1  // Push large files to end
-      if (sizeB > 50000) return -1 // Push large files to end
-      
-      // Prioritize root level files
+      // Prioritize root level files first (they're usually more important)
       const aDepth = a.path.split('/').length
       const bDepth = b.path.split('/').length
       if (aDepth !== bDepth) return aDepth - bDepth
       
-      // Then by size (smaller first for speed)
+      // Then prioritize important file types
+      const importantFiles = ['.js', '.ts', '.py', '.java', '.php', '.rb', '.go', '.cpp', '.c']
+      const aImportant = importantFiles.some(ext => a.path.toLowerCase().endsWith(ext))
+      const bImportant = importantFiles.some(ext => b.path.toLowerCase().endsWith(ext))
+      if (aImportant && !bImportant) return -1
+      if (!aImportant && bImportant) return 1
+      
+      // Finally by size (smaller files first for speed, but don't exclude large files)
+      const sizeA = a.size || 0
+      const sizeB = b.size || 0
       return sizeA - sizeB
     })
 
@@ -330,24 +363,33 @@ async function analyzeSingleChunk(filePath: string, code: string, chunkNum: numb
       messages: [
         {
           role: "system",
-          content: `You are an expert code reviewer. Analyze the provided code for:
-1. BUGS: Logic errors, null pointer exceptions, infinite loops, type errors
-2. SECURITY ISSUES: SQL injection, XSS, insecure data handling, authentication issues
-3. CODE SMELLS: Poor naming, duplicated code, complex functions, performance issues
+          content: `You are an expert code reviewer. Analyze the provided code line by line for:
+1. BUGS: Logic errors, null pointer exceptions, infinite loops, type errors, undefined variables
+2. SECURITY ISSUES: SQL injection, XSS, insecure data handling, authentication bypasses, path traversal
+3. CODE SMELLS: Poor naming, duplicated code, complex functions, performance issues, code style violations
+
+CRITICAL: You must provide ACCURATE line numbers by counting from line 1. Look at the line numbers in the code.
 
 Respond ONLY with valid JSON in this exact format:
 {
-  "bugs": [{"line": 1, "severity": "high", "type": "Logic Error", "description": "...", "suggestion": "...", "codeSnippet": "actual code line"}],
-  "securityIssues": [{"line": 1, "severity": "critical", "type": "SQL Injection", "description": "...", "suggestion": "...", "codeSnippet": "actual code line"}],
-  "codeSmells": [{"line": 1, "type": "Complex Function", "description": "...", "suggestion": "...", "codeSnippet": "actual code line"}]
+  "bugs": [{"line": 45, "severity": "high", "type": "NoSQL Injection", "description": "Unvalidated user input used in database query", "suggestion": "Use parameterized queries or validate input", "codeSnippet": "return db.users.findOne({ id: userId });"}],
+  "securityIssues": [{"line": 23, "severity": "critical", "type": "XSS Vulnerability", "description": "User input rendered without sanitization", "suggestion": "Sanitize user input before rendering", "codeSnippet": "res.send('<h1>' + userInput + '</h1>');"}],
+  "codeSmells": [{"line": 67, "type": "Complex Function", "description": "Function has too many responsibilities", "suggestion": "Break down into smaller, focused functions", "codeSnippet": "function processUserData(data) {"}]
 }
 
-IMPORTANT: Include the "codeSnippet" field with the actual line of code that has the issue.
-Severity levels: critical, high, medium, low`
+IMPORTANT: 
+- Count line numbers accurately from the provided code
+- Include the EXACT line of code in "codeSnippet"
+- Look for real issues, not hypothetical ones
+- Severity levels: critical, high, medium, low`
         },
         {
           role: "user",
-          content: `Analyze this ${filePath} file${totalChunks > 1 ? ` (chunk ${chunkNum}/${totalChunks})` : ''}:\n\n${code}`
+          content: `Analyze this ${filePath} file${totalChunks > 1 ? ` (chunk ${chunkNum}/${totalChunks})` : ''}.
+
+Please number each line for reference:
+
+${code.split('\n').map((line, index) => `${index + 1}: ${line}`).join('\n')}`
         }
       ],
       temperature: 0.1,
