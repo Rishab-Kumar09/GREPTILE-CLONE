@@ -80,11 +80,23 @@ export default function IntegrationTestPage() {
 
   const runGitHubTest = async (): Promise<boolean> => {
     try {
-      // Test GitHub OAuth endpoint (should return redirect or error, not crash)
-      const response = await fetch('/api/github/oauth?userId=test-integration-user')
+      // Test GitHub integration by checking if we can fetch repositories for a connected user
+      // This tests the actual GitHub API integration without CORS issues
+      const response = await fetch('/api/github/repositories?userId=rk-company-com', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
       
-      // Should either redirect (3xx) or return error (4xx/5xx), not crash
-      if (response.status >= 200 && response.status < 600) {
+      // If user has GitHub connected, should return 200 with repos or 200 with empty array
+      // If user doesn't have GitHub connected, should return 401 or error message
+      // Both are valid responses indicating the API is working
+      if (response.status === 200) {
+        const data = await response.json()
+        return Array.isArray(data) // Should return an array of repositories
+      } else if (response.status === 401 || response.status === 400) {
+        // This is also a valid response - means API is working but user not connected
         return true
       }
       
@@ -342,7 +354,7 @@ export default function IntegrationTestPage() {
               <ul className="space-y-1">
                 <li>• <strong>Database Connection:</strong> Tests PostgreSQL connectivity and user profile access</li>
                 <li>• <strong>User Authentication:</strong> Tests signup/signin API endpoints</li>
-                <li>• <strong>GitHub API Integration:</strong> Tests GitHub OAuth and API connectivity</li>
+                <li>• <strong>GitHub API Integration:</strong> Tests GitHub repository fetching and API connectivity</li>
                 <li>• <strong>Repository Analysis:</strong> Tests the enhanced multi-batch analysis system</li>
                 <li>• <strong>Multi-Batch Processing:</strong> Tests batch processing logic and continuation</li>
                 <li>• <strong>Line Number Accuracy:</strong> Tests response structure for accurate line numbers</li>
