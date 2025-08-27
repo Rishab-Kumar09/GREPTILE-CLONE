@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { 
+  executeOpenAICall, 
+  parseOpenAIResponse, 
+  OpenAIError,
+  RateLimitError,
+  NetworkError 
+} from '@/lib/openai-error-handler'
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -799,11 +806,16 @@ async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: 
 }
 
 async function analyzeSingleChunk(filePath: string, code: string, chunkNum: number, totalChunks: number, startLineOffset: number = 1): Promise<AnalysisResult | null> {
-  if (!openai) return null
+  if (!openai) {
+    console.warn(`⚠️ OpenAI not configured, skipping analysis of ${filePath}`)
+    return null
+  }
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+    // Use robust error handling for OpenAI call
+    const completion = await executeOpenAICall(
+      () => openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
@@ -858,14 +870,16 @@ ${code}
 Analyze the above code chunk and return ALL issues found in the specified JSON format. Include the exact problematic code in the "code" field.`
         }
       ],
-      temperature: 0.1,
-      max_tokens: 1500,
-    })
+        temperature: 0.1,
+        max_tokens: 1500,
+      }),
+      `analyze-chunk-${filePath}-${chunkNum}`
+    )
 
     const response = completion.choices[0].message.content
-    if (!response) return null
-
-    const analysis = JSON.parse(response)
+    
+    // Use robust JSON parsing with detailed error handling
+    const analysis = parseOpenAIResponse(response, `analyze-chunk-${filePath}-${chunkNum}`)
     
     // Handle new structured format
     if (analysis.issues) {
@@ -884,7 +898,17 @@ Analyze the above code chunk and return ALL issues found in the specified JSON f
     }
 
   } catch (error) {
-    console.error(`Error analyzing ${filePath} chunk ${chunkNum}:`, error)
+    // Enhanced error handling with specific error types
+    if (error instanceof RateLimitError) {
+      console.error(`🚫 Rate limit hit for ${filePath} chunk ${chunkNum}:`, error.message)
+      // Could implement exponential backoff here if needed
+    } else if (error instanceof NetworkError) {
+      console.error(`🌐 Network error for ${filePath} chunk ${chunkNum}:`, error.message)
+    } else if (error instanceof OpenAIError) {
+      console.error(`🤖 OpenAI error for ${filePath} chunk ${chunkNum}:`, error.message, `(Code: ${error.code})`)
+    } else {
+      console.error(`❌ Unexpected error analyzing ${filePath} chunk ${chunkNum}:`, error)
+    }
     return null
   }
 }
