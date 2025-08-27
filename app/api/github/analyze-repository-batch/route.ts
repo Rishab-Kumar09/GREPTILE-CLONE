@@ -48,6 +48,28 @@ export async function POST(request: NextRequest) {
   // 🚀 ENTERPRISE TIMEOUT HANDLING: Multiple timeout layers
   const TOTAL_TIMEOUT_MS = 25000 // 25 seconds total request timeout
   const PER_FILE_TIMEOUT_MS = 8000 // 8 seconds per individual file
+  
+  // 🎯 DYNAMIC BATCH SIZING: Smart batch size based on file complexity
+  const calculateDynamicBatchSize = (files: any[]) => {
+    if (!files || files.length === 0) return 1
+    
+    const avgFileSize = files.reduce((sum, file) => sum + (file.size || 0), 0) / files.length
+    const maxFileSize = Math.max(...files.map(file => file.size || 0))
+    
+    console.log(`📊 DYNAMIC BATCHING: Avg size: ${Math.round(avgFileSize/1000)}KB, Max size: ${Math.round(maxFileSize/1000)}KB`)
+    
+    // Dynamic sizing logic
+    if (maxFileSize > 50000 || avgFileSize > 30000) {
+      console.log(`🔥 LARGE FILES: Using 1 file per batch`)
+      return 1
+    } else if (maxFileSize > 20000 || avgFileSize > 15000) {
+      console.log(`📦 MEDIUM FILES: Using 2 files per batch`)
+      return 2
+    } else {
+      console.log(`⚡ SMALL FILES: Using 3 files per batch`)
+      return 3
+    }
+  }
   const BATCH_TIMEOUT_MS = 20000 // 20 seconds per micro-batch
   
   // Initialize variables at function scope for catch block access
@@ -376,18 +398,18 @@ export async function POST(request: NextRequest) {
       console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes)`)
     })
 
-    // 🚀 PARALLEL MICRO-BATCHING: Process files in parallel micro-batches
-    console.log(`🔥 ENTERPRISE PROCESSING: Starting parallel micro-batching for ${filesToAnalyze.length} files`)
+    // 🚀 DYNAMIC RECURSIVE PROCESSING: Smart batch sizing with recursive error handling
+    console.log(`🔥 INTELLIGENT PROCESSING: Starting dynamic recursive analysis for ${filesToAnalyze.length} files`)
     
-    // Create micro-batches of 2 files each for parallel processing
-    const MICRO_BATCH_SIZE = 2
+    // Calculate dynamic batch size based on file complexity
+    const DYNAMIC_BATCH_SIZE = calculateDynamicBatchSize(filesToAnalyze)
     const microBatches: any[][] = []
     
-    for (let i = 0; i < filesToAnalyze.length; i += MICRO_BATCH_SIZE) {
-      microBatches.push(filesToAnalyze.slice(i, i + MICRO_BATCH_SIZE))
+    for (let i = 0; i < filesToAnalyze.length; i += DYNAMIC_BATCH_SIZE) {
+      microBatches.push(filesToAnalyze.slice(i, i + DYNAMIC_BATCH_SIZE))
     }
     
-    console.log(`📦 Created ${microBatches.length} micro-batches of ${MICRO_BATCH_SIZE} files each`)
+    console.log(`📦 Created ${microBatches.length} dynamic micro-batches of ${DYNAMIC_BATCH_SIZE} files each`)
     
     // Process micro-batches in parallel with timeout protection
     const processMicroBatch = async (microBatch: any[], microBatchIndex: number): Promise<AnalysisResult[]> => {
@@ -424,8 +446,22 @@ export async function POST(request: NextRequest) {
           
         } catch (error) {
           console.error(`❌ Micro-batch ${microBatchIndex + 1}: Failed ${file.path}:`, error instanceof Error ? error.message : 'Unknown error')
-          // 🛡️ CONTINUE PROCESSING: Don't let one failed file stop the entire batch
-          console.log(`   🔄 Continuing analysis of remaining files...`)
+          
+          // 🔄 RECURSIVE ERROR HANDLING: Try to analyze file in smaller chunks
+          console.log(`🔍 RECURSIVE ANALYSIS: Attempting to analyze ${file.path} in smaller chunks...`)
+          
+          try {
+            const recursiveResults = await recursiveFileAnalysis(file, owner, repo, 0)
+            if (recursiveResults && recursiveResults.length > 0) {
+              microBatchResults.push(...recursiveResults)
+              console.log(`✅ RECURSIVE SUCCESS: Analyzed ${file.path} in ${recursiveResults.length} chunks`)
+            } else {
+              console.log(`❌ RECURSIVE FAILED: Could not analyze ${file.path} even in chunks`)
+            }
+          } catch (recursiveError) {
+            console.log(`❌ RECURSIVE ERROR: Final failure for ${file.path}:`, recursiveError instanceof Error ? recursiveError.message : 'Unknown error')
+          }
+          
           continue
         }
       }
@@ -801,5 +837,131 @@ Analyze the above code chunk and return ALL issues found in the specified JSON f
   } catch (error) {
     console.error(`Error analyzing ${filePath} chunk ${chunkNum}:`, error)
     return null
+  }
+}
+
+// 🌳 RECURSIVE FILE ANALYSIS: DSA Binary Search Approach for Error Handling
+async function recursiveFileAnalysis(
+  file: any, 
+  owner: string, 
+  repo: string, 
+  depth: number = 0,
+  maxDepth: number = 5
+): Promise<AnalysisResult[]> {
+  const indent = '  '.repeat(depth)
+  console.log(`${indent}🔍 RECURSIVE[${depth}]: Analyzing ${file.path}`)
+  
+  // Prevent infinite recursion
+  if (depth > maxDepth) {
+    console.log(`${indent}❌ RECURSIVE[${depth}]: Max depth reached for ${file.path}`)
+    return []
+  }
+
+  try {
+    // Try to get file content
+    const fileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${file.path}`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': `token ${process.env.GITHUB_TOKEN}`
+      }
+    })
+
+    if (!fileResponse.ok) {
+      console.log(`${indent}❌ RECURSIVE[${depth}]: Cannot fetch ${file.path}`)
+      return []
+    }
+
+    const fileData = await fileResponse.json()
+    const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
+    const lines = content.split('\n')
+    const totalLines = lines.length
+
+    console.log(`${indent}📄 RECURSIVE[${depth}]: ${file.path} has ${totalLines} lines`)
+
+    // If file is small enough, try to analyze as whole
+    if (totalLines <= 50) {
+      console.log(`${indent}⚡ RECURSIVE[${depth}]: Small file, analyzing as whole`)
+      try {
+        const result = await analyzeSingleChunk(file.path, content, 1, 1, 0)
+        return result ? [result] : []
+      } catch (error) {
+        console.log(`${indent}❌ RECURSIVE[${depth}]: Even small file failed: ${error}`)
+        return []
+      }
+    }
+
+    // 🌳 BINARY SEARCH APPROACH: Split file into halves
+    const midPoint = Math.floor(totalLines / 2)
+    const firstHalf = lines.slice(0, midPoint).join('\n')
+    const secondHalf = lines.slice(midPoint).join('\n')
+
+    console.log(`${indent}🔪 RECURSIVE[${depth}]: Splitting ${file.path} at line ${midPoint}`)
+    console.log(`${indent}   First half: lines 1-${midPoint} (${firstHalf.length} chars)`)
+    console.log(`${indent}   Second half: lines ${midPoint + 1}-${totalLines} (${secondHalf.length} chars)`)
+
+    const results: AnalysisResult[] = []
+
+    // Analyze first half
+    try {
+      console.log(`${indent}🔍 RECURSIVE[${depth}]: Analyzing first half of ${file.path}`)
+      const firstResult = await analyzeSingleChunk(`${file.path}_part1`, firstHalf, 1, 2, 0)
+      if (firstResult) {
+        // Adjust line numbers for first half
+        if (firstResult.issues) {
+          firstResult.issues.forEach((issue: any) => {
+            issue.file = file.path // Use original file name
+          })
+        }
+        results.push(firstResult)
+        console.log(`${indent}✅ RECURSIVE[${depth}]: First half of ${file.path} analyzed successfully`)
+      }
+    } catch (error) {
+      console.log(`${indent}❌ RECURSIVE[${depth}]: First half failed, going deeper...`)
+      // Recursively analyze first half
+      const recursiveResults = await recursiveFileAnalysis(
+        { ...file, path: `${file.path}_part1`, content: firstHalf }, 
+        owner, 
+        repo, 
+        depth + 1,
+        maxDepth
+      )
+      results.push(...recursiveResults)
+    }
+
+    // Analyze second half
+    try {
+      console.log(`${indent}🔍 RECURSIVE[${depth}]: Analyzing second half of ${file.path}`)
+      const secondResult = await analyzeSingleChunk(`${file.path}_part2`, secondHalf, 2, 2, midPoint)
+      if (secondResult) {
+        // Adjust line numbers for second half
+        if (secondResult.issues) {
+          secondResult.issues.forEach((issue: any) => {
+            issue.file = file.path // Use original file name
+            issue.start_line += midPoint // Adjust line numbers
+            issue.end_line += midPoint
+          })
+        }
+        results.push(secondResult)
+        console.log(`${indent}✅ RECURSIVE[${depth}]: Second half of ${file.path} analyzed successfully`)
+      }
+    } catch (error) {
+      console.log(`${indent}❌ RECURSIVE[${depth}]: Second half failed, going deeper...`)
+      // Recursively analyze second half
+      const recursiveResults = await recursiveFileAnalysis(
+        { ...file, path: `${file.path}_part2`, content: secondHalf }, 
+        owner, 
+        repo, 
+        depth + 1,
+        maxDepth
+      )
+      results.push(...recursiveResults)
+    }
+
+    console.log(`${indent}🎉 RECURSIVE[${depth}]: Completed ${file.path} with ${results.length} result chunks`)
+    return results
+
+  } catch (error) {
+    console.log(`${indent}❌ RECURSIVE[${depth}]: Fatal error for ${file.path}:`, error)
+    return []
   }
 } 
