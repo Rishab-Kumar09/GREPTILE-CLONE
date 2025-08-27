@@ -533,8 +533,22 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 🚀 ENTERPRISE FILE PROCESSING: Individual file processing with timeout protection
+// 🚀 ULTIMATE FILE PROCESSING: Individual file with ultra-aggressive timeout and graceful skipping
 async function processFileWithTimeout(file: any, owner: string, repo: string): Promise<AnalysisResult | null> {
+  const fileTimeoutMs = 3000 // Ultra-aggressive 3 second timeout per file
+  
+  return Promise.race([
+    processFileActual(file, owner, repo),
+    new Promise<null>((_, reject) => 
+      setTimeout(() => reject(new Error(`File timeout: ${file.path}`)), fileTimeoutMs)
+    )
+  ]).catch(error => {
+    console.log(`⚠️ TIMEOUT: Skipping ${file.path} (${error.message}) - continuing with other files`)
+    return null // Gracefully skip this file and continue
+  })
+}
+
+async function processFileActual(file: any, owner: string, repo: string): Promise<AnalysisResult | null> {
   try {
     // Get file content with timeout protection
     const fileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${file.path}`, {
@@ -764,7 +778,7 @@ Analyze the above code chunk and return ALL issues found in the specified JSON f
         }
       ],
       temperature: 0.1,
-      max_tokens: 1500,
+      max_tokens: 800, // Reduced tokens for faster response
     })
 
     const response = completion.choices[0].message.content
