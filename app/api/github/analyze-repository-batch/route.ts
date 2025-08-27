@@ -45,10 +45,10 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  // 🚀 ENTERPRISE TIMEOUT HANDLING: Multiple timeout layers
-  const TOTAL_TIMEOUT_MS = 25000 // 25 seconds total request timeout
-  const PER_FILE_TIMEOUT_MS = 8000 // 8 seconds per individual file
-  const BATCH_TIMEOUT_MS = 20000 // 20 seconds per micro-batch
+  // 🚀 ULTRA-FAST TIMEOUT HANDLING: Aggressive timeouts for large repos
+  const TOTAL_TIMEOUT_MS = 20000 // 20 seconds total request timeout
+  const PER_FILE_TIMEOUT_MS = 5000 // 5 seconds per individual file
+  const BATCH_TIMEOUT_MS = 15000 // 15 seconds per micro-batch
   
   // Initialize variables at function scope for catch block access
   let analysisResults: AnalysisResult[] = []
@@ -380,7 +380,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔥 ENTERPRISE PROCESSING: Starting parallel micro-batching for ${filesToAnalyze.length} files`)
     
     // Create micro-batches of 2 files each for parallel processing
-    const MICRO_BATCH_SIZE = 2
+    const MICRO_BATCH_SIZE = 1 // Ultra-small batches for large repos
     const microBatches: any[][] = []
     
     for (let i = 0; i < filesToAnalyze.length; i += MICRO_BATCH_SIZE) {
@@ -522,8 +522,8 @@ export async function POST(request: NextRequest) {
       totalSecurityIssues: totalSecurityIssues || 0,
       totalCodeSmells: totalCodeSmells || 0,
       results: analysisResults || [],
-      hasMoreBatches: false, // Stop processing on error
-      nextBatchIndex: null,
+      hasMoreBatches: true, // Continue processing despite errors
+      nextBatchIndex: (batchIndex || 0) + 1,
       progress: {
         filesProcessed: endIndex || 0,
         totalFiles: 0,
@@ -559,8 +559,15 @@ async function processFileWithTimeout(file: any, owner: string, repo: string): P
     const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
     console.log(`📄 Processing ${file.path} (${content.length} chars, ${content.split('\n').length} lines)`)
 
-    // 🚀 ENTERPRISE CHUNKING: 150-200 line chunks for massive files
+    // 🚀 SMART FILE HANDLING: Skip extremely large files, chunk moderate ones
     const lines = content.split('\n')
+    
+    // Skip files that are too large to process efficiently
+    if (lines.length > 1000) {
+      console.log(`⚠️ Skipping very large file: ${file.path} (${lines.length} lines - too large for analysis)`)
+      return null
+    }
+    
     const shouldChunk = lines.length > 200
     
     const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
