@@ -86,7 +86,9 @@ export async function POST(request: NextRequest) {
   let sortedFiles: any[] = []
   
   try {
+    console.log(`🚀 DEBUG: Starting POST handler - batch analysis`)
     const requestData = await request.json()
+    console.log(`🚀 DEBUG: Request data parsed successfully`)
     const requestBody = { repoUrl: '', owner: '', repo: '', batchIndex: 0, batchSize: 4, ...requestData }
     const { repoUrl, batchSize } = requestBody
     owner = requestBody.owner
@@ -400,6 +402,7 @@ export async function POST(request: NextRequest) {
     })
 
     // 🚀 DYNAMIC RECURSIVE PROCESSING: Smart batch sizing with recursive error handling
+    console.log(`🚀 DEBUG: About to start micro-batch processing - this is the critical point`)
     console.log(`🔥 INTELLIGENT PROCESSING: Starting dynamic recursive analysis for ${filesToAnalyze.length} files`)
     
     // Calculate dynamic batch size based on file complexity
@@ -537,6 +540,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
+    console.log(`🚀 DEBUG: MAIN CATCH BLOCK TRIGGERED - This is where recovery should happen!`)
     console.error('🚨 Batch analysis error:', error)
     console.error('🚨 Error details:', {
       message: error.message,
