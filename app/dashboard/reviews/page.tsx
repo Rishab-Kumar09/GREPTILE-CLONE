@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import DashboardHeader from '@/components/DashboardHeader'
 
@@ -83,8 +82,6 @@ interface ChatMessage {
 }
 
 export default function Reviews() {
-  const searchParams = useSearchParams()
-  const targetRepo = searchParams.get('repo') // Get repository from URL parameter
   
   const [reviews, setReviews] = useState<Review[]>([])
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -115,28 +112,15 @@ export default function Reviews() {
         console.log(`✅ REVIEWS: Loaded ${repos.length} repositories for user ${currentUser.id}`)
         setRepositories(repos)
         
-        // 🎯 Auto-expand specific repository if coming from direct link
-        if (targetRepo) {
-          console.log(`🎯 AUTO-EXPAND: Looking for repository ${targetRepo}`)
-          const foundRepo = repos.find(repo => repo.fullName === targetRepo)
-          if (foundRepo) {
-            console.log(`✅ AUTO-EXPAND: Found and expanding ${targetRepo}`)
-            setExpandedReviews(prev => ({
-              ...prev,
-              [`repo-${foundRepo.fullName}`]: true
-            }))
-            
-            // Scroll to the repository after a short delay
-            setTimeout(() => {
-              const element = document.getElementById(`repo-${foundRepo.fullName}`)
-              if (element) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                console.log(`📍 AUTO-SCROLL: Scrolled to ${targetRepo}`)
-              }
-            }, 500)
-          } else {
-            console.log(`❌ AUTO-EXPAND: Repository ${targetRepo} not found`)
-          }
+        // 🎯 Simple auto-expand from localStorage
+        const expandRepo = localStorage.getItem('expandRepo')
+        if (expandRepo) {
+          console.log(`🎯 AUTO-EXPAND: Expanding ${expandRepo}`)
+          setExpandedReviews(prev => ({
+            ...prev,
+            [`repo-${expandRepo}`]: true
+          }))
+          localStorage.removeItem('expandRepo') // Clean up
         }
         
         // Convert repositories with analysis results to review format  
@@ -443,7 +427,7 @@ export default function Reviews() {
           </div>
           <div className="divide-y divide-gray-200">
             {reviews.map((review) => (
-              <div key={review.id} id={`repo-${review.repository}`} className={`border-b border-gray-200 last:border-b-0 ${targetRepo === review.repository ? 'ring-2 ring-blue-500 ring-opacity-50' : ''}`}>
+              <div key={review.id} className="border-b border-gray-200 last:border-b-0">
                 <div 
                   className="p-6 hover:bg-gray-50 cursor-pointer"
                   onClick={() => toggleReviewExpanded(review.id)}

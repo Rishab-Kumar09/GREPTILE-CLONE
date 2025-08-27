@@ -791,7 +791,8 @@ export default function Repositories() {
                     <div className="flex items-center space-x-2">
                       {repo.bugs > 0 && (
                         <Link 
-                          href={`/dashboard/reviews?repo=${encodeURIComponent(repo.fullName)}`}
+                          href="/dashboard/reviews"
+                          onClick={() => localStorage.setItem('expandRepo', repo.fullName)}
                           className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700"
                         >
                           View Issues
