@@ -559,16 +559,16 @@ async function processFileWithTimeout(file: any, owner: string, repo: string): P
     const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
     console.log(`📄 Processing ${file.path} (${content.length} chars, ${content.split('\n').length} lines)`)
 
-    // 🚀 SMART FILE HANDLING: Skip extremely large files, chunk moderate ones
+    // 🚀 ENTERPRISE FILE HANDLING: Process ALL files with smart chunking
     const lines = content.split('\n')
     
-    // Skip files that are too large to process efficiently
+    // Log large files but NEVER skip them - they're often the most important!
     if (lines.length > 1000) {
-      console.log(`⚠️ Skipping very large file: ${file.path} (${lines.length} lines - too large for analysis)`)
-      return null
+      console.log(`📏 Large file detected: ${file.path} (${lines.length} lines - will chunk for analysis)`)
     }
     
-    const shouldChunk = lines.length > 200
+    // More aggressive chunking for large files
+    const shouldChunk = lines.length > 150 // Lower threshold for chunking
     
     const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
     
@@ -597,7 +597,7 @@ async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: 
     const lines = code.split('\n')
     console.log(`🔄 Chunking large file: ${filePath} (${lines.length} lines)`)
     
-    const LINES_PER_CHUNK = 175 // Sweet spot: 150-200 lines
+    const LINES_PER_CHUNK = 100 // Smaller chunks for better timeout handling
     const chunks: Array<{content: string, startLine: number, endLine: number}> = []
     
     for (let i = 0; i < lines.length; i += LINES_PER_CHUNK) {
