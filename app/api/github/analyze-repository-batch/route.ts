@@ -424,6 +424,8 @@ export async function POST(request: NextRequest) {
           
         } catch (error) {
           console.error(`❌ Micro-batch ${microBatchIndex + 1}: Failed ${file.path}:`, error instanceof Error ? error.message : 'Unknown error')
+          // 🛡️ CONTINUE PROCESSING: Don't let one failed file stop the entire batch
+          console.log(`   🔄 Continuing analysis of remaining files...`)
           continue
         }
       }
@@ -506,12 +508,27 @@ export async function POST(request: NextRequest) {
       code: error.code
     })
     
-    // Return partial results if we processed some files successfully
+    // 🛡️ FAULT-TOLERANT ANALYSIS: Return partial results with detailed error reporting
     const hasPartialResults = analysisResults && analysisResults.length > 0
+    const successfulFiles = analysisResults?.length || 0
+    const totalAttempted = endIndex || 0
+    const failedFiles = Math.max(0, totalAttempted - successfulFiles)
+    
+    console.log(`\n🛡️ FAULT-TOLERANT ANALYSIS SUMMARY:`)
+    console.log(`   ✅ Successfully analyzed: ${successfulFiles} files`)
+    console.log(`   ❌ Failed to analyze: ${failedFiles} files`)
+    console.log(`   📊 Success rate: ${totalAttempted > 0 ? Math.round((successfulFiles / totalAttempted) * 100) : 0}%`)
+    console.log(`   💾 Partial results preserved: ${hasPartialResults ? 'YES' : 'NO'}`)
     
     return NextResponse.json({ 
-      success: hasPartialResults, // Mark as success if we have some results
-      error: hasPartialResults ? `Partial analysis completed. Error: ${error.message}` : error.message || 'Unknown error during batch analysis',
+      success: hasPartialResults, // Mark as success if we have ANY results
+      error: hasPartialResults 
+        ? `Partial analysis completed! Successfully analyzed ${successfulFiles}/${totalAttempted} files. Some files failed due to: ${error.message}` 
+        : error.message || 'Unknown error during batch analysis',
+      partialAnalysis: hasPartialResults,
+      filesAnalyzed: successfulFiles,
+      filesAttempted: totalAttempted,
+      filesFailed: failedFiles,
       batchIndex: batchIndex || 0,
       repository: `${owner}/${repo}`,
       totalFilesInRepo: 0,
