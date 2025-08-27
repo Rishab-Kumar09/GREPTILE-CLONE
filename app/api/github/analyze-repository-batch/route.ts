@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
   let batchIndex = 0
   let owner = ''
   let repo = ''
+  let sortedFiles: any[] = []
   
   try {
     const requestData = await request.json()
@@ -252,7 +253,7 @@ export async function POST(request: NextRequest) {
     })
     
     // Sort files for optimal processing - ANALYZE ALL FILES like NodeGoat
-    const sortedFiles = codeFiles.sort((a: any, b: any) => {
+    sortedFiles = codeFiles.sort((a: any, b: any) => {
       // Prioritize root level files first (they're usually more important)
       const aDepth = a.path.split('/').length
       const bDepth = b.path.split('/').length
