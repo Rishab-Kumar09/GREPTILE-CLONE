@@ -423,7 +423,7 @@ export default function Repositories() {
       while (hasMoreBatches) {
         console.log(`📦 Processing batch ${batchIndex + 1} for ${repo.fullName}`)
         
-        const response = await fetch('/api/github/analyze-repository-batch', {
+        let response = await fetch('/api/github/analyze-repository-batch', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -476,7 +476,7 @@ export default function Repositories() {
                 console.log(`❌ RETRY ${retryCount}: Still failing with status ${retryResponse.status}`)
               }
             } catch (retryError) {
-              console.log(`❌ RETRY ${retryCount}: Network error:`, retryError)
+              console.log(`❌ RETRY ${retryCount}: Network error:`, retryError instanceof Error ? retryError.message : 'Unknown error')
             }
           }
           
