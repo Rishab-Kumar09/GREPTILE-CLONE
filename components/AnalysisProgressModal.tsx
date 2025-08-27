@@ -33,11 +33,10 @@ export default function AnalysisProgressModal({
 
   if (!isOpen) return null
 
-  // Determine progress bar color
+  // Determine progress bar color - Green throughout like big companies!
   const getProgressBarColor = () => {
     if (hasError) return 'bg-red-500'
-    if (isComplete) return 'bg-green-500'
-    return 'bg-blue-500'
+    return 'bg-green-500' // Green throughout the process, just like YouTube, Netflix, etc.
   }
 
   // Determine status text
