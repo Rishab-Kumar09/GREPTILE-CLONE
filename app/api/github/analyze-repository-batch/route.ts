@@ -204,14 +204,56 @@ export async function POST(request: NextRequest) {
     console.log(`   Batch size: ${batchSize}`)
     console.log(`   Total batches needed: ${batchSize > 0 ? Math.ceil(sortedFiles.length / batchSize) : 0}`)
     
-    // 🔍 ENHANCED DEBUG: Show ALL files from GitHub API
-    console.log(`🔍 DEBUGGING LARGE CODE FILES - All files in repo:`)
+    // 🔍 STEP 1: COMPLETE FILE INVENTORY - Show ALL files from GitHub API
+    console.log(`\n📋 COMPLETE FILE INVENTORY for ${owner}/${repo}:`)
+    console.log(`📊 Total files found by GitHub API: ${treeData.tree.length}`)
+    
+    // Group and analyze all files
+    const filesByExtension: { [key: string]: any[] } = {}
+    let pythonFiles = 0
+    let jsFiles = 0
+    let codeFiles = 0
+    
     treeData.tree.forEach((file: any, index: number) => {
+      if (file.type !== 'blob') return // Skip directories
+      
       const ext = file.path.split('.').pop()?.toLowerCase() || 'no-ext'
       const isPython = ext === 'py'
-      const isLarge = (file.size || 0) > 10000
-      const prefix = isPython ? '🐍 PYTHON:' : isLarge ? '📏 LARGE:' : '📄'
-      console.log(`   ${index + 1}. ${prefix} ${file.path} (${file.size || 0} bytes, type: ${file.type}, ext: ${ext})`)
+      const isJavaScript = ['js', 'ts', 'jsx', 'tsx'].includes(ext)
+      const isCode = [
+        'py', 'js', 'ts', 'jsx', 'tsx', 'java', 'go', 'rs', 'php', 'rb', 
+        'c', 'cpp', 'h', 'cs', 'swift', 'kt', 'scala', 'sh'
+      ].includes(ext)
+      
+      if (!filesByExtension[ext]) filesByExtension[ext] = []
+      filesByExtension[ext].push(file)
+      
+      if (isPython) pythonFiles++
+      if (isJavaScript) jsFiles++
+      if (isCode) codeFiles++
+      
+      const prefix = isPython ? '🐍 PYTHON:' : 
+                    isJavaScript ? '⚡ JS/TS:' : 
+                    isCode ? '💻 CODE:' : 
+                    '📄 OTHER:'
+      
+      console.log(`   ${index + 1}. ${prefix} ${file.path} (${file.size || 0} bytes)`)
+    })
+    
+    // Show critical statistics
+    console.log(`\n📊 CRITICAL FILE ANALYSIS:`)
+    console.log(`   🐍 Python files found: ${pythonFiles}`)
+    console.log(`   ⚡ JavaScript/TypeScript files: ${jsFiles}`)
+    console.log(`   💻 Total code files: ${codeFiles}`)
+    console.log(`   📄 Other files: ${treeData.tree.length - codeFiles}`)
+    
+    // Show file type breakdown
+    console.log(`\n📊 FILE TYPE BREAKDOWN:`)
+    Object.keys(filesByExtension).sort().forEach(ext => {
+      const count = filesByExtension[ext].length
+      const totalSize = filesByExtension[ext].reduce((sum, f) => sum + (f.size || 0), 0)
+      const avgSize = count > 0 ? Math.round(totalSize / count) : 0
+      console.log(`   .${ext}: ${count} files (${Math.round(totalSize/1000)}KB total, ${avgSize} bytes avg)`)
     })
     
     // Log file types breakdown
