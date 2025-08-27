@@ -108,23 +108,72 @@ export async function POST(request: NextRequest) {
     }
 
     const repoInfo = await repoInfoResponse.json()
-    const defaultBranch = repoInfo.default_branch || 'main'
+    // 🚀 ANALYZE ALL BRANCHES - Find the branch with most code files
+    console.log(`\n🌿 ANALYZING ALL BRANCHES for ${owner}/${repo}:`)
     
-    console.log(`Using branch: ${defaultBranch}`)
-
-    // Get repository file tree
-    const treeResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`, {
+    // Get all branches
+    const branchesResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/branches`, {
       headers: {
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'Greptile-Clone'
       }
     })
-
-    if (!treeResponse.ok) {
-      throw new Error(`Failed to fetch repository tree: ${treeResponse.status}`)
+    
+    if (!branchesResponse.ok) {
+      throw new Error(`Failed to fetch branches: ${branchesResponse.status}`)
     }
-
-    const treeData = await treeResponse.json()
+    
+    const branches = await branchesResponse.json()
+    console.log(`   Found ${branches.length} branches:`, branches.map((b: any) => b.name))
+    
+    // Test each branch to find the one with most Python/code files
+    let bestBranch = repoInfo.default_branch || 'main'
+    let maxCodeFiles = 0
+    let bestTreeData: any = null
+    
+    for (const branch of branches) {
+      try {
+        console.log(`   🔍 Testing branch: ${branch.name}`)
+        
+        const treeResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/git/trees/${branch.name}?recursive=1`, {
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'Greptile-Clone'
+          }
+        })
+        
+        if (treeResponse.ok) {
+          const treeData = await treeResponse.json()
+          const pythonFiles = treeData.tree.filter((item: any) => 
+            item.type === 'blob' && item.path.toLowerCase().endsWith('.py')
+          ).length
+          
+          const allCodeFiles = treeData.tree.filter((item: any) => {
+            if (item.type !== 'blob') return false
+            const ext = item.path.split('.').pop()?.toLowerCase() || ''
+            return ['py', 'js', 'ts', 'jsx', 'tsx', 'java', 'go', 'rs', 'php', 'rb', 'c', 'cpp', 'h', 'cs'].includes(ext)
+          }).length
+          
+          console.log(`     📊 ${branch.name}: ${treeData.tree.length} total files, ${pythonFiles} Python files, ${allCodeFiles} code files`)
+          
+          if (allCodeFiles > maxCodeFiles) {
+            maxCodeFiles = allCodeFiles
+            bestBranch = branch.name
+            bestTreeData = treeData
+            console.log(`     ✅ New best branch: ${branch.name} (${allCodeFiles} code files)`)
+          }
+        } else {
+          console.log(`     ❌ Failed to fetch ${branch.name}: ${treeResponse.status}`)
+        }
+      } catch (error) {
+        console.log(`     ❌ Error testing branch ${branch.name}:`, error)
+      }
+    }
+    
+    console.log(`\n🎯 SELECTED BRANCH: ${bestBranch} (${maxCodeFiles} code files)`)
+    
+    // Use the best branch data
+    const treeData = bestTreeData
     
     // Filter for code files - EXPANDED to catch more files like NodeGoat analysis
     const codeExtensions = [
@@ -229,13 +278,29 @@ export async function POST(request: NextRequest) {
     if (repo.toLowerCase() === 'jarvis') {
       console.log(`\n🚨 JARVIS DEBUGGING - RAW GITHUB API RESPONSE:`)
       console.log(`   Repository: ${owner}/${repo}`)
-      console.log(`   API URL used: https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`)
+      console.log(`   API URL used: https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`)
       console.log(`   Response status: ${treeResponse.status}`)
       console.log(`   Total tree items: ${treeData.tree.length}`)
-      console.log(`   First 20 raw items from GitHub:`)
-      treeData.tree.slice(0, 20).forEach((item: any, index: number) => {
-        console.log(`     ${index + 1}. ${item.path} (type: ${item.type}, size: ${item.size || 0})`)
+      
+      // Check for Python files specifically
+      const pythonFilesInTree = treeData.tree.filter((item: any) => 
+        item.type === 'blob' && item.path.toLowerCase().endsWith('.py')
+      )
+      console.log(`   🐍 Python files in GitHub tree: ${pythonFilesInTree.length}`)
+      pythonFilesInTree.forEach((pyFile: any, index: number) => {
+        const sizeKB = Math.round((pyFile.size || 0) / 1000)
+        console.log(`     ${index + 1}. ${pyFile.path} (${sizeKB}KB)`)
       })
+      
+      console.log(`   📄 First 20 raw items from GitHub:`)
+      treeData.tree.slice(0, 20).forEach((item: any, index: number) => {
+        const sizeKB = Math.round((item.size || 0) / 1000)
+        console.log(`     ${index + 1}. ${item.path} (type: ${item.type}, ${sizeKB}KB)`)
+      })
+      
+      // Check what branch we're actually on
+      console.log(`\n🌿 BRANCH DEBUGGING:`)
+      console.log(`   Checking both main and master branches...`)
     }
     
     // Group and analyze all files
