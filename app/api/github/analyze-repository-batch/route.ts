@@ -31,8 +31,10 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  // 🎯 ORIGINAL WORKING TIMEOUT: Restore proven working timeout
-  const TIMEOUT_MS = 18000 // 18 seconds (original working timeout)
+  // 🚀 ENTERPRISE TIMEOUT HANDLING: Multiple timeout layers
+  const TOTAL_TIMEOUT_MS = 25000 // 25 seconds total request timeout
+  const PER_FILE_TIMEOUT_MS = 8000 // 8 seconds per individual file
+  const BATCH_TIMEOUT_MS = 20000 // 20 seconds per micro-batch
   
   // Initialize variables at function scope for catch block access
   let analysisResults: AnalysisResult[] = []
@@ -226,65 +228,88 @@ export async function POST(request: NextRequest) {
       console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes)`)
     })
 
-    // Process each file in this batch (with smart chunking for large files)
-    for (const file of filesToAnalyze) {
-      // Check timeout for this batch
-      if (Date.now() - startTime > TIMEOUT_MS) {
-        console.log(`⏰ Batch timeout reached, processed ${filesProcessed}/${filesToAnalyze.length} files in this batch`)
-        console.log(`⏰ Time elapsed: ${Math.round((Date.now() - startTime) / 1000)}s / ${TIMEOUT_MS / 1000}s`)
-        break
+    // 🚀 PARALLEL MICRO-BATCHING: Process files in parallel micro-batches
+    console.log(`🔥 ENTERPRISE PROCESSING: Starting parallel micro-batching for ${filesToAnalyze.length} files`)
+    
+    // Create micro-batches of 2 files each for parallel processing
+    const MICRO_BATCH_SIZE = 2
+    const microBatches: any[][] = []
+    
+    for (let i = 0; i < filesToAnalyze.length; i += MICRO_BATCH_SIZE) {
+      microBatches.push(filesToAnalyze.slice(i, i + MICRO_BATCH_SIZE))
+    }
+    
+    console.log(`📦 Created ${microBatches.length} micro-batches of ${MICRO_BATCH_SIZE} files each`)
+    
+    // Process micro-batches in parallel with timeout protection
+    const processMicroBatch = async (microBatch: any[], microBatchIndex: number): Promise<AnalysisResult[]> => {
+      const microBatchStartTime = Date.now()
+      const microBatchResults: AnalysisResult[] = []
+      
+      console.log(`⚡ Processing micro-batch ${microBatchIndex + 1}/${microBatches.length}:`, microBatch.map(f => f.path))
+      
+      for (const file of microBatch) {
+        // Multi-layer timeout protection
+        if (Date.now() - startTime > TOTAL_TIMEOUT_MS) {
+          console.log(`⏰ TOTAL timeout reached - stopping all processing`)
+          break
+        }
+        
+        if (Date.now() - microBatchStartTime > BATCH_TIMEOUT_MS) {
+          console.log(`⏰ Micro-batch timeout reached for batch ${microBatchIndex + 1}`)
+          break
+        }
+        
+        try {
+          // File processing with individual timeout
+          const fileResult = await Promise.race([
+            processFileWithTimeout(file, owner, repo),
+            new Promise<null>((_, reject) => 
+              setTimeout(() => reject(new Error('File timeout')), PER_FILE_TIMEOUT_MS)
+            )
+          ])
+          
+          if (fileResult) {
+            microBatchResults.push(fileResult)
+            console.log(`✅ Micro-batch ${microBatchIndex + 1}: ${file.path} completed`)
+          }
+          
+        } catch (error) {
+          console.error(`❌ Micro-batch ${microBatchIndex + 1}: Failed ${file.path}:`, error instanceof Error ? error.message : 'Unknown error')
+          continue
+        }
       }
       
-      filesProcessed++
-      console.log(`📄 Processing file ${filesProcessed}/${filesToAnalyze.length}: ${file.path}`)
+      const microBatchTime = Date.now() - microBatchStartTime
+      console.log(`🎉 Micro-batch ${microBatchIndex + 1} completed in ${microBatchTime}ms with ${microBatchResults.length} results`)
       
-      try {
-        // Get file content
-        const fileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${file.path}`, {
-          headers: {
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'Greptile-Clone'
-          }
-        })
-
-        if (!fileResponse.ok) {
-          console.log(`❌ Failed to fetch ${file.path}: ${fileResponse.status}`)
-          continue
-        }
-
-        const fileData = await fileResponse.json()
-        
-        if (!fileData.content) {
-          console.log(`⚠️ No content for ${file.path}`)
-          continue
-        }
-
-        const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
-        console.log(`📄 Analyzing ${file.path} (${content.length} chars)`)
-
-        // 🎯 ORIGINAL WORKING CHUNKING: Only chunk very large files
-        const shouldChunk = content.length > 10000 // Original working threshold
-        console.log(`📄 File analysis: ${file.path} (${content.length} chars, ${content.split('\n').length} lines) - Chunking: ${shouldChunk}`)
-        
-        const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
-        
-        if (analysis) {
-          analysisResults.push(analysis)
+      return microBatchResults
+    }
+    
+    // Execute all micro-batches in parallel
+    const allMicroBatchPromises = microBatches.map((microBatch, index) => 
+      processMicroBatch(microBatch, index)
+    )
+    
+    // Wait for all micro-batches with timeout protection
+    const allMicroBatchResults = await Promise.allSettled(allMicroBatchPromises)
+    
+    // Collect results from all micro-batches
+    allMicroBatchResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        analysisResults.push(...result.value)
+        result.value.forEach(analysis => {
           totalBugs += analysis.bugs.length
           totalSecurityIssues += analysis.securityIssues.length
           totalCodeSmells += analysis.codeSmells.length
-          
-          console.log(`✅ ${file.path}: ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security issues`)
-        }
-
-        // Original working delay
-        await new Promise(resolve => setTimeout(resolve, 25))
-        
-      } catch (error) {
-        console.error(`❌ Error processing ${file.path}:`, error)
-        continue
+        })
+        console.log(`📊 Micro-batch ${index + 1} contributed ${result.value.length} analysis results`)
+      } else {
+        console.error(`❌ Micro-batch ${index + 1} failed:`, result.reason)
       }
-    }
+    })
+    
+    filesProcessed = analysisResults.length
 
     const hasMoreBatches = endIndex < sortedFiles.length
     const nextBatchIndex = hasMoreBatches ? batchIndex + 1 : null
@@ -357,6 +382,50 @@ export async function POST(request: NextRequest) {
         percentage: 0
       }
     }, { status: hasPartialResults ? 200 : 500 })
+  }
+}
+
+// 🚀 ENTERPRISE FILE PROCESSING: Individual file processing with timeout protection
+async function processFileWithTimeout(file: any, owner: string, repo: string): Promise<AnalysisResult | null> {
+  try {
+    // Get file content with timeout protection
+    const fileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${file.path}`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Greptile-Clone'
+      }
+    })
+
+    if (!fileResponse.ok) {
+      console.log(`❌ Failed to fetch ${file.path}: ${fileResponse.status}`)
+      return null
+    }
+
+    const fileData = await fileResponse.json()
+    
+    if (!fileData.content) {
+      console.log(`⚠️ No content for ${file.path}`)
+      return null
+    }
+
+    const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
+    console.log(`📄 Processing ${file.path} (${content.length} chars, ${content.split('\n').length} lines)`)
+
+    // Smart chunking for large files
+    const shouldChunk = content.length > 10000
+    
+    const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
+    
+    if (analysis) {
+      console.log(`✅ ${file.path}: ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security, ${analysis.codeSmells.length} smells`)
+      return analysis
+    }
+    
+    return null
+    
+  } catch (error) {
+    console.error(`❌ Error processing ${file.path}:`, error)
+    return null
   }
 }
 
