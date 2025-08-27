@@ -216,10 +216,6 @@ export async function POST(request: NextRequest) {
       
       const hasCodeExtension = codeExtensions.some(ext => item.path.toLowerCase().endsWith(ext))
       if (!hasCodeExtension) {
-        // 🚨 JARVIS-SPECIFIC: Log rejected files
-        if (repo.toLowerCase() === 'jarvis') {
-          console.log(`   ❌ JARVIS: Rejected ${item.path} (no code extension)`)
-        }
         return false
       }
       
@@ -227,16 +223,7 @@ export async function POST(request: NextRequest) {
         item.path.toLowerCase().includes(excludePath.toLowerCase())
       )
       if (isExcluded) {
-        // 🚨 JARVIS-SPECIFIC: Log excluded files
-        if (repo.toLowerCase() === 'jarvis') {
-          console.log(`   ❌ JARVIS: Excluded ${item.path} (in exclude path)`)
-        }
         return false
-      }
-      
-      // 🚨 JARVIS-SPECIFIC: Log accepted files
-      if (repo.toLowerCase() === 'jarvis') {
-        console.log(`   ✅ JARVIS: Accepted ${item.path} for analysis`)
       }
       
       return true
@@ -274,33 +261,16 @@ export async function POST(request: NextRequest) {
     console.log(`\n📋 COMPLETE FILE INVENTORY for ${owner}/${repo}:`)
     console.log(`📊 Total files found by GitHub API: ${treeData.tree.length}`)
     
-    // 🚨 JARVIS-SPECIFIC DEBUGGING
-    if (repo.toLowerCase() === 'jarvis') {
-      console.log(`\n🚨 JARVIS DEBUGGING - RAW GITHUB API RESPONSE:`)
-      console.log(`   Repository: ${owner}/${repo}`)
-      console.log(`   API URL used: https://api.github.com/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`)
-      console.log(`   Response status: ${treeResponse.status}`)
-      console.log(`   Total tree items: ${treeData.tree.length}`)
-      
-      // Check for Python files specifically
-      const pythonFilesInTree = treeData.tree.filter((item: any) => 
-        item.type === 'blob' && item.path.toLowerCase().endsWith('.py')
-      )
-      console.log(`   🐍 Python files in GitHub tree: ${pythonFilesInTree.length}`)
-      pythonFilesInTree.forEach((pyFile: any, index: number) => {
+    // 🐍 PYTHON FILE ANALYSIS FOR ALL REPOS
+    const pythonFilesInTree = treeData.tree.filter((item: any) => 
+      item.type === 'blob' && item.path.toLowerCase().endsWith('.py')
+    )
+    if (pythonFilesInTree.length > 0) {
+      console.log(`   🐍 Python files found: ${pythonFilesInTree.length}`)
+      pythonFilesInTree.slice(0, 10).forEach((pyFile: any, index: number) => {
         const sizeKB = Math.round((pyFile.size || 0) / 1000)
         console.log(`     ${index + 1}. ${pyFile.path} (${sizeKB}KB)`)
       })
-      
-      console.log(`   📄 First 20 raw items from GitHub:`)
-      treeData.tree.slice(0, 20).forEach((item: any, index: number) => {
-        const sizeKB = Math.round((item.size || 0) / 1000)
-        console.log(`     ${index + 1}. ${item.path} (type: ${item.type}, ${sizeKB}KB)`)
-      })
-      
-      // Check what branch we're actually on
-      console.log(`\n🌿 BRANCH DEBUGGING:`)
-      console.log(`   Checking both main and master branches...`)
     }
     
     // Group and analyze all files
