@@ -51,6 +51,7 @@ export default function Repositories() {
   })
   const [isAnalysisComplete, setIsAnalysisComplete] = useState(false)
   const [hasAnalysisError, setHasAnalysisError] = useState(false)
+  const [currentSkippedCount, setCurrentSkippedCount] = useState(0)
 
   // Load repositories from database on component mount
   const loadRepositories = async () => {
@@ -403,6 +404,7 @@ export default function Repositories() {
     setShowProgressModal(true)
     setIsAnalysisComplete(false)
     setHasAnalysisError(false)
+    setCurrentSkippedCount(0)
     setAnalysisProgress({ percentage: 0 })
     
     try {
@@ -419,6 +421,10 @@ export default function Repositories() {
       let totalSecurityIssues = 0
       let totalCodeSmells = 0
       let totalBatches = 0
+      let skippedBatches: number[] = []
+      let consecutiveFailures = 0
+      const MAX_CONSECUTIVE_FAILURES = 3 // Stop after 3 consecutive batch failures
+      const MAX_TOTAL_SKIPS = 5 // Don't skip more than 5 batches total
       
       while (hasMoreBatches) {
         console.log(`📦 Processing batch ${batchIndex + 1} for ${repo.fullName}`)
@@ -483,10 +489,32 @@ export default function Repositories() {
           if (!retrySuccess) {
             console.error(`💀 FINAL FAILURE: Batch ${batchIndex + 1} failed after ${maxRetries} retries`)
             
-            // 🚀 FAULT-TOLERANT: Continue with next batch instead of stopping
-            console.log(`🔄 FAULT-TOLERANT: Skipping batch ${batchIndex + 1}, continuing with next batch...`)
+            // Track consecutive failures and total skips
+            consecutiveFailures++
+            skippedBatches.push(batchIndex + 1)
+            setCurrentSkippedCount(skippedBatches.length)
+            
+            // 🛑 SMART STOPPING: Prevent infinite loops
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+              console.error(`🛑 STOPPING: ${MAX_CONSECUTIVE_FAILURES} consecutive batch failures. Infrastructure may be down.`)
+              console.log(`📊 ANALYSIS SUMMARY: Processed ${totalBatches} batches successfully, skipped ${skippedBatches.length} batches`)
+              break
+            }
+            
+            if (skippedBatches.length >= MAX_TOTAL_SKIPS) {
+              console.error(`🛑 STOPPING: Maximum skip limit (${MAX_TOTAL_SKIPS}) reached. Too many infrastructure failures.`)
+              console.log(`📊 ANALYSIS SUMMARY: Processed ${totalBatches} batches successfully, skipped ${skippedBatches.length} batches`)
+              break
+            }
+            
+            // 🔄 FAULT-TOLERANT: Continue with next batch
+            console.log(`⚠️ SKIPPING: Batch ${batchIndex + 1} could not be processed after ${maxRetries} attempts`)
+            console.log(`📊 SKIP STATUS: ${skippedBatches.length}/${MAX_TOTAL_SKIPS} skips used, ${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES} consecutive failures`)
             batchIndex++
             continue // Skip this batch and try the next one
+          } else {
+            // Reset consecutive failures on success
+            consecutiveFailures = 0
           }
         }
 
@@ -557,7 +585,20 @@ export default function Repositories() {
       setIsAnalysisComplete(true)
       setAnalysisProgress({ percentage: 100 })
       
-      // Store analysis results
+      // 📊 FINAL ANALYSIS SUMMARY with Skip Information
+      const analysisComplete = skippedBatches.length === 0
+      console.log(`🎉 ANALYSIS ${analysisComplete ? 'COMPLETED' : 'FINISHED WITH SKIPS'} for ${repo.fullName}:`, {
+        totalBatches: totalBatches,
+        successfulBatches: totalBatches,
+        skippedBatches: skippedBatches,
+        totalResults: allResults.length,
+        totalBugs,
+        totalSecurityIssues,
+        totalCodeSmells,
+        completionStatus: analysisComplete ? 'Complete' : `Partial (${skippedBatches.length} batches skipped due to infrastructure issues)`
+      })
+
+      // Store analysis results with skip information
       setAnalysisResults(prev => ({
         ...prev,
         [repo.fullName]: {
@@ -565,7 +606,10 @@ export default function Repositories() {
             totalBugs,
             totalSecurityIssues, 
             totalCodeSmells,
-            totalFilesProcessed: allResults.length
+            totalFilesProcessed: allResults.length,
+            skippedBatches: skippedBatches,
+            isComplete: analysisComplete,
+            skippedCount: skippedBatches.length
           },
           allResults: allResults
         }
@@ -994,6 +1038,7 @@ export default function Repositories() {
         progress={analysisProgress}
         isComplete={isAnalysisComplete}
         hasError={hasAnalysisError}
+        skippedCount={currentSkippedCount}
       />
     </div>
   )

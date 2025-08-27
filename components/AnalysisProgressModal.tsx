@@ -11,6 +11,7 @@ interface AnalysisProgressModalProps {
   }
   isComplete: boolean
   hasError: boolean
+  skippedCount?: number
 }
 
 export default function AnalysisProgressModal({
@@ -19,7 +20,8 @@ export default function AnalysisProgressModal({
   repositoryName,
   progress,
   isComplete,
-  hasError
+  hasError,
+  skippedCount = 0
 }: AnalysisProgressModalProps) {
   // Auto-close when analysis is complete
   useEffect(() => {
@@ -42,7 +44,12 @@ export default function AnalysisProgressModal({
   // Determine status text
   const getStatusText = () => {
     if (hasError) return 'Analysis failed'
-    if (isComplete) return 'Analysis complete!'
+    if (isComplete) {
+      if (skippedCount > 0) {
+        return `Analysis complete (${skippedCount} files skipped)`
+      }
+      return 'Analysis complete!'
+    }
     return 'Analyzing repository...'
   }
 
