@@ -7,25 +7,39 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({
 
 interface AnalysisResult {
   file: string
-  bugs: Array<{
+  bugs?: Array<{
     line: number
     severity: 'low' | 'medium' | 'high' | 'critical'
     type: string
     description: string
     suggestion: string
+    codeSnippet?: string
   }>
-  codeSmells: Array<{
+  codeSmells?: Array<{
     line: number
     type: string
     description: string
     suggestion: string
+    codeSnippet?: string
   }>
-  securityIssues: Array<{
+  securityIssues?: Array<{
     line: number
     severity: 'low' | 'medium' | 'high' | 'critical'
     type: string
     description: string
     suggestion: string
+    codeSnippet?: string
+  }>
+  // New structured format
+  issues?: Array<{
+    file: string
+    start_line: number
+    end_line: number
+    code: string
+    error_type: 'Syntax' | 'Runtime' | 'Security' | 'Performance' | 'BestPractice' | 'Style'
+    issue: string
+    suggested_fix: string
+    severity: 'low' | 'medium' | 'high' | 'critical'
   }>
 }
 
@@ -326,9 +340,9 @@ export async function POST(request: NextRequest) {
       if (result.status === 'fulfilled') {
         analysisResults.push(...result.value)
         result.value.forEach(analysis => {
-          totalBugs += analysis.bugs.length
-          totalSecurityIssues += analysis.securityIssues.length
-          totalCodeSmells += analysis.codeSmells.length
+          totalBugs += analysis.bugs?.length || 0
+          totalSecurityIssues += analysis.securityIssues?.length || 0
+          totalCodeSmells += analysis.codeSmells?.length || 0
         })
         console.log(`📊 Micro-batch ${index + 1} contributed ${result.value.length} analysis results`)
       } else {
@@ -438,13 +452,17 @@ async function processFileWithTimeout(file: any, owner: string, repo: string): P
     const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
     console.log(`📄 Processing ${file.path} (${content.length} chars, ${content.split('\n').length} lines)`)
 
-    // Smart chunking for large files
-    const shouldChunk = content.length > 10000
+    // 🚀 ENTERPRISE CHUNKING: 150-200 line chunks for massive files
+    const lines = content.split('\n')
+    const shouldChunk = lines.length > 200
     
     const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
     
     if (analysis) {
-      console.log(`✅ ${file.path}: ${analysis.bugs.length} bugs, ${analysis.securityIssues.length} security, ${analysis.codeSmells.length} smells`)
+      const bugCount = analysis.bugs?.length || 0
+      const securityCount = analysis.securityIssues?.length || 0
+      const smellCount = analysis.codeSmells?.length || 0
+      console.log(`✅ ${file.path}: ${bugCount} bugs, ${securityCount} security, ${smellCount} smells`)
       return analysis
     }
     
@@ -460,39 +478,115 @@ async function processFileWithTimeout(file: any, owner: string, repo: string): P
 async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: boolean = false): Promise<AnalysisResult | null> {
   if (!openai) return null
 
-  // 🎯 ORIGINAL WORKING CHUNKING: Simple character-based chunking for massive files
-  if (needsChunking && code.length > 10000) {
-    console.log(`🔄 Chunking large file: ${filePath} (${code.length} chars)`)
+  // 🚀 ENTERPRISE CHUNKING: 150-200 line chunks with line number annotations
+  if (needsChunking) {
+    const lines = code.split('\n')
+    console.log(`🔄 Chunking large file: ${filePath} (${lines.length} lines)`)
     
-    const chunkSize = 8000 // Original working chunk size
-    const chunks = []
-    for (let i = 0; i < code.length; i += chunkSize) {
-      chunks.push(code.slice(i, i + chunkSize))
+    const LINES_PER_CHUNK = 175 // Sweet spot: 150-200 lines
+    const chunks: Array<{content: string, startLine: number, endLine: number}> = []
+    
+    for (let i = 0; i < lines.length; i += LINES_PER_CHUNK) {
+      const chunkLines = lines.slice(i, i + LINES_PER_CHUNK)
+      const startLine = i + 1
+      const endLine = Math.min(i + LINES_PER_CHUNK, lines.length)
+      
+      // Add line number annotations for GPT context
+      const annotatedContent = `# [Lines ${startLine}–${endLine}]\n` + chunkLines.join('\n')
+      
+      chunks.push({
+        content: annotatedContent,
+        startLine,
+        endLine
+      })
     }
     
-    const allBugs: any[] = []
-    const allSecurityIssues: any[] = []
-    const allCodeSmells: any[] = []
+    console.log(`📊 Created ${chunks.length} chunks of ~${LINES_PER_CHUNK} lines each`)
+    
+    const allIssues: any[] = []
     
     for (let i = 0; i < chunks.length; i++) {
-      const chunkResult = await analyzeSingleChunk(filePath, chunks[i], i + 1, chunks.length)
-      if (chunkResult) {
-        allBugs.push(...chunkResult.bugs)
-        allSecurityIssues.push(...chunkResult.securityIssues)
-        allCodeSmells.push(...chunkResult.codeSmells)
+      const chunk = chunks[i]
+      console.log(`🔍 Analyzing chunk ${i + 1}/${chunks.length}: lines ${chunk.startLine}-${chunk.endLine}`)
+      
+      const chunkResult = await analyzeSingleChunk(filePath, chunk.content, i + 1, chunks.length, chunk.startLine)
+      if (chunkResult && chunkResult.issues) {
+        allIssues.push(...chunkResult.issues)
       }
       await new Promise(resolve => setTimeout(resolve, 25))
     }
     
+    // Convert new format back to old format for compatibility
+    const bugs = allIssues.filter(issue => ['Runtime', 'Syntax'].includes(issue.error_type))
+    const securityIssues = allIssues.filter(issue => issue.error_type === 'Security')
+    const codeSmells = allIssues.filter(issue => ['Performance', 'BestPractice', 'Style'].includes(issue.error_type))
+    
     return {
       file: filePath,
-      bugs: allBugs,
-      securityIssues: allSecurityIssues,
-      codeSmells: allCodeSmells
+      bugs: bugs.map(issue => ({
+        line: issue.start_line,
+        severity: issue.severity,
+        type: issue.error_type,
+        description: issue.issue,
+        suggestion: issue.suggested_fix,
+        codeSnippet: issue.code
+      })),
+      securityIssues: securityIssues.map(issue => ({
+        line: issue.start_line,
+        severity: issue.severity,
+        type: issue.error_type,
+        description: issue.issue,
+        suggestion: issue.suggested_fix,
+        codeSnippet: issue.code
+      })),
+      codeSmells: codeSmells.map(issue => ({
+        line: issue.start_line,
+        type: issue.error_type,
+        description: issue.issue,
+        suggestion: issue.suggested_fix,
+        codeSnippet: issue.code
+      }))
     }
   }
 
-  return await analyzeSingleChunk(filePath, code, 1, 1, 1)
+  // Handle single chunk (no chunking needed)
+  const result = await analyzeSingleChunk(filePath, code, 1, 1, 1)
+  
+  if (result && result.issues) {
+    // Convert new format to old format for compatibility
+    const bugs = result.issues.filter((issue: any) => ['Runtime', 'Syntax'].includes(issue.error_type))
+    const securityIssues = result.issues.filter((issue: any) => issue.error_type === 'Security')
+    const codeSmells = result.issues.filter((issue: any) => ['Performance', 'BestPractice', 'Style'].includes(issue.error_type))
+    
+    return {
+      file: filePath,
+      bugs: bugs.map((issue: any) => ({
+        line: issue.start_line,
+        severity: issue.severity,
+        type: issue.error_type,
+        description: issue.issue,
+        suggestion: issue.suggested_fix,
+        codeSnippet: issue.code
+      })),
+      securityIssues: securityIssues.map((issue: any) => ({
+        line: issue.start_line,
+        severity: issue.severity,
+        type: issue.error_type,
+        description: issue.issue,
+        suggestion: issue.suggested_fix,
+        codeSnippet: issue.code
+      })),
+      codeSmells: codeSmells.map((issue: any) => ({
+        line: issue.start_line,
+        type: issue.error_type,
+        description: issue.issue,
+        suggestion: issue.suggested_fix,
+        codeSnippet: issue.code
+      }))
+    }
+  }
+  
+  return result
 }
 
 async function analyzeSingleChunk(filePath: string, code: string, chunkNum: number, totalChunks: number, startLineOffset: number = 1): Promise<AnalysisResult | null> {
@@ -504,30 +598,55 @@ async function analyzeSingleChunk(filePath: string, code: string, chunkNum: numb
       messages: [
         {
           role: "system",
-          content: `You are a professional senior code reviewer with 10+ years of experience in software security and code quality. Your expertise includes identifying critical vulnerabilities, performance bottlenecks, and maintainability issues across multiple programming languages.
+          content: `You are a static code analysis engine. Your task is to detect and classify errors and issues in the provided code.
 
-Analyze the provided code with the precision of a professional security audit for:
+### Rules:
+1. Always return results in valid JSON.
+2. Do not skip any issues.
+3. Include:
+   - file: filename
+   - start_line: starting line number
+   - end_line: ending line number (can be same as start_line for single-line issues)
+   - code: the problematic code snippet
+   - error_type: one of [Syntax, Runtime, Security, Performance, BestPractice, Style]
+   - issue: explanation of what is wrong
+   - suggested_fix: how to fix it
+   - severity: one of [critical, high, medium, low]
 
-1. BUGS: Logic errors, null pointer exceptions, infinite loops, type errors, race conditions
-2. SECURITY ISSUES: SQL injection, XSS, CSRF, authentication bypasses, data exposure, path traversal
-3. CODE SMELLS: Poor naming, duplicated code, complex functions, performance issues, architectural problems
-
-As a professional reviewer, provide accurate line numbers and actionable recommendations.
-
-Respond ONLY with valid JSON in this exact format:
+### Output format (JSON only):
 {
-  "bugs": [{"line": 1, "severity": "high", "type": "Logic Error", "description": "...", "suggestion": "..."}],
-  "securityIssues": [{"line": 1, "severity": "critical", "type": "SQL Injection", "description": "...", "suggestion": "..."}],
-  "codeSmells": [{"line": 1, "type": "Complex Function", "description": "...", "suggestion": "..."}]
+  "issues": [
+    {
+      "file": "filename.py",
+      "start_line": 47,
+      "end_line": 47,
+      "code": "except:",
+      "error_type": "BestPractice",
+      "issue": "Bare exception catch hides real errors.",
+      "suggested_fix": "Use 'except Exception as e:' and handle properly.",
+      "severity": "medium"
+    }
+  ]
 }
 
-Severity levels: critical, high, medium, low`
+Detect all types of issues:
+- Syntax: Parse errors, invalid syntax
+- Runtime: Null pointer exceptions, infinite loops, type errors, race conditions
+- Security: SQL injection, XSS, CSRF, authentication bypasses, data exposure, path traversal
+- Performance: Inefficient algorithms, memory leaks, blocking operations
+- BestPractice: Code smells, poor naming, duplicated code, complex functions
+- Style: Formatting issues, naming conventions, documentation`
         },
         {
           role: "user",
-          content: `Analyze this ${filePath} file${totalChunks > 1 ? ` (chunk ${chunkNum}/${totalChunks})` : ''}:
+          content: `### Input:
+File: ${filePath}
+Code chunk${totalChunks > 1 ? ` (lines ${startLineOffset}–${startLineOffset + code.split('\n').length - 1})` : ''}:
 
-${code}`
+${code}
+
+### Task:
+Analyze the above code chunk and return ALL issues found in the specified JSON format. Include the exact problematic code in the "code" field.`
         }
       ],
       temperature: 0.1,
@@ -538,6 +657,16 @@ ${code}`
     if (!response) return null
 
     const analysis = JSON.parse(response)
+    
+    // Handle new structured format
+    if (analysis.issues) {
+      return {
+        file: filePath,
+        issues: analysis.issues
+      }
+    }
+    
+    // Fallback to old format for compatibility
     return {
       file: filePath,
       bugs: analysis.bugs || [],
