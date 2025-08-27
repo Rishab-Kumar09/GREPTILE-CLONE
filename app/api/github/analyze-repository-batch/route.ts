@@ -166,12 +166,29 @@ export async function POST(request: NextRequest) {
       if (item.type !== 'blob') return false
       
       const hasCodeExtension = codeExtensions.some(ext => item.path.toLowerCase().endsWith(ext))
-      if (!hasCodeExtension) return false
+      if (!hasCodeExtension) {
+        // 🚨 JARVIS-SPECIFIC: Log rejected files
+        if (repo.toLowerCase() === 'jarvis') {
+          console.log(`   ❌ JARVIS: Rejected ${item.path} (no code extension)`)
+        }
+        return false
+      }
       
       const isExcluded = excludePaths.some(excludePath => 
         item.path.toLowerCase().includes(excludePath.toLowerCase())
       )
-      if (isExcluded) return false
+      if (isExcluded) {
+        // 🚨 JARVIS-SPECIFIC: Log excluded files
+        if (repo.toLowerCase() === 'jarvis') {
+          console.log(`   ❌ JARVIS: Excluded ${item.path} (in exclude path)`)
+        }
+        return false
+      }
+      
+      // 🚨 JARVIS-SPECIFIC: Log accepted files
+      if (repo.toLowerCase() === 'jarvis') {
+        console.log(`   ✅ JARVIS: Accepted ${item.path} for analysis`)
+      }
       
       return true
     })
@@ -207,6 +224,19 @@ export async function POST(request: NextRequest) {
     // 🔍 STEP 1: COMPLETE FILE INVENTORY - Show ALL files from GitHub API
     console.log(`\n📋 COMPLETE FILE INVENTORY for ${owner}/${repo}:`)
     console.log(`📊 Total files found by GitHub API: ${treeData.tree.length}`)
+    
+    // 🚨 JARVIS-SPECIFIC DEBUGGING
+    if (repo.toLowerCase() === 'jarvis') {
+      console.log(`\n🚨 JARVIS DEBUGGING - RAW GITHUB API RESPONSE:`)
+      console.log(`   Repository: ${owner}/${repo}`)
+      console.log(`   API URL used: https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`)
+      console.log(`   Response status: ${treeResponse.status}`)
+      console.log(`   Total tree items: ${treeData.tree.length}`)
+      console.log(`   First 20 raw items from GitHub:`)
+      treeData.tree.slice(0, 20).forEach((item: any, index: number) => {
+        console.log(`     ${index + 1}. ${item.path} (type: ${item.type}, size: ${item.size || 0})`)
+      })
+    }
     
     // Group and analyze all files
     const filesByExtension: { [key: string]: any[] } = {}
