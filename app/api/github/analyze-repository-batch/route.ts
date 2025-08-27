@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
     const filesByExtension: { [key: string]: any[] } = {}
     let pythonFiles = 0
     let jsFiles = 0
-    let codeFiles = 0
+    let totalCodeFiles = 0
     
     treeData.tree.forEach((file: any, index: number) => {
       if (file.type !== 'blob') return // Skip directories
@@ -230,7 +230,7 @@ export async function POST(request: NextRequest) {
       
       if (isPython) pythonFiles++
       if (isJavaScript) jsFiles++
-      if (isCode) codeFiles++
+      if (isCode) totalCodeFiles++
       
       const prefix = isPython ? '🐍 PYTHON:' : 
                     isJavaScript ? '⚡ JS/TS:' : 
@@ -244,8 +244,8 @@ export async function POST(request: NextRequest) {
     console.log(`\n📊 CRITICAL FILE ANALYSIS:`)
     console.log(`   🐍 Python files found: ${pythonFiles}`)
     console.log(`   ⚡ JavaScript/TypeScript files: ${jsFiles}`)
-    console.log(`   💻 Total code files: ${codeFiles}`)
-    console.log(`   📄 Other files: ${treeData.tree.length - codeFiles}`)
+    console.log(`   💻 Total code files: ${totalCodeFiles}`)
+    console.log(`   📄 Other files: ${treeData.tree.length - totalCodeFiles}`)
     
     // Show file type breakdown
     console.log(`\n📊 FILE TYPE BREAKDOWN:`)
