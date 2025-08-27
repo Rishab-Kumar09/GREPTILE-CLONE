@@ -190,25 +190,52 @@ export async function POST(request: NextRequest) {
     console.log(`   Batch size: ${batchSize}`)
     console.log(`   Total batches needed: ${batchSize > 0 ? Math.ceil(sortedFiles.length / batchSize) : 0}`)
     
+    // 🔍 ENHANCED DEBUG: Show ALL files from GitHub API
+    console.log(`🔍 DEBUGGING LARGE CODE FILES - All files in repo:`)
+    treeData.tree.forEach((file: any, index: number) => {
+      const ext = file.path.split('.').pop()?.toLowerCase() || 'no-ext'
+      const isPython = ext === 'py'
+      const isLarge = (file.size || 0) > 10000
+      const prefix = isPython ? '🐍 PYTHON:' : isLarge ? '📏 LARGE:' : '📄'
+      console.log(`   ${index + 1}. ${prefix} ${file.path} (${file.size || 0} bytes, type: ${file.type}, ext: ${ext})`)
+    })
+    
     // Log file types breakdown
     const fileTypes: { [key: string]: number } = {}
-    codeFiles.forEach((file: any) => {
+    const fileSizes: { [key: string]: number[] } = {}
+    treeData.tree.forEach((file: any) => {
       const ext = file.path.split('.').pop()?.toLowerCase() || 'no-ext'
       fileTypes[ext] = (fileTypes[ext] || 0) + 1
+      if (!fileSizes[ext]) fileSizes[ext] = []
+      fileSizes[ext].push(file.size || 0)
     })
     console.log(`   File types found:`, fileTypes)
+    console.log(`   Python files specifically:`, fileTypes['py'] || 0)
+    if (fileSizes['py']) {
+      console.log(`   Python file sizes:`, fileSizes['py'].map(size => `${Math.round(size/1000)}KB`))
+    }
     
-    // 🔍 DEBUG: Show first few files found
-    console.log(`📝 First 10 code files found:`)
+    // 🔍 DEBUG: Show filtering process
+    console.log(`📝 Code files that passed filtering:`)
     codeFiles.slice(0, 10).forEach((file: any, index: number) => {
       console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes, type: ${file.type})`)
     })
     
-    if (codeFiles.length === 0) {
-      console.log(`❌ NO CODE FILES FOUND! Check file extensions and exclude paths.`)
-      console.log(`📄 All files in repo:`)
-      treeData.tree.slice(0, 20).forEach((file: any, index: number) => {
-        console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes, type: ${file.type})`)
+    // 🔍 DEBUG: Show files that were filtered OUT
+    const filteredOut = treeData.tree.filter((item: any) => {
+      if (item.type !== 'blob') return false
+      const hasCodeExtension = codeExtensions.some(ext => item.path.toLowerCase().endsWith(ext))
+      if (!hasCodeExtension) return false
+      const isExcluded = excludePaths.some(excludePath => 
+        item.path.toLowerCase().includes(excludePath.toLowerCase())
+      )
+      return isExcluded // Return files that were excluded
+    })
+    
+    if (filteredOut.length > 0) {
+      console.log(`❌ FILES FILTERED OUT (${filteredOut.length}):`)
+      filteredOut.forEach((file: any, index: number) => {
+        console.log(`   ${index + 1}. ${file.path} (${file.size || 0} bytes) - EXCLUDED`)
       })
     }
 
