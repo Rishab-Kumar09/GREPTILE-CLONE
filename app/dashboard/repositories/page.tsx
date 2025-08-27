@@ -440,12 +440,54 @@ export default function Repositories() {
         if (!response.ok) {
           console.error(`❌ Batch ${batchIndex + 1} failed with status ${response.status}`)
           
-          // 🎯 Handle Batch Error in Progress Modal
-          setHasAnalysisError(true)
-          setIsAnalysisComplete(true)
-          setTimeout(() => setShowProgressModal(false), 2000) // Show error for 2 seconds
-          setAnalyzing(null)
-          return
+          // 🔄 RETRY LOGIC: Don't give up on first failure
+          const maxRetries = 2
+          let retryCount = 0
+          let retrySuccess = false
+          
+          while (retryCount < maxRetries && !retrySuccess) {
+            retryCount++
+            const retryDelay = 2000 * retryCount // 2s, 4s exponential backoff
+            console.log(`🔄 RETRY ${retryCount}/${maxRetries}: Waiting ${retryDelay/1000}s before retry...`)
+            
+            await new Promise(resolve => setTimeout(resolve, retryDelay))
+            
+            try {
+              console.log(`🔄 RETRY ${retryCount}: Attempting batch ${batchIndex + 1} again...`)
+              const retryResponse = await fetch('/api/github/analyze-repository-batch', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  repoUrl: repo.url || `https://github.com/${repo.fullName}`,
+                  owner: owner,
+                  repo: repoName,
+                  batchIndex: batchIndex,
+                  batchSize: 4
+                }),
+              })
+              
+              if (retryResponse.ok) {
+                console.log(`✅ RETRY ${retryCount}: Batch ${batchIndex + 1} succeeded on retry!`)
+                response = retryResponse // Use the successful retry response
+                retrySuccess = true
+              } else {
+                console.log(`❌ RETRY ${retryCount}: Still failing with status ${retryResponse.status}`)
+              }
+            } catch (retryError) {
+              console.log(`❌ RETRY ${retryCount}: Network error:`, retryError)
+            }
+          }
+          
+          if (!retrySuccess) {
+            console.error(`💀 FINAL FAILURE: Batch ${batchIndex + 1} failed after ${maxRetries} retries`)
+            
+            // 🚀 FAULT-TOLERANT: Continue with next batch instead of stopping
+            console.log(`🔄 FAULT-TOLERANT: Skipping batch ${batchIndex + 1}, continuing with next batch...`)
+            batchIndex++
+            continue // Skip this batch and try the next one
+          }
         }
 
         const batchData = await response.json()
