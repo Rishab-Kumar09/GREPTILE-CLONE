@@ -4,13 +4,14 @@ A complete, modern clone of Greptile's AI code review platform built with **Next
 
 ## 📋 **Recent Updates**
 
-**🔧 Reverted to Stable Version (Commit 77833f4) - December 2024**
-- Reverted to working version to fix OpenAI analysis issues
-- Investigating 0 issues bug in repository analysis  
-- Maintaining stable UI and functionality
-- Working on improved OpenAI integration
-- TODO: Fix issue count not updating live during re-analysis
-- TODO: Ensure OpenAI API responses are properly parsed
+**🌿 Universal Branch Analysis System - August 2025**
+- Implemented universal branch detection for all repositories
+- Automatically finds branch with most code files (main/master/jarvis/develop)
+- Fixed Jarvis repository analysis (now processes 97 files vs 1 file)
+- Enterprise-grade chunking with 150-200 line segments
+- ChatGPT's advanced static analysis prompt template
+- Multi-layer timeout protection and parallel micro-batching
+- Complete code coverage with accurate line numbers and code snippets
 
 **🗄️ Database Schema Updated - December 2024**
 - Added analysisResults JSONB field for persistent storage

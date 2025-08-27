@@ -45,10 +45,10 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  // 🚀 ULTRA-FAST TIMEOUT HANDLING: Aggressive timeouts for large repos
-  const TOTAL_TIMEOUT_MS = 20000 // 20 seconds total request timeout
-  const PER_FILE_TIMEOUT_MS = 5000 // 5 seconds per individual file
-  const BATCH_TIMEOUT_MS = 15000 // 15 seconds per micro-batch
+  // 🚀 ENTERPRISE TIMEOUT HANDLING: Multiple timeout layers
+  const TOTAL_TIMEOUT_MS = 25000 // 25 seconds total request timeout
+  const PER_FILE_TIMEOUT_MS = 8000 // 8 seconds per individual file
+  const BATCH_TIMEOUT_MS = 20000 // 20 seconds per micro-batch
   
   // Initialize variables at function scope for catch block access
   let analysisResults: AnalysisResult[] = []
@@ -380,7 +380,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔥 ENTERPRISE PROCESSING: Starting parallel micro-batching for ${filesToAnalyze.length} files`)
     
     // Create micro-batches of 2 files each for parallel processing
-    const MICRO_BATCH_SIZE = 1 // Ultra-small batches for large repos
+    const MICRO_BATCH_SIZE = 2
     const microBatches: any[][] = []
     
     for (let i = 0; i < filesToAnalyze.length; i += MICRO_BATCH_SIZE) {
@@ -522,8 +522,8 @@ export async function POST(request: NextRequest) {
       totalSecurityIssues: totalSecurityIssues || 0,
       totalCodeSmells: totalCodeSmells || 0,
       results: analysisResults || [],
-      hasMoreBatches: true, // Continue processing despite errors
-      nextBatchIndex: (batchIndex || 0) + 1,
+      hasMoreBatches: false, // Stop processing on error
+      nextBatchIndex: null,
       progress: {
         filesProcessed: endIndex || 0,
         totalFiles: 0,
@@ -533,22 +533,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 🚀 ULTIMATE FILE PROCESSING: Individual file with ultra-aggressive timeout and graceful skipping
+// 🚀 ENTERPRISE FILE PROCESSING: Individual file processing with timeout protection
 async function processFileWithTimeout(file: any, owner: string, repo: string): Promise<AnalysisResult | null> {
-  const fileTimeoutMs = 3000 // Ultra-aggressive 3 second timeout per file
-  
-  return Promise.race([
-    processFileActual(file, owner, repo),
-    new Promise<null>((_, reject) => 
-      setTimeout(() => reject(new Error(`File timeout: ${file.path}`)), fileTimeoutMs)
-    )
-  ]).catch(error => {
-    console.log(`⚠️ TIMEOUT: Skipping ${file.path} (${error.message}) - continuing with other files`)
-    return null // Gracefully skip this file and continue
-  })
-}
-
-async function processFileActual(file: any, owner: string, repo: string): Promise<AnalysisResult | null> {
   try {
     // Get file content with timeout protection
     const fileResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${file.path}`, {
@@ -573,16 +559,9 @@ async function processFileActual(file: any, owner: string, repo: string): Promis
     const content = Buffer.from(fileData.content, 'base64').toString('utf-8')
     console.log(`📄 Processing ${file.path} (${content.length} chars, ${content.split('\n').length} lines)`)
 
-    // 🚀 ENTERPRISE FILE HANDLING: Process ALL files with smart chunking
+    // 🚀 ENTERPRISE CHUNKING: 150-200 line chunks for massive files
     const lines = content.split('\n')
-    
-    // Log large files but NEVER skip them - they're often the most important!
-    if (lines.length > 1000) {
-      console.log(`📏 Large file detected: ${file.path} (${lines.length} lines - will chunk for analysis)`)
-    }
-    
-    // More aggressive chunking for large files
-    const shouldChunk = lines.length > 150 // Lower threshold for chunking
+    const shouldChunk = lines.length > 200
     
     const analysis = await analyzeCodeWithAI(file.path, content, shouldChunk)
     
@@ -611,7 +590,7 @@ async function analyzeCodeWithAI(filePath: string, code: string, needsChunking: 
     const lines = code.split('\n')
     console.log(`🔄 Chunking large file: ${filePath} (${lines.length} lines)`)
     
-    const LINES_PER_CHUNK = 100 // Smaller chunks for better timeout handling
+    const LINES_PER_CHUNK = 175 // Sweet spot: 150-200 lines
     const chunks: Array<{content: string, startLine: number, endLine: number}> = []
     
     for (let i = 0; i < lines.length; i += LINES_PER_CHUNK) {
@@ -778,7 +757,7 @@ Analyze the above code chunk and return ALL issues found in the specified JSON f
         }
       ],
       temperature: 0.1,
-      max_tokens: 800, // Reduced tokens for faster response
+      max_tokens: 1500,
     })
 
     const response = completion.choices[0].message.content
