@@ -47,20 +47,10 @@ export default function Repositories() {
   // Progress Modal states
   const [showProgressModal, setShowProgressModal] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState({
-    percentage: 0,
-    filesProcessed: 0,
-    totalFiles: 0,
-    currentBatch: 1,
-    totalBatches: 1,
-    estimatedTimeRemaining: 0
+    percentage: 0
   })
-  const [analysisStats, setAnalysisStats] = useState({
-    bugs: 0,
-    security: 0,
-    codeSmells: 0
-  })
-  const [currentAnalyzingFile, setCurrentAnalyzingFile] = useState<string>('')
   const [isAnalysisComplete, setIsAnalysisComplete] = useState(false)
+  const [hasAnalysisError, setHasAnalysisError] = useState(false)
 
   // Load repositories from database on component mount
   const loadRepositories = async () => {
@@ -412,16 +402,8 @@ export default function Repositories() {
     // 🎯 Initialize Progress Modal
     setShowProgressModal(true)
     setIsAnalysisComplete(false)
-    setAnalysisProgress({
-      percentage: 0,
-      filesProcessed: 0,
-      totalFiles: 0,
-      currentBatch: 1,
-      totalBatches: 1,
-      estimatedTimeRemaining: 0
-    })
-    setAnalysisStats({ bugs: 0, security: 0, codeSmells: 0 })
-    setCurrentAnalyzingFile('')
+    setHasAnalysisError(false)
+    setAnalysisProgress({ percentage: 0 })
     
     try {
       console.log('🚀 Starting MULTI-BATCH analysis for:', repo.fullName)
@@ -459,10 +441,9 @@ export default function Repositories() {
           console.error(`❌ Batch ${batchIndex + 1} failed with status ${response.status}`)
           
           // 🎯 Handle Batch Error in Progress Modal
+          setHasAnalysisError(true)
           setIsAnalysisComplete(true)
-          setCurrentAnalyzingFile('')
-          alert(`Batch ${batchIndex + 1} failed: ${response.status} error. Please try again.`)
-          setShowProgressModal(false)
+          setTimeout(() => setShowProgressModal(false), 2000) // Show error for 2 seconds
           setAnalyzing(null)
           return
         }
@@ -492,33 +473,9 @@ export default function Repositories() {
         
         // 🎯 Update Progress Modal in Real-Time
         const currentProgress = batchData.progress || {}
-        const elapsedTime = (Date.now() - analysisStartTime) / 1000
-        const avgTimePerBatch = elapsedTime / (batchIndex + 1)
-        const estimatedBatchesRemaining = batchData.hasMoreBatches ? Math.max(1, (batchData.totalFilesInRepo || 0) / 4 - (batchIndex + 1)) : 0
-        const estimatedTimeRemaining = avgTimePerBatch * estimatedBatchesRemaining
-        
         setAnalysisProgress({
-          percentage: currentProgress.percentage || 0,
-          filesProcessed: currentProgress.filesProcessed || 0,
-          totalFiles: batchData.totalFilesInRepo || 0,
-          currentBatch: batchIndex + 1,
-          totalBatches: Math.ceil((batchData.totalFilesInRepo || 0) / 4),
-          estimatedTimeRemaining: Math.max(0, estimatedTimeRemaining)
+          percentage: currentProgress.percentage || 0
         })
-        
-        setAnalysisStats({
-          bugs: totalBugs,
-          security: totalSecurityIssues,
-          codeSmells: totalCodeSmells
-        })
-        
-        // Update current file being processed (if available)
-        if (batchData.results && batchData.results.length > 0) {
-          const lastFile = batchData.results[batchData.results.length - 1]?.file
-          if (lastFile) {
-            setCurrentAnalyzingFile(lastFile)
-          }
-        }
         
         // 📊 DETAILED FRONTEND BATCH LOGGING
         console.log(`📊 FRONTEND BATCH ${batchIndex + 1} SUMMARY:`)
@@ -556,11 +513,7 @@ export default function Repositories() {
       
       // 🎯 Mark Analysis as Complete
       setIsAnalysisComplete(true)
-      setAnalysisProgress(prev => ({
-        ...prev,
-        percentage: 100
-      }))
-      setCurrentAnalyzingFile('')
+      setAnalysisProgress({ percentage: 100 })
       
       // Store analysis results
       setAnalysisResults(prev => ({
@@ -625,10 +578,9 @@ export default function Repositories() {
       console.error('Error analyzing repository:', error)
       
       // 🎯 Handle Error in Progress Modal
+      setHasAnalysisError(true)
       setIsAnalysisComplete(true)
-      setCurrentAnalyzingFile('')
-      alert('Analysis failed. Please try again.')
-      setShowProgressModal(false)
+      setTimeout(() => setShowProgressModal(false), 2000) // Show error for 2 seconds
     } finally {
       setAnalyzing(null)
     }
@@ -997,9 +949,8 @@ export default function Repositories() {
         onClose={() => setShowProgressModal(false)}
         repositoryName={analyzing || ''}
         progress={analysisProgress}
-        stats={analysisStats}
-        currentFile={currentAnalyzingFile}
         isComplete={isAnalysisComplete}
+        hasError={hasAnalysisError}
       />
     </div>
   )
