@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import React from 'react' // Added for RepoChat component
 import DashboardHeader from '@/components/DashboardHeader'
+import AnalysisProgressModal from '@/components/AnalysisProgressModal'
 
 interface Repository {
   id?: string | number
@@ -42,6 +43,24 @@ export default function Repositories() {
   const [showRepoDropdown, setShowRepoDropdown] = useState(false)
   const [loadingGithubRepos, setLoadingGithubRepos] = useState(false)
   const [refreshingGithub, setRefreshingGithub] = useState(false)
+  
+  // Progress Modal states
+  const [showProgressModal, setShowProgressModal] = useState(false)
+  const [analysisProgress, setAnalysisProgress] = useState({
+    percentage: 0,
+    filesProcessed: 0,
+    totalFiles: 0,
+    currentBatch: 1,
+    totalBatches: 1,
+    estimatedTimeRemaining: 0
+  })
+  const [analysisStats, setAnalysisStats] = useState({
+    bugs: 0,
+    security: 0,
+    codeSmells: 0
+  })
+  const [currentAnalyzingFile, setCurrentAnalyzingFile] = useState<string>('')
+  const [isAnalysisComplete, setIsAnalysisComplete] = useState(false)
 
   // Load repositories from database on component mount
   const loadRepositories = async () => {
@@ -390,10 +409,25 @@ export default function Repositories() {
     const repoKey = `${repo.fullName}`
     setAnalyzing(repoKey)
     
+    // 🎯 Initialize Progress Modal
+    setShowProgressModal(true)
+    setIsAnalysisComplete(false)
+    setAnalysisProgress({
+      percentage: 0,
+      filesProcessed: 0,
+      totalFiles: 0,
+      currentBatch: 1,
+      totalBatches: 1,
+      estimatedTimeRemaining: 0
+    })
+    setAnalysisStats({ bugs: 0, security: 0, codeSmells: 0 })
+    setCurrentAnalyzingFile('')
+    
     try {
       console.log('🚀 Starting MULTI-BATCH analysis for:', repo.fullName)
       
       const [owner, repoName] = repo.fullName.split('/')
+      const analysisStartTime = Date.now()
       
       // Multi-batch processing - call API multiple times until all files are processed
       let batchIndex = 0
@@ -423,7 +457,12 @@ export default function Repositories() {
 
         if (!response.ok) {
           console.error(`❌ Batch ${batchIndex + 1} failed with status ${response.status}`)
+          
+          // 🎯 Handle Batch Error in Progress Modal
+          setIsAnalysisComplete(true)
+          setCurrentAnalyzingFile('')
           alert(`Batch ${batchIndex + 1} failed: ${response.status} error. Please try again.`)
+          setShowProgressModal(false)
           setAnalyzing(null)
           return
         }
@@ -450,6 +489,36 @@ export default function Repositories() {
         totalSecurityIssues += batchData.totalSecurityIssues || 0
         totalCodeSmells += batchData.totalCodeSmells || 0
         totalBatches++
+        
+        // 🎯 Update Progress Modal in Real-Time
+        const currentProgress = batchData.progress || {}
+        const elapsedTime = (Date.now() - analysisStartTime) / 1000
+        const avgTimePerBatch = elapsedTime / (batchIndex + 1)
+        const estimatedBatchesRemaining = batchData.hasMoreBatches ? Math.max(1, (batchData.totalFilesInRepo || 0) / 4 - (batchIndex + 1)) : 0
+        const estimatedTimeRemaining = avgTimePerBatch * estimatedBatchesRemaining
+        
+        setAnalysisProgress({
+          percentage: currentProgress.percentage || 0,
+          filesProcessed: currentProgress.filesProcessed || 0,
+          totalFiles: batchData.totalFilesInRepo || 0,
+          currentBatch: batchIndex + 1,
+          totalBatches: Math.ceil((batchData.totalFilesInRepo || 0) / 4),
+          estimatedTimeRemaining: Math.max(0, estimatedTimeRemaining)
+        })
+        
+        setAnalysisStats({
+          bugs: totalBugs,
+          security: totalSecurityIssues,
+          codeSmells: totalCodeSmells
+        })
+        
+        // Update current file being processed (if available)
+        if (batchData.results && batchData.results.length > 0) {
+          const lastFile = batchData.results[batchData.results.length - 1]?.file
+          if (lastFile) {
+            setCurrentAnalyzingFile(lastFile)
+          }
+        }
         
         // 📊 DETAILED FRONTEND BATCH LOGGING
         console.log(`📊 FRONTEND BATCH ${batchIndex + 1} SUMMARY:`)
@@ -484,6 +553,14 @@ export default function Repositories() {
       })
       
       const totalIssues = totalBugs + totalSecurityIssues + totalCodeSmells
+      
+      // 🎯 Mark Analysis as Complete
+      setIsAnalysisComplete(true)
+      setAnalysisProgress(prev => ({
+        ...prev,
+        percentage: 100
+      }))
+      setCurrentAnalyzingFile('')
       
       // Store analysis results
       setAnalysisResults(prev => ({
@@ -542,11 +619,16 @@ export default function Repositories() {
         console.error('Failed to save analysis results to database:', dbError)
       }
       
-      alert(`✅ Multi-batch analysis complete! Found ${totalIssues} issues in ${allResults.length} files across ${totalBatches} batches.`)
+      // Don't show alert anymore - progress modal handles completion
       
     } catch (error) {
       console.error('Error analyzing repository:', error)
-      alert('Multi-batch analysis failed. Please try again.')
+      
+      // 🎯 Handle Error in Progress Modal
+      setIsAnalysisComplete(true)
+      setCurrentAnalyzingFile('')
+      alert('Analysis failed. Please try again.')
+      setShowProgressModal(false)
     } finally {
       setAnalyzing(null)
     }
@@ -908,6 +990,17 @@ export default function Repositories() {
           </div>
         )}
       </main>
+      
+      {/* 🎯 Analysis Progress Modal */}
+      <AnalysisProgressModal
+        isOpen={showProgressModal}
+        onClose={() => setShowProgressModal(false)}
+        repositoryName={analyzing || ''}
+        progress={analysisProgress}
+        stats={analysisStats}
+        currentFile={currentAnalyzingFile}
+        isComplete={isAnalysisComplete}
+      />
     </div>
   )
 } 
