@@ -112,17 +112,6 @@ export default function Reviews() {
         console.log(`✅ REVIEWS: Loaded ${repos.length} repositories for user ${currentUser.id}`)
         setRepositories(repos)
         
-        // 🎯 Simple auto-expand from localStorage
-        const expandRepo = localStorage.getItem('expandRepo')
-        if (expandRepo) {
-          console.log(`🎯 AUTO-EXPAND: Expanding ${expandRepo}`)
-          setExpandedReviews(prev => ({
-            ...prev,
-            [`repo-${expandRepo}`]: true
-          }))
-          localStorage.removeItem('expandRepo') // Clean up
-        }
-        
         // Convert repositories with analysis results to review format  
         const reviewsData: Review[] = []
         
@@ -159,6 +148,25 @@ export default function Reviews() {
         }
 
         setReviews(reviewsData)
+        
+        // 🎯 Simple auto-expand from localStorage
+        const expandRepo = localStorage.getItem('expandRepo')
+        if (expandRepo) {
+          console.log(`🎯 AUTO-EXPAND: Looking for repository ${expandRepo}`)
+          
+          // Find the review for this repository and expand it
+          const targetReview = reviewsData.find(review => review.repository === expandRepo)
+          if (targetReview) {
+            console.log(`✅ AUTO-EXPAND: Found review ID ${targetReview.id} for ${expandRepo}`)
+            setExpandedReviews(prev => ({
+              ...prev,
+              [targetReview.id]: true
+            }))
+          } else {
+            console.log(`❌ AUTO-EXPAND: No review found for ${expandRepo}`)
+          }
+          localStorage.removeItem('expandRepo') // Clean up
+        }
       }
     } catch (error) {
       console.error('Error loading reviews:', error)
