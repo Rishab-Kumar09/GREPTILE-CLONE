@@ -544,6 +544,50 @@ export async function POST(request: NextRequest) {
       code: error.code
     })
     
+    // 🔄 BATCH-LEVEL RECURSIVE RECOVERY: Try to salvage what we can
+    console.log(`🔍 BATCH RECOVERY: Attempting recursive analysis for remaining files...`)
+    
+    try {
+      // Get the files that were supposed to be in this batch
+      const remainingFiles = sortedFiles.slice(startIndex, endIndex)
+      console.log(`🔄 RECOVERY: Processing ${remainingFiles.length} files individually...`)
+      
+      for (const file of remainingFiles) {
+        try {
+          console.log(`🔍 RECOVERY: Attempting individual analysis of ${file.path}`)
+          const recursiveResults = await recursiveFileAnalysis(file, owner, repo, 0)
+          
+          if (recursiveResults && recursiveResults.length > 0) {
+            analysisResults.push(...recursiveResults)
+            console.log(`✅ RECOVERY: Successfully recovered ${file.path} with ${recursiveResults.length} chunks`)
+            
+            // Update totals from recovered results
+            recursiveResults.forEach(result => {
+              totalBugs += result.bugs?.length || 0
+              totalSecurityIssues += result.securityIssues?.length || 0
+              totalCodeSmells += result.codeSmells?.length || 0
+            })
+          } else {
+            console.log(`❌ RECOVERY: Could not recover ${file.path}`)
+          }
+        } catch (fileError) {
+          console.log(`❌ RECOVERY: Failed to recover ${file.path}:`, fileError instanceof Error ? fileError.message : 'Unknown error')
+          continue
+        }
+        
+        // Check if we're running out of time
+        if (Date.now() - startTime > TOTAL_TIMEOUT_MS - 5000) {
+          console.log(`⏰ RECOVERY: Time limit approaching, stopping recovery`)
+          break
+        }
+      }
+      
+      console.log(`🎉 BATCH RECOVERY COMPLETE: Recovered ${analysisResults.length} results from failed batch`)
+      
+    } catch (recoveryError) {
+      console.log(`❌ BATCH RECOVERY FAILED:`, recoveryError instanceof Error ? recoveryError.message : 'Unknown error')
+    }
+    
     // 🛡️ FAULT-TOLERANT ANALYSIS: Return partial results with detailed error reporting
     const hasPartialResults = analysisResults && analysisResults.length > 0
     const successfulFiles = analysisResults?.length || 0
