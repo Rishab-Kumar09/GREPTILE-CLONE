@@ -307,10 +307,21 @@ async function processAnalysisInBackground(
       const batch = files.slice(i, i + batchSize)
       
       try {
-        // Use your existing robust batch analysis API
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/github/analyze-repository-batch`, {
+        // Use your existing robust batch analysis API with FULL URL
+        const baseUrl = process.env.VERCEL_URL 
+          ? `https://${process.env.VERCEL_URL}` 
+          : process.env.NEXT_PUBLIC_APP_URL 
+          ? process.env.NEXT_PUBLIC_APP_URL 
+          : 'http://localhost:3000'
+          
+        console.log(`🔗 Calling analysis API: ${baseUrl}/api/github/analyze-repository-batch`)
+        
+        const response = await fetch(`${baseUrl}/api/github/analyze-repository-batch`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'User-Agent': 'Enterprise-Analysis-Background-Worker'
+          },
           body: JSON.stringify({
             owner,
             repo,
@@ -319,32 +330,47 @@ async function processAnalysisInBackground(
           })
         })
         
+        console.log(`📡 Response status: ${response.status}`)
+        
         if (response.ok) {
           const result = await response.json()
+          console.log(`📋 BATCH RESULT:`, {
+            success: result.success,
+            filesProcessed: result.filesProcessed,
+            totalIssues: result.totalIssues,
+            analysisResults: result.analysisResults?.length || 0
+          })
+          
           filesProcessed += result.filesProcessed || batch.length
           
           // Calculate progress
           const progress = Math.round((filesProcessed / totalFiles) * 100)
           const elapsed = Date.now() - startTime
-          const estimatedTotal = (elapsed / filesProcessed) * totalFiles
+          const estimatedTotal = filesProcessed > 0 ? (elapsed / filesProcessed) * totalFiles : elapsed + 60000
           const remaining = Math.max(0, estimatedTotal - elapsed)
           
-          // Update analysis status
+          // Store actual results
+          const batchResults = result.analysisResults || []
+          
+          // Update analysis status with REAL results
           updateAnalysisStatus(analysisId, {
             progress,
             filesAnalyzed: filesProcessed,
             currentFile: batch[0]?.path || '',
+            results: batchResults // Store real analysis results!
           })
           
-          // Simulate WebSocket update (in real implementation, you'd use actual WebSocket)
-          console.log(`📊 PROGRESS UPDATE [${analysisId}]:`)
+          // Log real progress
+          console.log(`📊 REAL PROGRESS UPDATE [${analysisId}]:`)
           console.log(`   Progress: ${progress}% (${filesProcessed}/${totalFiles})`)
           console.log(`   Estimated remaining: ${Math.round(remaining / 1000)}s`)
+          console.log(`   Issues found in batch: ${result.totalIssues || 0}`)
+          console.log(`   Total results stored: ${batchResults.length}`)
           
-          // Simulate streaming results
-          if (result.analysisResults) {
-            console.log(`📋 NEW RESULTS [${analysisId}]: Found ${result.totalIssues} issues in batch`)
-          }
+        } else {
+          const errorText = await response.text()
+          console.error(`❌ Batch API call failed: ${response.status}`)
+          console.error(`❌ Error details:`, errorText)
         }
         
         // Small delay between batches to prevent overwhelming

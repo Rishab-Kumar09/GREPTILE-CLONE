@@ -37,7 +37,20 @@ export function updateAnalysisStatus(
     startTime: Date.now()
   }
   
-  analysisStatus.set(analysisId, { ...current, ...updates })
+  // Accumulate results instead of replacing them
+  const updatedStatus = { ...current, ...updates }
+  if (updates.results && current.results) {
+    updatedStatus.results = [...current.results, ...updates.results]
+  }
+  
+  analysisStatus.set(analysisId, updatedStatus)
+  
+  console.log(`📊 STATUS UPDATE [${analysisId}]:`, {
+    status: updatedStatus.status,
+    progress: updatedStatus.progress,
+    filesAnalyzed: updatedStatus.filesAnalyzed,
+    totalResults: updatedStatus.results.length
+  })
 }
 
 // Helper function to get analysis status

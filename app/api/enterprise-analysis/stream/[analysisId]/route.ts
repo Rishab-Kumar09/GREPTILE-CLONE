@@ -36,7 +36,7 @@ export async function GET(
             return
           }
 
-          // Send progress update
+          // Send progress update with REAL results
           const progressData = `data: ${JSON.stringify({
             type: 'progress',
             data: {
@@ -50,6 +50,15 @@ export async function GET(
             }
           })}\n\n`
           controller.enqueue(encoder.encode(progressData))
+
+          // Send real analysis results as they come in
+          if (status.results && status.results.length > 0) {
+            const resultsData = `data: ${JSON.stringify({
+              type: 'result',
+              data: status.results[status.results.length - 1] // Send latest result
+            })}\n\n`
+            controller.enqueue(encoder.encode(resultsData))
+          }
 
           // If analysis is complete or failed, close connection
           if (status.status === 'completed' || status.status === 'failed') {
