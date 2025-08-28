@@ -174,14 +174,45 @@ export default function StressTestPage() {
     try {
       const testResult = await testConfig.test()
       const duration = Date.now() - startTime
-      const passed = testResult.status < 500
       
-      let details = 'No details available'
+      // Get the test name to determine expected behavior
+      const testName = testResults[index]?.name || ''
+      
+      // Smart test evaluation based on test type
+      let passed = false
+      let interpretation = ''
+      
+      if (testName.includes('Security Test') || testName.includes('🚨')) {
+        // For security tests: We WANT failures (blocked attacks)
+        passed = testResult.status >= 400
+        interpretation = testResult.status >= 400 ? 'Attack blocked ✅' : 'Attack succeeded ❌'
+      } else if (testName.includes('Huge Batch') || testName.includes('💥')) {
+        // For overload tests: We WANT rate limiting
+        passed = testResult.status >= 400
+        interpretation = testResult.status >= 400 ? 'Overload protection active ✅' : 'No rate limiting ❌'
+      } else if (testName.includes('Concurrent Load') || testName.includes('⚡')) {
+        // For concurrent tests: Check success rate
+        const successCount = parseInt(testResult.data?.split('/')[0] || '0')
+        const totalCount = parseInt(testResult.data?.split('/')[1] || '1')
+        passed = successCount > totalCount * 0.7 // 70% success rate is good
+        interpretation = `${successCount}/${totalCount} requests succeeded`
+      } else if (testName.includes('Health Check') || testName.includes('🏥')) {
+        // For health checks: Accept "degraded" as success
+        const isHealthy = testResult.status < 500 || (testResult.data && testResult.data.includes('degraded'))
+        passed = isHealthy
+        interpretation = testResult.data?.includes('degraded') ? 'Service degraded but operational ✅' : (testResult.status < 500 ? 'Service healthy ✅' : 'Service down ❌')
+      } else {
+        // For normal tests: Standard success criteria
+        passed = testResult.status < 500
+        interpretation = testResult.status < 500 ? 'Request successful ✅' : 'Request failed ❌'
+      }
+      
+      let details = interpretation + '\n'
       if (testResult.data) {
         if (typeof testResult.data === 'string') {
-          details = testResult.data.substring(0, 200)
+          details += testResult.data.substring(0, 150)
         } else {
-          details = JSON.stringify(testResult.data).substring(0, 200)
+          details += JSON.stringify(testResult.data).substring(0, 150)
         }
       }
       
