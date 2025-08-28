@@ -5,14 +5,36 @@ import { useState, useEffect, useRef } from 'react'
 
 interface AnalysisResult {
   file: string
-  issues: Array<{
+  bugs?: Array<{
     type: 'bug' | 'security' | 'smell'
     severity: 'critical' | 'high' | 'medium' | 'low'
     line: number
     message: string
     code: string
   }>
-  timestamp: number
+  securityIssues?: Array<{
+    type: 'bug' | 'security' | 'smell'
+    severity: 'critical' | 'high' | 'medium' | 'low'
+    line: number
+    message: string
+    code: string
+  }>
+  codeSmells?: Array<{
+    type: 'bug' | 'security' | 'smell'
+    severity: 'critical' | 'high' | 'medium' | 'low'
+    line: number
+    message: string
+    code: string
+  }>
+  // Computed property for all issues
+  issues?: Array<{
+    type: 'bug' | 'security' | 'smell'
+    severity: 'critical' | 'high' | 'medium' | 'low'
+    line: number
+    message: string
+    code: string
+  }>
+  timestamp?: number
 }
 
 interface StreamingUpdate {
@@ -124,12 +146,23 @@ export default function EnterpriseAnalysis() {
       case 'result':
         // Stream results as they come in
         const newResult: AnalysisResult = update.data
+        
+        // Combine all issues from different categories
+        const allIssues = [
+          ...(newResult.bugs || []),
+          ...(newResult.securityIssues || []),
+          ...(newResult.codeSmells || [])
+        ]
+        
+        // Add computed issues property
+        newResult.issues = allIssues
+        
         setResults(prev => [...prev, newResult])
         
         // Update counters
-        const criticalCount = newResult.issues.filter(i => i.severity === 'critical').length
+        const criticalCount = allIssues.filter(i => i.severity === 'critical').length
         setCriticalIssues(prev => prev + criticalCount)
-        setTotalIssues(prev => prev + newResult.issues.length)
+        setTotalIssues(prev => prev + allIssues.length)
         break
         
       case 'complete':
@@ -379,7 +412,7 @@ export default function EnterpriseAnalysis() {
               <div className="border-b border-gray-200">
                 <nav className="-mb-px flex space-x-8">
                   <button className="border-blue-500 text-blue-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
-                    🚨 Critical ({results.reduce((acc, r) => acc + r.issues.filter(i => i.severity === 'critical').length, 0)})
+                    🚨 Critical ({results.reduce((acc, r) => acc + (r.issues || []).filter(i => i.severity === 'critical').length, 0)})
                   </button>
                   <button className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
                     📊 All Issues ({totalIssues})
@@ -392,7 +425,7 @@ export default function EnterpriseAnalysis() {
               
               <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
                 {results.map((result, idx) => 
-                  result.issues
+                  (result.issues || [])
                     .filter(issue => issue.severity === 'critical')
                     .map((issue, issueIdx) => (
                       <div key={`${idx}-${issueIdx}`} className="border-l-4 border-red-500 pl-4 py-2">

@@ -19,6 +19,8 @@ export async function GET(
   
   const customReadable = new ReadableStream({
     start(controller) {
+      let lastResultCount = 0 // Track how many results we've sent
+      
       // Send initial connection message
       const initialData = `data: ${JSON.stringify({ 
         type: 'connected', 
@@ -58,13 +60,18 @@ export async function GET(
           })}\n\n`
           controller.enqueue(encoder.encode(progressData))
 
-          // Send real analysis results as they come in
-          if (status.results && status.results.length > 0) {
-            const resultsData = `data: ${JSON.stringify({
-              type: 'result',
-              data: status.results[status.results.length - 1] // Send latest result
-            })}\n\n`
-            controller.enqueue(encoder.encode(resultsData))
+          // Send only NEW analysis results
+          if (status.results && status.results.length > lastResultCount) {
+            // Send only the new results since last update
+            const newResults = status.results.slice(lastResultCount)
+            newResults.forEach((result: any) => {
+              const resultsData = `data: ${JSON.stringify({
+                type: 'result',
+                data: result
+              })}\n\n`
+              controller.enqueue(encoder.encode(resultsData))
+            })
+            lastResultCount = status.results.length
           }
 
           // If analysis is complete or failed, close connection
