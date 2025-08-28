@@ -97,7 +97,6 @@ async function getChangedFiles(owner: string, repo: string): Promise<string[]> {
       {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
-          'Authorization': `token ${process.env.GITHUB_TOKEN}`,
           'User-Agent': 'Enterprise-Greptile-Clone'
         }
       }
@@ -116,7 +115,6 @@ async function getChangedFiles(owner: string, repo: string): Promise<string[]> {
         const commitResponse = await fetch(commit.url, {
           headers: {
             'Accept': 'application/vnd.github.v3+json',
-            'Authorization': `token ${process.env.GITHUB_TOKEN}`,
             'User-Agent': 'Enterprise-Greptile-Clone'
           }
         })
@@ -150,7 +148,6 @@ async function getRepositoryFiles(owner: string, repo: string, strategy: string)
       {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
-          'Authorization': `token ${process.env.GITHUB_TOKEN}`,
           'User-Agent': 'Enterprise-Greptile-Clone'
         }
       }
@@ -235,10 +232,26 @@ export async function POST(request: NextRequest) {
     const analysisId = uuidv4()
     
     // Get strategy configuration
+    console.log(`🔍 DEBUG: Received strategy: "${strategy}"`)
+    console.log(`🔍 DEBUG: Available strategies:`, Object.keys(ANALYSIS_STRATEGIES))
     const strategyConfig = ANALYSIS_STRATEGIES[strategy] || ANALYSIS_STRATEGIES.incremental
+    console.log(`🔍 DEBUG: Selected config:`, strategyConfig)
     
     // Get files to analyze based on strategy
-    const files = await getRepositoryFiles(owner, repo, strategy)
+    let files: any[] = []
+    try {
+      files = await getRepositoryFiles(owner, repo, strategy)
+    } catch (repoError) {
+      console.error('Repository access error:', repoError)
+      return NextResponse.json(
+        { 
+          error: 'Failed to access repository', 
+          details: `Could not fetch files from ${owner}/${repo}. Please check repository exists and is public.`,
+          suggestion: 'Try a different repository or check your GitHub token.'
+        },
+        { status: 400 }
+      )
+    }
     
     console.log(`🚀 ENTERPRISE ANALYSIS STARTED:`)
     console.log(`   Repository: ${owner}/${repo}`)

@@ -158,8 +158,13 @@ export default function EnterpriseAnalysis() {
         })
       })
       
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Analysis failed to start')
+      }
+      
       const { analysisId, strategy } = await response.json()
-      setAnalysisStrategy(strategy.description)
+      setAnalysisStrategy(strategy?.description || 'Analysis started')
       
       // Connect WebSocket for real-time updates
       connectWebSocket(analysisId)
