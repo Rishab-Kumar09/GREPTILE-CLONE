@@ -39,8 +39,8 @@ export default function EnterpriseAnalysis() {
   const [totalIssues, setTotalIssues] = useState(0)
   const [analysisStrategy, setAnalysisStrategy] = useState('')
   
-  // WebSocket for real-time updates
-  const wsRef = useRef<WebSocket | null>(null)
+  // Server-Sent Events for real-time updates
+  const eventSourceRef = useRef<EventSource | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
 
   // Competitor-inspired analysis strategies
@@ -68,33 +68,39 @@ export default function EnterpriseAnalysis() {
     }
   }
 
-  // Initialize WebSocket connection
-  const connectWebSocket = (analysisId: string) => {
-    if (wsRef.current) {
-      wsRef.current.close()
+  // Initialize Server-Sent Events connection
+  const connectSSE = (analysisId: string) => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
     }
 
     setConnectionStatus('connecting')
-    wsRef.current = new WebSocket(`ws://localhost:3001/ws/analysis/${analysisId}`)
+    eventSourceRef.current = new EventSource(`/api/enterprise-analysis/stream/${analysisId}`)
     
-    wsRef.current.onopen = () => {
+    eventSourceRef.current.onopen = () => {
       setConnectionStatus('connected')
-      console.log('🔌 WebSocket connected for real-time updates')
+      console.log('🔌 SSE connected for real-time updates')
     }
     
-    wsRef.current.onmessage = (event) => {
-      const update: StreamingUpdate = JSON.parse(event.data)
-      handleStreamingUpdate(update)
+    eventSourceRef.current.onmessage = (event) => {
+      try {
+        const update: StreamingUpdate = JSON.parse(event.data)
+        handleStreamingUpdate(update)
+      } catch (error) {
+        console.error('Failed to parse SSE message:', error)
+      }
     }
     
-    wsRef.current.onclose = () => {
+    eventSourceRef.current.onerror = (error) => {
+      console.error('🚨 SSE error:', error)
       setConnectionStatus('disconnected')
-      console.log('🔌 WebSocket disconnected')
-    }
-    
-    wsRef.current.onerror = (error) => {
-      console.error('🚨 WebSocket error:', error)
-      setConnectionStatus('disconnected')
+      
+      // Auto-reconnect after 5 seconds
+      setTimeout(() => {
+        if (isAnalyzing) {
+          connectSSE(analysisId)
+        }
+      }, 5000)
     }
   }
 
@@ -166,8 +172,8 @@ export default function EnterpriseAnalysis() {
       const { analysisId, strategy } = await response.json()
       setAnalysisStrategy(strategy?.description || 'Analysis started')
       
-      // Connect WebSocket for real-time updates
-      connectWebSocket(analysisId)
+      // Connect Server-Sent Events for real-time updates
+      connectSSE(analysisId)
       
     } catch (error) {
       console.error('Failed to start analysis:', error)
@@ -175,11 +181,11 @@ export default function EnterpriseAnalysis() {
     }
   }
 
-  // Cleanup WebSocket on unmount
+  // Cleanup EventSource on unmount
   useEffect(() => {
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close()
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
       }
     }
   }, [])
