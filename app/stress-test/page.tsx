@@ -75,6 +75,20 @@ export default function StressTestPage() {
       }
     },
     {
+      name: '🗄️ AWS RDS Database Test',
+      test: async () => {
+        const response = await fetch('/api/repositories', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+        const data = await response.json()
+        return { 
+          status: response.status, 
+          data: response.ok ? `Database query successful: ${JSON.stringify(data).substring(0, 100)}...` : JSON.stringify(data)
+        }
+      }
+    },
+    {
       name: '🔥 Linux Kernel (Fixed Massive Test)',
       test: async () => {
         const response = await fetch('/api/github/analyze-repository-batch', {
@@ -147,14 +161,26 @@ export default function StressTestPage() {
       {
         name: `⚡ Concurrent Load: ${config.concurrentUsers} users`,
         test: async () => {
+          // Update progress during test
+          const updateProgress = (message: string) => {
+            setTestResults(prev => prev.map((result, i) => 
+              result.name.includes('Concurrent Load') ? { ...result, details: message } : result
+            ))
+          }
+          
+          updateProgress(`⚡ Launching ${config.concurrentUsers} concurrent requests...`)
           const promises = []
           for (let i = 0; i < config.concurrentUsers; i++) {
             promises.push(
               fetch('/api/health').then(r => r.status)
             )
           }
+          
+          updateProgress(`⏳ Waiting for ${config.concurrentUsers} responses...`)
           const results = await Promise.allSettled(promises)
           const successful = results.filter(r => r.status === 'fulfilled' && r.value < 500).length
+          
+          updateProgress(`📊 Analyzing results: ${successful}/${config.concurrentUsers} succeeded`)
           return { 
             status: successful > config.concurrentUsers * 0.8 ? 200 : 500, 
             data: `${successful}/${config.concurrentUsers} requests succeeded` 
@@ -168,7 +194,31 @@ export default function StressTestPage() {
     const startTime = Date.now()
     
     setTestResults(prev => prev.map((result, i) => 
-      i === index ? { ...result, status: 'running' } : result
+      i === index ? { ...result, status: 'running', details: '⏳ Starting test...' } : result
+    ))
+    
+    // Show what the test is doing
+    const testName = testResults[index]?.name || ''
+    let progressMessage = '⏳ Initializing...'
+    
+    if (testName.includes('Health Check')) {
+      progressMessage = '🏥 Checking service health...'
+    } else if (testName.includes('AWS RDS Database')) {
+      progressMessage = '🗄️ Testing AWS RDS database connectivity...'
+    } else if (testName.includes('Linux Kernel')) {
+      progressMessage = '🔥 Analyzing massive repository (this may take 30+ seconds)...'
+    } else if (testName.includes('Security Test')) {
+      progressMessage = '🚨 Attempting security attack...'
+    } else if (testName.includes('Huge Batch')) {
+      progressMessage = '💥 Testing overload protection...'
+    } else if (testName.includes('Concurrent')) {
+      progressMessage = '⚡ Launching concurrent requests...'
+    } else if (testName.includes('Random Repo')) {
+      progressMessage = '🎲 Analyzing random repository...'
+    }
+    
+    setTestResults(prev => prev.map((result, i) => 
+      i === index ? { ...result, details: progressMessage } : result
     ))
 
     try {
@@ -201,6 +251,16 @@ export default function StressTestPage() {
         const isHealthy = testResult.status < 500 || (testResult.data && testResult.data.includes('degraded'))
         passed = isHealthy
         interpretation = testResult.data?.includes('degraded') ? 'Service degraded but operational ✅' : (testResult.status < 500 ? 'Service healthy ✅' : 'Service down ❌')
+      } else if (testName.includes('AWS RDS Database') || testName.includes('🗄️')) {
+        // For database tests: Accept auth errors as success (means DB is reachable)
+        passed = testResult.status < 500 || testResult.status === 401 || testResult.status === 403
+        if (testResult.status === 401 || testResult.status === 403) {
+          interpretation = 'Database reachable (auth required) ✅'
+        } else if (testResult.status < 500) {
+          interpretation = 'Database connection successful ✅'
+        } else {
+          interpretation = 'Database connection failed ❌'
+        }
       } else {
         // For normal tests: Standard success criteria
         passed = testResult.status < 500

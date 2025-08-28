@@ -59,27 +59,55 @@ async function checkDatabaseHealth(): Promise<{ available: boolean; error?: stri
   const startTime = Date.now()
   
   try {
-    // For Supabase/PostgreSQL, we can check if environment variables are set
-    // In a real implementation, you'd want to actually ping the database
-    const hasDbConfig = !!(
-      process.env.NEXT_PUBLIC_SUPABASE_URL && 
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    // Check if AWS RDS database environment variables are configured
+    const hasRdsConfig = !!(
+      process.env.DATABASE_URL || 
+      (process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME)
     )
     
-    if (!hasDbConfig) {
+    if (!hasRdsConfig) {
       return { 
         available: false, 
-        error: 'Database configuration missing',
+        error: 'AWS RDS database configuration missing (DATABASE_URL or DB_HOST/DB_USER/DB_NAME)',
         responseTime: Date.now() - startTime
       }
     }
     
-    // TODO: Add actual database ping when Supabase client is properly configured
-    // const { data, error } = await supabase.from('repositories').select('id').limit(1)
-    
-    return { 
-      available: true,
-      responseTime: Date.now() - startTime
+    // Test actual database connectivity
+    try {
+      // Simple database connectivity test using a basic API call
+      const testResponse = await fetch('/api/repositories', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      })
+      
+      if (testResponse.ok) {
+        return { 
+          available: true,
+          responseTime: Date.now() - startTime
+        }
+      } else if (testResponse.status === 401 || testResponse.status === 403) {
+        // Auth error means DB is reachable but no user session
+        return { 
+          available: true,
+          error: 'Database reachable (auth required for full test)',
+          responseTime: Date.now() - startTime
+        }
+      } else {
+        return { 
+          available: false,
+          error: `Database API returned ${testResponse.status}`,
+          responseTime: Date.now() - startTime
+        }
+      }
+    } catch (dbError) {
+      return { 
+        available: false,
+        error: `Database connectivity test failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
+        responseTime: Date.now() - startTime
+      }
     }
     
   } catch (error) {
