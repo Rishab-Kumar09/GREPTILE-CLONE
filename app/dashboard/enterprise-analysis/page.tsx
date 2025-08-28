@@ -1,12 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+// Using standard HTML components with Tailwind CSS - no external UI library needed
 
 interface AnalysisResult {
   file: string
@@ -214,11 +209,11 @@ export default function EnterpriseAnalysis() {
       </div>
 
       {/* Analysis Strategy Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Choose Analysis Strategy</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Choose Analysis Strategy</h3>
+        </div>
+        <div className="px-6 py-4">
           <div className="grid md:grid-cols-3 gap-4 mb-6">
             {Object.entries(analysisStrategies).map(([key, strategy]) => (
               <div
@@ -235,50 +230,59 @@ export default function EnterpriseAnalysis() {
                   <h3 className="font-semibold">{strategy.name}</h3>
                 </div>
                 <p className="text-sm text-gray-600 mb-2">{strategy.description}</p>
-                <Badge className={strategy.color}>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${strategy.color}`}>
                   ⏱️ {strategy.estimatedTime}
-                </Badge>
+                </span>
               </div>
             ))}
           </div>
 
           {/* Repository Input */}
           <div className="flex space-x-2">
-            <Input
+            <input
+              type="text"
               placeholder="https://github.com/owner/repository"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               disabled={isAnalyzing}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
             />
-            <Button 
+            <button 
               onClick={startAnalysis} 
               disabled={isAnalyzing || !repoUrl.trim()}
-              className="min-w-[150px]"
+              className="min-w-[150px] px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
             >
               {isAnalyzing ? '🔄 Analyzing...' : '🚀 Start Analysis'}
-            </Button>
+            </button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Real-time Progress */}
       {isAnalyzing && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>📊 Live Analysis Progress</span>
-              <Badge variant={connectionStatus === 'connected' ? 'default' : 'destructive'}>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">📊 Live Analysis Progress</h3>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                connectionStatus === 'connected' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}>
                 {connectionStatus === 'connected' ? '🟢 Live' : '🔴 Offline'}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+              </span>
+            </div>
+          </div>
+          <div className="px-6 py-4 space-y-4">
             <div>
               <div className="flex justify-between text-sm mb-2">
                 <span>Progress: {filesAnalyzed} / {totalFiles} files</span>
                 <span>{Math.round(progress)}%</span>
               </div>
-              <Progress value={progress} className="h-3" />
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div 
+                  className="bg-blue-600 h-3 rounded-full transition-all duration-300" 
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -313,25 +317,33 @@ export default function EnterpriseAnalysis() {
                 <span className="text-sm">{analysisStrategy}</span>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Streaming Results */}
       {results.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>🔄 Live Results Stream</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="critical" className="w-full">
-              <TabsList>
-                <TabsTrigger value="critical">🚨 Critical ({results.reduce((acc, r) => acc + r.issues.filter(i => i.severity === 'critical').length, 0)})</TabsTrigger>
-                <TabsTrigger value="all">📊 All Issues ({totalIssues})</TabsTrigger>
-                <TabsTrigger value="files">📁 Files ({results.length})</TabsTrigger>
-              </TabsList>
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900">🔄 Live Results Stream</h3>
+          </div>
+          <div className="px-6 py-4">
+            <div className="w-full">
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8">
+                  <button className="border-blue-500 text-blue-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                    🚨 Critical ({results.reduce((acc, r) => acc + r.issues.filter(i => i.severity === 'critical').length, 0)})
+                  </button>
+                  <button className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                    📊 All Issues ({totalIssues})
+                  </button>
+                  <button className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                    📁 Files ({results.length})
+                  </button>
+                </nav>
+              </div>
               
-              <TabsContent value="critical" className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
                 {results.map((result, idx) => 
                   result.issues
                     .filter(issue => issue.severity === 'critical')
@@ -339,9 +351,9 @@ export default function EnterpriseAnalysis() {
                       <div key={`${idx}-${issueIdx}`} className="border-l-4 border-red-500 pl-4 py-2">
                         <div className="flex items-center space-x-2 mb-1">
                           <span>{getTypeIcon(issue.type)}</span>
-                          <Badge className={getSeverityColor(issue.severity)}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSeverityColor(issue.severity)}`}>
                             {issue.severity.toUpperCase()}
-                          </Badge>
+                          </span>
                           <span className="font-mono text-sm text-gray-600">{result.file}:{issue.line}</span>
                         </div>
                         <p className="text-sm">{issue.message}</p>
@@ -353,65 +365,18 @@ export default function EnterpriseAnalysis() {
                       </div>
                     ))
                 )}
-              </TabsContent>
-              
-              <TabsContent value="all" className="space-y-2 max-h-96 overflow-y-auto">
-                {results.map((result, idx) => 
-                  result.issues.map((issue, issueIdx) => (
-                    <div key={`${idx}-${issueIdx}`} className="border-l-2 border-gray-300 pl-4 py-2">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span>{getTypeIcon(issue.type)}</span>
-                        <Badge className={getSeverityColor(issue.severity)}>
-                          {issue.severity}
-                        </Badge>
-                        <span className="font-mono text-sm text-gray-600">{result.file}:{issue.line}</span>
-                      </div>
-                      <p className="text-sm">{issue.message}</p>
-                    </div>
-                  ))
-                )}
-              </TabsContent>
-              
-              <TabsContent value="files" className="space-y-2 max-h-96 overflow-y-auto">
-                {results.map((result, idx) => (
-                  <div key={idx} className="border rounded p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono text-sm">{result.file}</span>
-                      <Badge variant="outline">
-                        {result.issues.length} issues
-                      </Badge>
-                    </div>
-                    <div className="flex space-x-2">
-                      {result.issues.filter(i => i.severity === 'critical').length > 0 && (
-                        <Badge className="bg-red-100 text-red-800">
-                          🚨 {result.issues.filter(i => i.severity === 'critical').length}
-                        </Badge>
-                      )}
-                      {result.issues.filter(i => i.type === 'security').length > 0 && (
-                        <Badge className="bg-orange-100 text-orange-800">
-                          🔒 {result.issues.filter(i => i.type === 'security').length}
-                        </Badge>
-                      )}
-                      {result.issues.filter(i => i.type === 'bug').length > 0 && (
-                        <Badge className="bg-yellow-100 text-yellow-800">
-                          🐛 {result.issues.filter(i => i.type === 'bug').length}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Help Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>💡 How This Works</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">💡 How This Works</h3>
+        </div>
+        <div className="px-6 py-4 space-y-3">
           <div className="grid md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <h4 className="font-semibold flex items-center">
@@ -441,8 +406,8 @@ export default function EnterpriseAnalysis() {
               </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }
