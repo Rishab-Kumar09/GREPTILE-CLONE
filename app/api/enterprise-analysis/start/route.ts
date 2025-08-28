@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 
 // Enterprise Analysis Strategies
 interface AnalysisStrategy {
@@ -245,6 +246,9 @@ export async function POST(request: NextRequest) {
     console.log(`   Files to analyze: ${files.length}`)
     console.log(`   Analysis ID: ${analysisId}`)
     
+    // Create analysis status entry
+    createAnalysisStatus(analysisId, files.length)
+    
     // Start background processing (non-blocking)
     processAnalysisInBackground(analysisId, owner, repo, files, strategy)
     
@@ -280,6 +284,9 @@ async function processAnalysisInBackground(
     const totalFiles = files.length
     const startTime = Date.now()
     
+    // Update status to processing
+    updateAnalysisStatus(analysisId, { status: 'processing' })
+    
     // Process files in small batches (like your existing system)
     const batchSize = strategy === 'incremental' ? 10 : (strategy === 'priority' ? 5 : 3)
     
@@ -309,6 +316,13 @@ async function processAnalysisInBackground(
           const estimatedTotal = (elapsed / filesProcessed) * totalFiles
           const remaining = Math.max(0, estimatedTotal - elapsed)
           
+          // Update analysis status
+          updateAnalysisStatus(analysisId, {
+            progress,
+            filesAnalyzed: filesProcessed,
+            currentFile: batch[0]?.path || '',
+          })
+          
           // Simulate WebSocket update (in real implementation, you'd use actual WebSocket)
           console.log(`📊 PROGRESS UPDATE [${analysisId}]:`)
           console.log(`   Progress: ${progress}% (${filesProcessed}/${totalFiles})`)
@@ -331,7 +345,20 @@ async function processAnalysisInBackground(
     
     console.log(`✅ ANALYSIS COMPLETE [${analysisId}]: Processed ${filesProcessed}/${totalFiles} files`)
     
+    // Mark as completed
+    updateAnalysisStatus(analysisId, { 
+      status: 'completed', 
+      progress: 100,
+      filesAnalyzed: filesProcessed
+    })
+    
   } catch (error) {
     console.error(`❌ ANALYSIS FAILED [${analysisId}]:`, error)
+    
+    // Mark as failed
+    updateAnalysisStatus(analysisId, { 
+      status: 'failed',
+      errors: [error instanceof Error ? error.message : 'Unknown error']
+    })
   }
 }

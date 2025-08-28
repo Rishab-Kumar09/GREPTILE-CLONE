@@ -1,18 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-// In a real implementation, you'd store this in a database
-// For demo purposes, we'll use in-memory storage
-const analysisStatus = new Map<string, {
-  status: 'queued' | 'processing' | 'completed' | 'failed'
-  progress: number
-  filesAnalyzed: number
-  totalFiles: number
-  currentFile: string
-  results: any[]
-  errors: string[]
-  startTime: number
-  estimatedCompletion?: number
-}>()
+import { getAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 
 export async function GET(
   request: NextRequest,
@@ -29,7 +16,7 @@ export async function GET(
     }
     
     // Get status from storage (in real app, this would be from database)
-    const status = analysisStatus.get(analysisId)
+    const status = getAnalysisStatus(analysisId)
     
     if (!status) {
       return NextResponse.json(
@@ -68,29 +55,5 @@ export async function GET(
   }
 }
 
-// Helper function to update analysis status (would be called by background processor)
-export function updateAnalysisStatus(
-  analysisId: string, 
-  updates: Partial<{
-    status: 'queued' | 'processing' | 'completed' | 'failed'
-    progress: number
-    filesAnalyzed: number
-    totalFiles: number
-    currentFile: string
-    results: any[]
-    errors: string[]
-  }>
-) {
-  const current = analysisStatus.get(analysisId) || {
-    status: 'queued' as const,
-    progress: 0,
-    filesAnalyzed: 0,
-    totalFiles: 0,
-    currentFile: '',
-    results: [],
-    errors: [],
-    startTime: Date.now()
-  }
-  
-  analysisStatus.set(analysisId, { ...current, ...updates })
-}
+// Helper function moved to a separate utility file
+// This function would be imported from a utils file in a real implementation
