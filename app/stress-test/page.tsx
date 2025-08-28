@@ -98,10 +98,22 @@ export default function StressTestPage() {
             owner: 'torvalds',
             repo: 'linux',
             batchIndex: 0,
-            batchSize: 10
+            batchSize: 3 // Smaller batch for massive repo
           })
         })
-        return { status: response.status, data: await response.text() }
+        const responseText = await response.text()
+        
+        // Check if files were actually analyzed
+        try {
+          const data = JSON.parse(responseText)
+          const filesAnalyzed = data.batchEndIndex - data.batchStartIndex
+          if (filesAnalyzed === 0) {
+            return { status: 500, data: `No files analyzed: ${responseText}` }
+          }
+          return { status: response.status, data: `${filesAnalyzed} files analyzed: ${responseText}` }
+        } catch {
+          return { status: response.status, data: responseText }
+        }
       }
     }
   ]
@@ -149,13 +161,26 @@ export default function StressTestPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              owner: 'octocat',
-              repo: 'Hello-World',
+              owner: 'facebook',
+              repo: 'react', // Use a repo with many files
               batchIndex: 0,
               batchSize: dynamic.hugeBatchSize
             })
           })
-          return { status: response.status, data: await response.text() }
+          const responseText = await response.text()
+          
+          // For overload tests, we EXPECT failure (rate limiting)
+          // But check if it's meaningful failure vs empty response
+          try {
+            const data = JSON.parse(responseText)
+            if (response.status >= 400) {
+              return { status: response.status, data: `Overload protection triggered: ${response.status}` }
+            }
+            const filesAnalyzed = data.batchEndIndex - data.batchStartIndex
+            return { status: response.status, data: `${filesAnalyzed} files processed (unexpected success)` }
+          } catch {
+            return { status: response.status, data: responseText }
+          }
         }
       },
       {
@@ -266,6 +291,21 @@ export default function StressTestPage() {
         // For normal tests: Standard success criteria
         passed = testResult.status < 500
         interpretation = testResult.status < 500 ? 'Request successful ✅' : 'Request failed ❌'
+        
+        // Special check for analysis tests - must actually analyze files
+        if (actualTestName.includes('Linux Kernel') || actualTestName.includes('Random Repo')) {
+          if (testResult.data && testResult.data.includes('0 files analyzed')) {
+            passed = false
+            interpretation = 'No files analyzed ❌'
+          } else if (testResult.data && testResult.data.includes('files analyzed')) {
+            const match = testResult.data.match(/(\d+) files analyzed/)
+            const filesCount = match ? parseInt(match[1]) : 0
+            if (filesCount > 0) {
+              passed = true
+              interpretation = `${filesCount} files analyzed successfully ✅`
+            }
+          }
+        }
       }
       
       let details = interpretation + '\n'
