@@ -227,6 +227,7 @@ export default function StressTestPage() {
       
       // Get the test name to determine expected behavior
       const testName = testResults[index]?.name || ''
+      console.log(`🔍 DEBUG Test Logic: "${testName}" -> Status: ${testResult.status}`)
       
       // Smart test evaluation based on test type
       let passed = false
@@ -236,6 +237,7 @@ export default function StressTestPage() {
         // For security tests: We WANT failures (blocked attacks)
         passed = testResult.status >= 400
         interpretation = testResult.status >= 400 ? 'Attack blocked ✅' : 'Attack succeeded ❌'
+        console.log(`🔍 DEBUG Security Test: ${testName}, Status: ${testResult.status}, Passed: ${passed}`)
       } else if (testName.includes('Huge Batch') || testName.includes('💥')) {
         // For overload tests: We WANT rate limiting
         passed = testResult.status >= 400
