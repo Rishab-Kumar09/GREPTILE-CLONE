@@ -423,27 +423,51 @@ export default function EnterpriseAnalysis() {
                 </nav>
               </div>
               
-              <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
+              <div className="mt-4 space-y-3 max-h-96 overflow-y-auto">
+                {/* Show ALL issues, not just critical */}
                 {results.map((result, idx) => 
-                  (result.issues || [])
-                    .filter(issue => issue.severity === 'critical')
-                    .map((issue, issueIdx) => (
-                      <div key={`${idx}-${issueIdx}`} className="border-l-4 border-red-500 pl-4 py-2">
-                        <div className="flex items-center space-x-2 mb-1">
-                          <span>{getTypeIcon(issue.type)}</span>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSeverityColor(issue.severity)}`}>
-                            {issue.severity.toUpperCase()}
-                          </span>
-                          <span className="font-mono text-sm text-gray-600">{result.file}:{issue.line}</span>
-                        </div>
-                        <p className="text-sm">{issue.message}</p>
-                        {issue.code && (
-                          <pre className="text-xs bg-gray-100 p-2 rounded mt-1 overflow-x-auto">
-                            <code>{issue.code}</code>
-                          </pre>
-                        )}
+                  (result.issues || []).map((issue, issueIdx) => (
+                    <div 
+                      key={`${idx}-${issueIdx}`} 
+                      className={`border-l-4 pl-4 py-3 cursor-pointer hover:bg-gray-50 rounded-r transition-colors ${
+                        issue.severity === 'critical' ? 'border-red-500 bg-red-50' :
+                        issue.severity === 'high' ? 'border-orange-500 bg-orange-50' :
+                        issue.severity === 'medium' ? 'border-yellow-500 bg-yellow-50' :
+                        'border-blue-500 bg-blue-50'
+                      }`}
+                      onClick={() => {
+                        // Copy issue details to clipboard for easy viewing
+                        const issueText = `${result.file}:${issue.line}\n${issue.message}\n\n${issue.code || ''}`
+                        navigator.clipboard.writeText(issueText)
+                        alert(`Issue details copied to clipboard!\n\nFile: ${result.file}:${issue.line}\nType: ${issue.type}\nSeverity: ${issue.severity}`)
+                      }}
+                    >
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-lg">{getTypeIcon(issue.type)}</span>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSeverityColor(issue.severity)}`}>
+                          {issue.severity.toUpperCase()}
+                        </span>
+                        <span className="font-mono text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                          {result.file}:{issue.line}
+                        </span>
+                        <span className="text-xs text-gray-500">Click to copy details</span>
                       </div>
-                    ))
+                      <p className="text-sm font-medium text-gray-900 mb-2">{issue.message}</p>
+                      {issue.code && (
+                        <pre className="text-xs bg-gray-800 text-green-400 p-3 rounded overflow-x-auto">
+                          <code>{issue.code}</code>
+                        </pre>
+                      )}
+                    </div>
+                  ))
+                )}
+                
+                {/* Show message if no issues found yet */}
+                {results.length > 0 && totalIssues === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="text-4xl mb-2">🔍</div>
+                    <p>No issues found yet. Analysis in progress...</p>
+                  </div>
                 )}
               </div>
             </div>
