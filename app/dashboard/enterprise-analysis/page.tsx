@@ -95,9 +95,15 @@ export default function EnterpriseAnalysis() {
       console.error('🚨 SSE error:', error)
       setConnectionStatus('disconnected')
       
-      // Auto-reconnect after 5 seconds
+      // Close the connection to prevent infinite retries
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close()
+      }
+      
+      // Auto-reconnect after 5 seconds if still analyzing
       setTimeout(() => {
-        if (isAnalyzing) {
+        if (isAnalyzing && !eventSourceRef.current) {
+          console.log('🔄 Attempting SSE reconnection...')
           connectSSE(analysisId)
         }
       }, 5000)
@@ -174,6 +180,36 @@ export default function EnterpriseAnalysis() {
       
       // Connect Server-Sent Events for real-time updates
       connectSSE(analysisId)
+      
+      // Fallback polling in case SSE fails
+      const pollInterval = setInterval(async () => {
+        if (!isAnalyzing) {
+          clearInterval(pollInterval)
+          return
+        }
+        
+        try {
+          const statusResponse = await fetch(`/api/enterprise-analysis/status/${analysisId}`)
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json()
+            
+            // Update UI with polling data if SSE is disconnected
+            if (connectionStatus === 'disconnected') {
+              setProgress(statusData.progress || 0)
+              setFilesAnalyzed(statusData.filesAnalyzed || 0)
+              setTotalFiles(statusData.totalFiles || 0)
+              setCurrentFile(statusData.currentFile || '')
+              
+              if (statusData.status === 'completed') {
+                setIsAnalyzing(false)
+                clearInterval(pollInterval)
+              }
+            }
+          }
+        } catch (pollError) {
+          console.warn('Polling failed:', pollError)
+        }
+      }, 5000) // Poll every 5 seconds as fallback
       
     } catch (error) {
       console.error('Failed to start analysis:', error)

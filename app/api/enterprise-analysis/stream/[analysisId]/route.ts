@@ -5,10 +5,17 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { analysisId: string } }
 ) {
-  const { analysisId } = params
+  try {
+    const { analysisId } = params
+    
+    if (!analysisId) {
+      return new Response('Analysis ID required', { status: 400 })
+    }
 
-  // Set up Server-Sent Events (SSE)
-  const encoder = new TextEncoder()
+    console.log(`🔌 SSE Connection requested for analysis: ${analysisId}`)
+
+    // Set up Server-Sent Events (SSE)
+    const encoder = new TextEncoder()
   
   const customReadable = new ReadableStream({
     start(controller) {
@@ -105,6 +112,20 @@ export async function GET(
       'Access-Control-Allow-Headers': 'Cache-Control'
     }
   })
+  
+  } catch (error) {
+    console.error('SSE endpoint error:', error)
+    return new Response(
+      JSON.stringify({ 
+        error: 'Stream setup failed', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      }), 
+      { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
+  }
 }
 
 // Helper function to calculate estimated time remaining
