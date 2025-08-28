@@ -84,6 +84,7 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
     if (pathname === '/dashboard') return 'dashboard'
     if (pathname.startsWith('/dashboard/repositories')) return 'repositories'
     if (pathname.startsWith('/dashboard/reviews')) return 'reviews'
+    if (pathname.startsWith('/dashboard/enterprise-analysis')) return 'enterprise-analysis'
     if (pathname.startsWith('/dashboard/settings')) return 'settings'
     if (pathname.startsWith('/setup')) return 'setup'
     return 'dashboard'
@@ -127,6 +128,12 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
               className={activePage === 'reviews' ? 'text-primary-600 font-medium' : 'text-gray-600 hover:text-gray-900'}
             >
               Reviews
+            </Link>
+            <Link 
+              href="/dashboard/enterprise-analysis" 
+              className={activePage === 'enterprise-analysis' ? 'text-primary-600 font-medium' : 'text-gray-600 hover:text-gray-900'}
+            >
+              🚀 Enterprise
             </Link>
             <Link 
               href="/dashboard/settings" 
