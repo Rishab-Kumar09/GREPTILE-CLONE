@@ -172,16 +172,25 @@ export default function StressTestPage() {
     ))
 
     try {
-      const result = await testConfig.test()
+      const testResult = await testConfig.test()
       const duration = Date.now() - startTime
-      const passed = result.status < 500
+      const passed = testResult.status < 500
+      
+      let details = 'No details available'
+      if (testResult.data) {
+        if (typeof testResult.data === 'string') {
+          details = testResult.data.substring(0, 200)
+        } else {
+          details = JSON.stringify(testResult.data).substring(0, 200)
+        }
+      }
       
       setTestResults(prev => prev.map((result, i) => 
         i === index ? {
           ...result,
           status: passed ? 'passed' : 'failed',
           duration,
-          details: typeof result.data === 'string' ? result.data.substring(0, 200) : JSON.stringify(result.data).substring(0, 200),
+          details,
           timestamp: new Date().toLocaleTimeString()
         } : result
       ))
@@ -405,7 +414,7 @@ export default function StressTestPage() {
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
-                  {testResults.filter(r => r.duration).reduce((avg, r) => avg + (r.duration || 0), 0) / testResults.filter(r => r.duration).length || 0}ms
+                  {Math.round(testResults.filter(r => r.duration).reduce((sum, r) => sum + (r.duration || 0), 0) / (testResults.filter(r => r.duration).length || 1))}ms
                 </div>
                 <div className="text-sm text-gray-600">Avg Response</div>
               </div>
