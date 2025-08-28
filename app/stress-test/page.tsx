@@ -190,30 +190,30 @@ export default function StressTestPage() {
     ]
   }
 
-  const runTest = async (testConfig: any, index: number) => {
+  const runTest = async (testConfig: any, index: number, testName?: string) => {
     const startTime = Date.now()
     
     setTestResults(prev => prev.map((result, i) => 
       i === index ? { ...result, status: 'running', details: '⏳ Starting test...' } : result
     ))
     
-    // Show what the test is doing
-    const testName = testResults[index]?.name || ''
+    // Use the passed test name or fallback to config
+    const actualTestName = testName || testConfig.name || 'Unknown Test'
     let progressMessage = '⏳ Initializing...'
     
-    if (testName.includes('Health Check')) {
+    if (actualTestName.includes('Health Check')) {
       progressMessage = '🏥 Checking service health...'
-    } else if (testName.includes('AWS RDS Database')) {
+    } else if (actualTestName.includes('AWS RDS Database')) {
       progressMessage = '🗄️ Testing AWS RDS database connectivity...'
-    } else if (testName.includes('Linux Kernel')) {
+    } else if (actualTestName.includes('Linux Kernel')) {
       progressMessage = '🔥 Analyzing massive repository (this may take 30+ seconds)...'
-    } else if (testName.includes('Security Test')) {
+    } else if (actualTestName.includes('Security Test')) {
       progressMessage = '🚨 Attempting security attack...'
-    } else if (testName.includes('Huge Batch')) {
+    } else if (actualTestName.includes('Huge Batch')) {
       progressMessage = '💥 Testing overload protection...'
-    } else if (testName.includes('Concurrent')) {
+    } else if (actualTestName.includes('Concurrent')) {
       progressMessage = '⚡ Launching concurrent requests...'
-    } else if (testName.includes('Random Repo')) {
+    } else if (actualTestName.includes('Random Repo')) {
       progressMessage = '🎲 Analyzing random repository...'
     }
     
@@ -225,35 +225,34 @@ export default function StressTestPage() {
       const testResult = await testConfig.test()
       const duration = Date.now() - startTime
       
-      // Get the test name to determine expected behavior
-      const testName = testResults[index]?.name || ''
-      console.log(`🔍 DEBUG Test Logic: "${testName}" -> Status: ${testResult.status}`)
+      // Use the actual test name we have
+      console.log(`🔍 DEBUG Test Logic: "${actualTestName}" -> Status: ${testResult.status}`)
       
       // Smart test evaluation based on test type
       let passed = false
       let interpretation = ''
       
-      if (testName.includes('Security Test') || testName.includes('🚨')) {
+      if (actualTestName.includes('Security Test') || actualTestName.includes('🚨')) {
         // For security tests: We WANT failures (blocked attacks)
         passed = testResult.status >= 400
         interpretation = testResult.status >= 400 ? 'Attack blocked ✅' : 'Attack succeeded ❌'
-        console.log(`🔍 DEBUG Security Test: ${testName}, Status: ${testResult.status}, Passed: ${passed}`)
-      } else if (testName.includes('Huge Batch') || testName.includes('💥')) {
+        console.log(`🔍 DEBUG Security Test: ${actualTestName}, Status: ${testResult.status}, Passed: ${passed}`)
+      } else if (actualTestName.includes('Huge Batch') || actualTestName.includes('💥')) {
         // For overload tests: We WANT rate limiting
         passed = testResult.status >= 400
         interpretation = testResult.status >= 400 ? 'Overload protection active ✅' : 'No rate limiting ❌'
-      } else if (testName.includes('Concurrent Load') || testName.includes('⚡')) {
+      } else if (actualTestName.includes('Concurrent Load') || actualTestName.includes('⚡')) {
         // For concurrent tests: Check success rate
         const successCount = parseInt(testResult.data?.split('/')[0] || '0')
         const totalCount = parseInt(testResult.data?.split('/')[1] || '1')
         passed = successCount > totalCount * 0.7 // 70% success rate is good
         interpretation = `${successCount}/${totalCount} requests succeeded`
-      } else if (testName.includes('Health Check') || testName.includes('🏥')) {
+      } else if (actualTestName.includes('Health Check') || actualTestName.includes('🏥')) {
         // For health checks: Accept "degraded" as success
         const isHealthy = testResult.status < 500 || (testResult.data && testResult.data.includes('degraded'))
         passed = isHealthy
         interpretation = testResult.data?.includes('degraded') ? 'Service degraded but operational ✅' : (testResult.status < 500 ? 'Service healthy ✅' : 'Service down ❌')
-      } else if (testName.includes('AWS RDS Database') || testName.includes('🗄️')) {
+      } else if (actualTestName.includes('AWS RDS Database') || actualTestName.includes('🗄️')) {
         // For database tests: Accept auth errors as success (means DB is reachable)
         passed = testResult.status < 500 || testResult.status === 401 || testResult.status === 403
         if (testResult.status === 401 || testResult.status === 403) {
@@ -316,7 +315,7 @@ export default function StressTestPage() {
 
     // Run tests sequentially to avoid overwhelming the server
     for (let i = 0; i < allTests.length; i++) {
-      await runTest(allTests[i], i)
+      await runTest(allTests[i], i, allTests[i].name)
       // Small delay between tests
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
