@@ -375,9 +375,9 @@ async function extractRepositoryArchive(
       throw new Error(`Failed to extract ZIP: ${zipError instanceof Error ? zipError.message : 'Unknown error'}`)
     }
     
-    // Find and flatten the GitHub root directory structure
-    const entries = await fs.readdir(extractPath, { withFileTypes: true })
-    const rootDirs = entries.filter(entry => entry.isDirectory())
+         // Find and flatten the GitHub root directory structure
+     const dirEntries = await fs.readdir(extractPath, { withFileTypes: true })
+     const rootDirs = dirEntries.filter(entry => entry.isDirectory())
     
     if (rootDirs.length === 1) {
       // GitHub creates a single root directory with commit hash
