@@ -291,13 +291,13 @@ async function extractRepositoryArchive(
   try {
     await fs.mkdir(extractPath, { recursive: true })
     
-    // Use node-stream-zip for reliable large file extraction
-    console.log(`🔍 STEP 1B-5A: Starting node-stream-zip extraction`)
+    // Try node-stream-zip first, fallback to system unzip if it fails
+    console.log(`🔍 STEP 1B-5A: Starting ZIP extraction`)
     console.log(`📦 Archive path: ${archivePath}`)
     console.log(`📁 Extract path: ${extractPath}`)
     
     try {
-      console.log(`🔍 STEP 1B-5A-1: Opening ZIP file with node-stream-zip...`)
+      console.log(`🔍 STEP 1B-5A-1: Attempting node-stream-zip extraction...`)
       const zip = new StreamZip.async({ file: archivePath })
       
       console.log(`✅ ZIP file opened successfully`)
@@ -371,8 +371,66 @@ async function extractRepositoryArchive(
       console.log(`✅ Successfully extracted ${extractedCount} files`)
       
     } catch (zipError) {
-      console.error(`❌ ZIP extraction failed:`, zipError)
-      throw new Error(`Failed to extract ZIP: ${zipError instanceof Error ? zipError.message : 'Unknown error'}`)
+      console.error(`❌ node-stream-zip extraction failed:`, zipError)
+      console.log(`🔄 Attempting fallback extraction with system unzip...`)
+      
+      try {
+        // Fallback to system unzip command
+        const { execSync } = require('child_process')
+        
+        // Create a temporary directory for extraction
+        const tempExtractPath = path.join(extractPath, 'temp_extract')
+        await fs.mkdir(tempExtractPath, { recursive: true })
+        
+        console.log(`🔍 FALLBACK: Using system unzip command...`)
+        
+        // Use system unzip command (works on Linux/Unix systems like AWS Lambda)
+        execSync(`unzip -q "${archivePath}" -d "${tempExtractPath}"`, { 
+          stdio: 'pipe',
+          timeout: 300000 // 5 minute timeout
+        })
+        
+        console.log(`✅ System unzip completed successfully`)
+        
+        // Find the extracted directory (GitHub creates a directory with commit hash)
+        const extractedContents = await fs.readdir(tempExtractPath, { withFileTypes: true })
+        const extractedDirs = extractedContents.filter(entry => entry.isDirectory())
+        
+        if (extractedDirs.length === 1) {
+          // Move contents from the GitHub root directory to our target
+          const githubRootPath = path.join(tempExtractPath, extractedDirs[0].name)
+          const rootContents = await fs.readdir(githubRootPath, { withFileTypes: true })
+          
+          let fileCount = 0
+          for (const item of rootContents) {
+            const sourcePath = path.join(githubRootPath, item.name)
+            const targetPath = path.join(extractPath, item.name)
+            
+            await fs.rename(sourcePath, targetPath)
+            fileCount++
+            
+            // Update progress periodically
+            if (fileCount % 50 === 0) {
+              progressCallback?.({
+                stage: 'extracting',
+                progress: 85 + Math.round((fileCount / rootContents.length) * 10),
+                message: `Extracted ${fileCount} / ${rootContents.length} items`,
+                extractedFiles: fileCount,
+                totalFiles: rootContents.length
+              })
+            }
+          }
+          
+          console.log(`✅ Successfully extracted ${fileCount} items using fallback method`)
+        }
+        
+        // Clean up temporary directory
+        await fs.rm(tempExtractPath, { recursive: true, force: true })
+        
+      } catch (fallbackError) {
+        console.error(`❌ Fallback extraction also failed:`, fallbackError)
+        throw new Error(`Both node-stream-zip and system unzip failed: ${zipError instanceof Error ? zipError.message : 'Unknown error'}`)
+      }
     }
     
          // Find and flatten the GitHub root directory structure
