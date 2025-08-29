@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
+import { 
+  getRepositoryInfo, 
+  cloneRepository, 
+  getAnalyzableFiles, 
+  getFileContent,
+  type RepositoryInfo,
+  type CloneProgress 
+} from '@/lib/repository-cloner'
 
 // Enterprise Analysis Strategies
 interface AnalysisStrategy {
@@ -13,20 +21,20 @@ interface AnalysisStrategy {
 const ANALYSIS_STRATEGIES: Record<string, AnalysisStrategy> = {
   incremental: {
     name: 'Incremental Analysis',
-    description: 'Greptile-style: Only analyze changed files since last scan',
+    description: 'Fast analysis of critical files (auth, API, security)',
     estimatedTime: '30 seconds - 2 minutes',
     priority: 'high'
   },
   priority: {
     name: 'Priority Analysis',
-    description: 'SonarQube-style: Critical files first, stream results',
+    description: 'Comprehensive analysis with smart prioritization',
     estimatedTime: '2-5 minutes', 
     priority: 'critical'
   },
   full: {
     name: 'Full Analysis',
-    description: 'Complete analysis with background processing',
-    estimatedTime: '5-30 minutes',
+    description: 'Complete repository analysis with cloning',
+    estimatedTime: 'Based on repository size',
     priority: 'medium'
   }
 }
@@ -83,105 +91,79 @@ const getFilePriority = (filePath: string): number => {
   return 1
 }
 
-// Get changed files since last analysis (SIMPLE - no API needed)
-async function getChangedFiles(owner: string, repo: string): Promise<string[]> {
-  // For incremental analysis, we'll just return common files that usually change
-  // This is MUCH simpler than hitting GitHub API
-  return [
-    'src/index.ts',
-    'src/main.ts', 
-    'src/app.ts',
-    'index.js',
-    'main.js',
-    'app.js',
-    'README.md',
-    'package.json',
-    'src/components/App.tsx',
-    'src/pages/index.tsx'
-  ]
-}
-
-// Get repository files with priority sorting (SIMPLE - no GitHub API!)
-async function getRepositoryFiles(owner: string, repo: string, strategy: string) {
-  try {
-    // Instead of hitting GitHub API, we'll create a realistic file list
-    // This is MUCH simpler and works for any public repo
-    const commonFiles = [
-      // TypeScript/JavaScript files
-      { path: 'src/index.ts', size: 1500 },
-      { path: 'src/main.ts', size: 2000 },
-      { path: 'src/app.ts', size: 3000 },
-      { path: 'src/utils/helpers.ts', size: 1200 },
-      { path: 'src/components/App.tsx', size: 2500 },
-      { path: 'src/components/Header.tsx', size: 800 },
-      { path: 'src/pages/index.tsx', size: 1800 },
-      { path: 'src/pages/about.tsx', size: 900 },
-      { path: 'src/api/routes.ts', size: 2200 },
-      { path: 'src/api/auth.ts', size: 1600 },
-      { path: 'src/lib/database.ts', size: 1400 },
-      { path: 'src/lib/config.ts', size: 600 },
+// Get critical files for incremental analysis
+async function getCriticalFiles(allFiles: string[]): Promise<string[]> {
+  return allFiles.filter(file => {
+    const fileLower = file.toLowerCase()
+    return (
+      // Security & auth files
+      fileLower.includes('auth') ||
+      fileLower.includes('security') ||
+      fileLower.includes('login') ||
+      fileLower.includes('password') ||
       
-      // JavaScript files
-      { path: 'index.js', size: 1000 },
-      { path: 'main.js', size: 1500 },
-      { path: 'app.js', size: 2000 },
-      { path: 'utils/helpers.js', size: 800 },
-      { path: 'routes/api.js', size: 1200 },
-      { path: 'middleware/auth.js', size: 900 },
+      // API & routes
+      fileLower.includes('/api/') ||
+      fileLower.includes('/routes/') ||
+      fileLower.includes('/controllers/') ||
       
-      // Python files  
-      { path: 'main.py', size: 1800 },
-      { path: 'app.py', size: 2500 },
-      { path: 'utils/helpers.py', size: 1100 },
-      { path: 'models/user.py', size: 1300 },
-      { path: 'api/routes.py', size: 1600 },
-      
-      // Java files
-      { path: 'src/main/java/App.java', size: 2000 },
-      { path: 'src/main/java/Controller.java', size: 1500 },
-      { path: 'src/main/java/Service.java', size: 1800 },
+      // Main entry points
+      fileLower.includes('index') ||
+      fileLower.includes('main') ||
+      fileLower.includes('app') ||
       
       // Config files
-      { path: 'package.json', size: 500 },
-      { path: 'tsconfig.json', size: 300 },
-      { path: 'README.md', size: 1000 }
-    ]
+      fileLower.includes('config') ||
+      fileLower.endsWith('.env') ||
+      fileLower.includes('package.json')
+    )
+  }).slice(0, 100) // Limit to top 100 critical files
+}
+
+// Get repository files using cloning approach
+async function getRepositoryFiles(repoInfo: RepositoryInfo, strategy: string, clonePath: string) {
+  try {
+    console.log(`📁 Getting files from cloned repository: ${clonePath}`)
     
-    let files = [...commonFiles]
+    // Get all analyzable files from the cloned repository
+    const allFiles = await getAnalyzableFiles(clonePath)
+    console.log(`📊 Found ${allFiles.length} analyzable files`)
     
-    // Apply strategy-specific filtering and sorting (SIMPLE!)
+    let selectedFiles: string[] = []
+    
+    // Apply strategy-specific filtering
     switch (strategy) {
       case 'incremental':
-        // Just pick the most commonly changed files
-        files = files.filter(file => 
-          file.path.includes('src/') || 
-          file.path.includes('index') ||
-          file.path.includes('main') ||
-          file.path.includes('app')
-        ).slice(0, 10)
-        console.log(`🚀 INCREMENTAL: Analyzing ${files.length} common files`)
+        selectedFiles = await getCriticalFiles(allFiles)
+        console.log(`🚀 INCREMENTAL: Selected ${selectedFiles.length} critical files`)
         break
         
       case 'priority':
-        // Sort by priority (security and API files first)
-        files = files
-          .map((file: any) => ({
-            ...file,
-            priority: getFilePriority(file.path)
+        // Sort by priority and take top files
+        const prioritizedFiles = allFiles
+          .map(file => ({
+            path: file,
+            priority: getFilePriority(file)
           }))
-          .sort((a: any, b: any) => b.priority - a.priority)
-          .slice(0, 15) // Just 15 priority files
-        console.log(`🎯 PRIORITY: Analyzing top ${files.length} priority files`)
+          .sort((a, b) => b.priority - a.priority)
+          .slice(0, Math.min(200, allFiles.length)) // Top 200 or all files if less
+          .map(f => f.path)
+        
+        selectedFiles = prioritizedFiles
+        console.log(`🎯 PRIORITY: Selected ${selectedFiles.length} high-priority files`)
         break
         
       case 'full':
-        // For full analysis, take all files
-        files = files.slice(0, 25) // Keep it reasonable
-        console.log(`🏭 FULL: Analyzing ${files.length} files`)
+        // Analyze all files but with reasonable limits
+        selectedFiles = allFiles.slice(0, Math.min(1000, allFiles.length))
+        console.log(`🏭 FULL: Selected ${selectedFiles.length} files for comprehensive analysis`)
         break
+        
+      default:
+        selectedFiles = await getCriticalFiles(allFiles)
     }
     
-    return files
+    return selectedFiles.map(path => ({ path, size: 0 })) // Size not needed for cloned files
   } catch (error) {
     console.error('Failed to get repository files:', error)
     throw error
@@ -203,46 +185,61 @@ export async function POST(request: NextRequest) {
     const analysisId = uuidv4()
     
     // Get strategy configuration
-    console.log(`🔍 DEBUG: Received strategy: "${strategy}"`)
-    console.log(`🔍 DEBUG: Available strategies:`, Object.keys(ANALYSIS_STRATEGIES))
     const strategyConfig = ANALYSIS_STRATEGIES[strategy] || ANALYSIS_STRATEGIES.incremental
-    console.log(`🔍 DEBUG: Selected config:`, strategyConfig)
     
-    // Get files to analyze based on strategy
-    let files: any[] = []
     try {
-      files = await getRepositoryFiles(owner, repo, strategy)
+      // Get repository information first
+      const repoInfo = await getRepositoryInfo(owner, repo)
+      console.log(`📊 Repository: ${repoInfo.fullName} (${repoInfo.size}MB)`)
+      console.log(`⏱️ Estimated time: ${repoInfo.estimatedTime}`)
+      
+      // Update strategy with realistic time estimate
+      const updatedStrategy = {
+        ...strategyConfig,
+        estimatedTime: repoInfo.estimatedTime
+      }
+      
+      console.log(`🚀 ENTERPRISE ANALYSIS STARTED:`)
+      console.log(`   Repository: ${repoInfo.fullName}`)
+      console.log(`   Strategy: ${updatedStrategy.name}`)
+      console.log(`   Size: ${repoInfo.size}MB`)
+      console.log(`   Estimated time: ${repoInfo.estimatedTime}`)
+      console.log(`   Analysis ID: ${analysisId}`)
+      
+      // Create initial analysis status
+      createAnalysisStatus(analysisId, {
+        status: 'initializing',
+        strategy: updatedStrategy,
+        repository: repoInfo.fullName,
+        repositoryInfo: repoInfo,
+        totalFiles: 0, // Will be updated after cloning
+        filesAnalyzed: 0,
+        progress: 0,
+        startTime: Date.now(),
+        results: []
+      })
+      
+      // Start background processing with cloning
+      processAnalysisInBackground(analysisId, repoInfo, strategy)
+      
+      return NextResponse.json({
+        success: true,
+        analysisId,
+        strategy: updatedStrategy,
+        repositoryInfo: repoInfo,
+        message: `Analysis started for ${repoInfo.fullName} (${repoInfo.size}MB)`
+      })
+      
     } catch (repoError) {
       console.error('Repository access error:', repoError)
       return NextResponse.json(
         { 
           error: 'Failed to access repository', 
-          details: `Could not fetch files from ${owner}/${repo}. Please check repository exists and is public.`,
-          suggestion: 'Try a different repository or check your GitHub token.'
+          details: `Could not access ${owner}/${repo}. Please check repository exists and is public.`
         },
         { status: 400 }
       )
     }
-    
-    console.log(`🚀 ENTERPRISE ANALYSIS STARTED:`)
-    console.log(`   Repository: ${owner}/${repo}`)
-    console.log(`   Strategy: ${strategyConfig.name}`)
-    console.log(`   Files to analyze: ${files.length}`)
-    console.log(`   Analysis ID: ${analysisId}`)
-    
-    // Create analysis status entry
-    createAnalysisStatus(analysisId, files.length)
-    
-    // Start background processing (non-blocking)
-    processAnalysisInBackground(analysisId, owner, repo, files, strategy)
-    
-    return NextResponse.json({
-      analysisId,
-      strategy: strategyConfig,
-      filesCount: files.length,
-      estimatedTime: strategyConfig.estimatedTime,
-      message: `Analysis started with ${strategyConfig.name} strategy`
-    })
     
   } catch (error) {
     console.error('Enterprise analysis start error:', error)
@@ -253,12 +250,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Background processing function
+// Background processing function with repository cloning
 async function processAnalysisInBackground(
   analysisId: string,
-  owner: string,
-  repo: string,
-  files: any[],
+  repoInfo: RepositoryInfo,
   strategy: string
 ) {
   console.log(`🔄 Starting background analysis for ${analysisId}`)
@@ -351,8 +346,8 @@ async function processAnalysisInBackground(
   }
 }
 
-// Generate realistic issues for demo (SIMPLE!)
-function generateRealisticIssues(filePath: string) {
+// Generate realistic issues for demo with file content analysis
+function generateRealisticIssues(filePath: string, fileContent?: string) {
   const issues = []
   const fileName = filePath.toLowerCase()
   

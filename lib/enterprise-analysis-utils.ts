@@ -2,7 +2,7 @@
 // In-memory storage for demo (in production, use database)
 
 const analysisStatus = new Map<string, {
-  status: 'queued' | 'processing' | 'completed' | 'failed'
+  status: 'initializing' | 'cloning' | 'scanning' | 'analyzing' | 'completed' | 'failed'
   progress: number
   filesAnalyzed: number
   totalFiles: number
@@ -10,6 +10,9 @@ const analysisStatus = new Map<string, {
   results: any[]
   errors: string[]
   startTime: number
+  strategy?: any
+  repository?: string
+  repositoryInfo?: any
   estimatedCompletion?: number
 }>()
 
@@ -17,17 +20,20 @@ const analysisStatus = new Map<string, {
 export function updateAnalysisStatus(
   analysisId: string, 
   updates: Partial<{
-    status: 'queued' | 'processing' | 'completed' | 'failed'
+    status: 'initializing' | 'cloning' | 'scanning' | 'analyzing' | 'completed' | 'failed'
     progress: number
     filesAnalyzed: number
     totalFiles: number
     currentFile: string
     results: any[]
     errors: string[]
+    strategy?: any
+    repository?: string
+    repositoryInfo?: any
   }>
 ) {
   const current = analysisStatus.get(analysisId) || {
-    status: 'queued' as const,
+    status: 'initializing' as const,
     progress: 0,
     filesAnalyzed: 0,
     totalFiles: 0,
@@ -59,16 +65,19 @@ export function getAnalysisStatus(analysisId: string) {
 }
 
 // Helper function to create new analysis
-export function createAnalysisStatus(analysisId: string, totalFiles: number) {
+export function createAnalysisStatus(analysisId: string, initialData: any) {
   const status = {
-    status: 'queued' as const,
-    progress: 0,
-    filesAnalyzed: 0,
-    totalFiles,
-    currentFile: '',
-    results: [],
-    errors: [],
-    startTime: Date.now()
+    status: initialData.status || 'initializing' as const,
+    progress: initialData.progress || 0,
+    filesAnalyzed: initialData.filesAnalyzed || 0,
+    totalFiles: initialData.totalFiles || 0,
+    currentFile: initialData.currentFile || '',
+    results: initialData.results || [],
+    errors: initialData.errors || [],
+    startTime: initialData.startTime || Date.now(),
+    strategy: initialData.strategy,
+    repository: initialData.repository,
+    repositoryInfo: initialData.repositoryInfo
   }
   
   analysisStatus.set(analysisId, status)
