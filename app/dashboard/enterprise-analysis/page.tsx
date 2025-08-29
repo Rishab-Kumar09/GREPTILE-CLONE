@@ -163,33 +163,7 @@ export default function EnterpriseAnalysis() {
     }
   }
 
-  const handleStreamingUpdate = (update: StreamingUpdate) => {
-      try {
-        const update: StreamingUpdate = JSON.parse(event.data)
-        handleStreamingUpdate(update)
-      } catch (error) {
-        console.error('Failed to parse SSE message:', error)
-      }
-    }
-    
-    eventSourceRef.current.onerror = (error) => {
-      console.error('🚨 SSE error:', error)
-      setConnectionStatus('disconnected')
-      
-      // Close the connection to prevent infinite retries
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-      }
-      
-      // Auto-reconnect after 5 seconds if still analyzing
-      setTimeout(() => {
-        if (isAnalyzing && !eventSourceRef.current) {
-          console.log('🔄 Attempting SSE reconnection...')
-          connectPolling(analysisId)
-        }
-      }, 5000)
-    }
-  }
+
 
   // Handle real-time streaming updates
   const handleStreamingUpdate = (update: StreamingUpdate) => {
