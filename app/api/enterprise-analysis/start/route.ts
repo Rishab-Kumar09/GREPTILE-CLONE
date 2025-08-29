@@ -355,9 +355,7 @@ async function processAnalysisInBackground(
             if (issues.length > 0) {
               batchResults.push({
                 file: file.path,
-                bugs: issues.filter(i => i.type === 'bug'),
-                securityIssues: issues.filter(i => i.type === 'security'), 
-                codeSmells: issues.filter(i => i.type === 'smell')
+                issues: issues // UI expects a single 'issues' array
               })
             }
             
