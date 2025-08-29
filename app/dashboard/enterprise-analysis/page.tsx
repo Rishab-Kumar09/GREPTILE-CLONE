@@ -64,8 +64,8 @@ export default function EnterpriseAnalysis() {
   const [totalIssues, setTotalIssues] = useState(0)
   const [analysisStrategy, setAnalysisStrategy] = useState('')
   
-  // Server-Sent Events for real-time updates
-  const eventSourceRef = useRef<EventSource | null>(null)
+  // Polling for real-time updates (better for serverless)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
 
   // Competitor-inspired analysis strategies
@@ -93,21 +93,77 @@ export default function EnterpriseAnalysis() {
     }
   }
 
-  // Initialize Server-Sent Events connection
-  const connectSSE = (analysisId: string) => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close()
+  // Initialize polling connection  
+  const connectPolling = (analysisId: string) => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
     }
 
     setConnectionStatus('connecting')
-    eventSourceRef.current = new EventSource(`/api/enterprise-analysis/stream/${analysisId}`)
     
-    eventSourceRef.current.onopen = () => {
-      setConnectionStatus('connected')
-      console.log('🔌 SSE connected for real-time updates')
+    // Start polling for updates
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/enterprise-analysis/status/${analysisId}`)
+        if (response.ok) {
+          const status = await response.json()
+          handlePollingUpdate(status)
+          if (!connectionStatus || connectionStatus === 'connecting') {
+            setConnectionStatus('connected')
+            console.log('🔄 Polling connected for real-time updates')
+          }
+        }
+      } catch (error) {
+        console.error('Polling error:', error)
+        setConnectionStatus('disconnected')
+      }
+    }, 2000) // Poll every 2 seconds
+  }
+
+  // Handle polling updates (replaces SSE message handler)
+  const handlePollingUpdate = (status: any) => {
+    try {
+      // Update progress
+      setProgress(status.progress || 0)
+      setFilesAnalyzed(status.filesAnalyzed || 0)
+      setTotalFiles(status.totalFiles || 0)
+      setCurrentFile(status.currentFile || '')
+      
+      // Update stage based on status
+      if (status.status === 'cloning') {
+        setCurrentStage('downloading')
+      } else if (status.status === 'scanning') {
+        setCurrentStage('extracting')  
+      } else if (status.status === 'analyzing') {
+        setCurrentStage('analyzing')
+      } else if (status.status === 'completed') {
+        setCurrentStage('complete')
+        setIsAnalyzing(false)
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current)
+        }
+      } else if (status.status === 'failed') {
+        setIsAnalyzing(false)
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current)
+        }
+      }
+      
+      // Update results if available
+      if (status.results && status.results.length > 0) {
+        setResults(status.results)
+        const totalIssues = status.results.reduce((sum: number, result: any) => 
+          sum + (result.issues?.length || 0), 0)
+        setTotalIssues(totalIssues)
+        setCriticalIssues(status.results.reduce((sum: number, result: any) => 
+          sum + (result.issues?.filter((issue: any) => issue.severity === 'high').length || 0), 0))
+      }
+    } catch (error) {
+      console.error('Failed to process polling update:', error)
     }
-    
-    eventSourceRef.current.onmessage = (event) => {
+  }
+
+  const handleStreamingUpdate = (update: StreamingUpdate) => {
       try {
         const update: StreamingUpdate = JSON.parse(event.data)
         handleStreamingUpdate(update)
@@ -129,7 +185,7 @@ export default function EnterpriseAnalysis() {
       setTimeout(() => {
         if (isAnalyzing && !eventSourceRef.current) {
           console.log('🔄 Attempting SSE reconnection...')
-          connectSSE(analysisId)
+          connectPolling(analysisId)
         }
       }, 5000)
     }
@@ -226,7 +282,7 @@ export default function EnterpriseAnalysis() {
       setAnalysisStrategy(strategy?.description || 'Analysis started')
       
       // Connect Server-Sent Events for real-time updates
-      connectSSE(analysisId)
+      connectPolling(analysisId)
       
       // Fallback polling in case SSE fails
       const pollInterval = setInterval(async () => {
@@ -264,11 +320,11 @@ export default function EnterpriseAnalysis() {
     }
   }
 
-  // Cleanup EventSource on unmount
+  // Cleanup polling on unmount
   useEffect(() => {
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
       }
     }
   }, [])
