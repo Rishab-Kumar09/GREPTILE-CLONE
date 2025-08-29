@@ -73,34 +73,18 @@ async function checkDatabaseHealth(): Promise<{ available: boolean; error?: stri
       }
     }
     
-    // Test actual database connectivity
+    // Test actual database connectivity using Prisma directly
     try {
-      // Simple database connectivity test using a basic API call
-      const testResponse = await fetch('/api/repositories', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      })
+      const { PrismaClient } = require('@prisma/client')
+      const prisma = new PrismaClient()
       
-      if (testResponse.ok) {
-        return { 
-          available: true,
-          responseTime: Date.now() - startTime
-        }
-      } else if (testResponse.status === 401 || testResponse.status === 403) {
-        // Auth error means DB is reachable but no user session
-        return { 
-          available: true,
-          error: 'Database reachable (auth required for full test)',
-          responseTime: Date.now() - startTime
-        }
-      } else {
-        return { 
-          available: false,
-          error: `Database API returned ${testResponse.status}`,
-          responseTime: Date.now() - startTime
-        }
+      // Simple connectivity test
+      await prisma.$queryRaw`SELECT 1`
+      await prisma.$disconnect()
+      
+      return { 
+        available: true,
+        responseTime: Date.now() - startTime
       }
     } catch (dbError) {
       return { 

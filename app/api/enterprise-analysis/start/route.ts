@@ -266,6 +266,8 @@ async function processAnalysisInBackground(
   strategy: string
 ) {
   console.log(`🔄 Starting background analysis for ${analysisId}`)
+  console.log(`📊 Repository info:`, repoInfo)
+  console.log(`🎯 Strategy: ${strategy}`)
   
   let clonePath = ''
   
@@ -282,13 +284,21 @@ async function processAnalysisInBackground(
       currentFile: `Cloning ${repoInfo.fullName}...`
     })
     
-    clonePath = await cloneRepository(repoInfo, (progress) => {
-      updateAnalysisStatus(analysisId, {
-        status: 'cloning',
-        progress: 5 + (progress.progress * 0.15), // 5-20% for cloning
-        currentFile: progress.message
+    console.log(`📥 Starting repository clone...`)
+    try {
+      clonePath = await cloneRepository(repoInfo, (progress) => {
+        console.log(`📊 Clone progress: ${progress.progress}% - ${progress.message}`)
+        updateAnalysisStatus(analysisId, {
+          status: 'cloning',
+          progress: 5 + (progress.progress * 0.15), // 5-20% for cloning
+          currentFile: progress.message
+        })
       })
-    })
+      console.log(`✅ Repository cloned successfully to: ${clonePath}`)
+    } catch (cloneError) {
+      console.error(`❌ Clone failed:`, cloneError)
+      throw cloneError
+    }
     
     console.log(`✅ Repository cloned to: ${clonePath}`)
     

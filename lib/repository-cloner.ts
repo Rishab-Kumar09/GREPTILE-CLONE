@@ -3,8 +3,7 @@ import path from 'path'
 import { createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
-import { createReadStream } from 'fs'
-import { Extract } from 'unzipper'
+const StreamZip = require('node-stream-zip')
 
 export interface RepositoryInfo {
   owner: string
@@ -37,16 +36,30 @@ const CLEANUP_AFTER_HOURS = 24 // Clean up cloned repos after 24 hours
  * Get repository information from GitHub API
  */
 export async function getRepositoryInfo(owner: string, repo: string): Promise<RepositoryInfo> {
+  console.log(`🔍 STEP 1A: Getting repository info for ${owner}/${repo}`)
+  
   try {
+    console.log(`🌐 Making API call to: https://api.github.com/repos/${owner}/${repo}`)
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`)
+    console.log(`📡 API Response status: ${response.status} ${response.statusText}`)
+    
     if (!response.ok) {
+      console.error(`❌ API call failed: ${response.status} ${response.statusText}`)
       throw new Error(`Repository not found: ${owner}/${repo}`)
     }
     
+    console.log(`📦 Parsing response JSON...`)
     const repoData = await response.json()
     const sizeMB = repoData.size / 1024 // GitHub returns size in KB
     
-    return {
+    console.log(`📊 Repository data:`, {
+      name: repoData.full_name,
+      size: `${sizeMB.toFixed(2)}MB`,
+      language: repoData.language,
+      private: repoData.private
+    })
+    
+    const repoInfo = {
       owner,
       repo,
       fullName: `${owner}/${repo}`,
@@ -54,7 +67,11 @@ export async function getRepositoryInfo(owner: string, repo: string): Promise<Re
       size: sizeMB,
       estimatedTime: getEstimatedAnalysisTime(sizeMB, repoData.language)
     }
+    
+    console.log(`✅ STEP 1A COMPLETE: Repository info gathered`, repoInfo)
+    return repoInfo
   } catch (error) {
+    console.error(`❌ STEP 1A FAILED: Error getting repository info:`, error)
     throw new Error(`Failed to get repository info: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
@@ -95,14 +112,21 @@ export async function cloneRepository(
 ): Promise<string> {
   const { owner, repo, clonePath, size } = repoInfo
   
+  console.log(`🔍 STEP 1B: Starting repository clone for ${owner}/${repo}`)
+  console.log(`📊 Repository size: ${size}MB (limit: ${MAX_REPO_SIZE_MB}MB)`)
+  console.log(`📁 Target path: ${clonePath}`)
+  
   // Check size limits (more generous for archive downloads)
   if (size > MAX_REPO_SIZE_MB) {
+    console.error(`❌ Repository too large: ${size}MB > ${MAX_REPO_SIZE_MB}MB`)
     throw new Error(`Repository too large (${size}MB). Maximum allowed: ${MAX_REPO_SIZE_MB}MB`)
   }
   
   try {
+    console.log(`🔍 STEP 1B-1: Creating storage directory...`)
     // Create storage directory
     await fs.mkdir(path.dirname(clonePath), { recursive: true })
+    console.log(`✅ Storage directory created: ${path.dirname(clonePath)}`)
     
     progressCallback?.({
       stage: 'initializing',
@@ -110,9 +134,11 @@ export async function cloneRepository(
       message: 'Preparing to download repository...'
     })
     
+    console.log(`🔍 STEP 1B-2: Checking for existing repository...`)
     // Check if already downloaded and recent
     const existingRepo = await checkExistingRepository(clonePath)
     if (existingRepo) {
+      console.log(`♻️ Using existing repository at: ${clonePath}`)
       progressCallback?.({
         stage: 'complete',
         progress: 100,
@@ -120,19 +146,26 @@ export async function cloneRepository(
       })
       return clonePath
     }
+    console.log(`📝 No existing repository found, proceeding with download`)
     
+    console.log(`🔍 STEP 1B-3: Cleaning up any existing directory...`)
     // Clean up any existing directory
     try {
       await fs.rm(clonePath, { recursive: true, force: true })
+      console.log(`✅ Existing directory cleaned up`)
     } catch (error) {
-      // Directory doesn't exist, that's fine
+      console.log(`📝 No existing directory to clean up (this is normal)`)
     }
     
+    console.log(`🔍 STEP 1B-4: Starting archive download...`)
     // Download repository archive
     const archivePath = await downloadRepositoryArchive(owner, repo, clonePath, progressCallback)
+    console.log(`✅ Archive downloaded successfully: ${archivePath}`)
     
+    console.log(`🔍 STEP 1B-5: Starting archive extraction...`)
     // Extract archive
     await extractRepositoryArchive(archivePath, clonePath, progressCallback)
+    console.log(`✅ Archive extracted successfully to: ${clonePath}`)
     
     // Clean up archive file
     await fs.unlink(archivePath)
@@ -175,7 +208,9 @@ async function downloadRepositoryArchive(
   const archiveUrl = `https://api.github.com/repos/${owner}/${repo}/zipball`
   const archivePath = path.join(basePath, `${repo}.zip`)
   
-  console.log(`📥 Downloading repository archive from: ${archiveUrl}`)
+  console.log(`🔍 STEP 1B-4A: Preparing archive download`)
+  console.log(`🌐 Archive URL: ${archiveUrl}`)
+  console.log(`📁 Archive path: ${archivePath}`)
   
   progressCallback?.({
     stage: 'downloading',
@@ -256,20 +291,89 @@ async function extractRepositoryArchive(
   try {
     await fs.mkdir(extractPath, { recursive: true })
     
-    // Use pure JavaScript ZIP extraction with unzipper library
-    console.log(`📦 Extracting ZIP archive using unzipper...`)
+    // Use node-stream-zip for reliable large file extraction
+    console.log(`🔍 STEP 1B-5A: Starting node-stream-zip extraction`)
+    console.log(`📦 Archive path: ${archivePath}`)
+    console.log(`📁 Extract path: ${extractPath}`)
     
-    await new Promise<void>((resolve, reject) => {
-      createReadStream(archivePath)
-        .pipe(Extract({ path: extractPath }))
-        .on('close', () => {
-          console.log(`✅ Successfully extracted archive`)
-          resolve()
-        })
-        .on('error', (error: Error) => {
-          reject(new Error(`Failed to extract ZIP: ${error.message}`))
-        })
-    })
+    try {
+      console.log(`🔍 STEP 1B-5A-1: Opening ZIP file with node-stream-zip...`)
+      const zip = new StreamZip.async({ file: archivePath })
+      
+      console.log(`✅ ZIP file opened successfully`)
+      console.log(`🔍 STEP 1B-5A-2: Getting entries...`)
+      const entries = await zip.entries()
+      const entryNames = Object.keys(entries)
+      const totalEntries = entryNames.length
+      let extractedCount = 0
+      
+      console.log(`📦 Found ${totalEntries} files in archive`)
+      
+      // Find the root directory (GitHub creates a directory with commit hash)
+      let rootDir = ''
+      if (totalEntries > 0) {
+        const firstEntry = entryNames[0]
+        const pathParts = firstEntry.split('/')
+        if (pathParts.length > 1) {
+          rootDir = pathParts[0] + '/'
+        }
+      }
+      console.log(`📁 Root directory: ${rootDir || 'none'}`)
+      
+      // Extract all files
+      for (const entryName of entryNames) {
+        const entry = entries[entryName]
+        
+        // Skip the root directory itself and calculate relative path
+        let relativePath = entryName
+        if (rootDir && entryName.startsWith(rootDir)) {
+          relativePath = entryName.substring(rootDir.length)
+        }
+        
+        // Skip empty paths (root directory)
+        if (!relativePath) {
+          extractedCount++
+          continue
+        }
+        
+        const outputPath = path.join(extractPath, relativePath)
+        
+        if (entry.isDirectory) {
+          // Create directory
+          await fs.mkdir(outputPath, { recursive: true })
+        } else {
+          // Extract file
+          const dir = path.dirname(outputPath)
+          await fs.mkdir(dir, { recursive: true })
+          
+          // Extract file content
+          const data = await zip.entryData(entryName)
+          await fs.writeFile(outputPath, data)
+        }
+        
+        extractedCount++
+        
+        // Update progress every 100 files
+        if (extractedCount % 100 === 0 || extractedCount === totalEntries) {
+          const progress = 85 + Math.round((extractedCount / totalEntries) * 10) // 85-95%
+          console.log(`📊 Extraction progress: ${extractedCount}/${totalEntries} (${progress}%)`)
+          progressCallback?.({
+            stage: 'extracting',
+            progress,
+            message: `Extracted ${extractedCount} / ${totalEntries} files`,
+            extractedFiles: extractedCount,
+            totalFiles: totalEntries
+          })
+        }
+      }
+      
+      await zip.close()
+      console.log(`✅ Successfully extracted ${extractedCount} files`)
+      
+    } catch (zipError) {
+      console.error(`❌ ZIP extraction failed:`, zipError)
+      throw new Error(`Failed to extract ZIP: ${zipError instanceof Error ? zipError.message : 'Unknown error'}`)
+    }
     
     // Find and flatten the GitHub root directory structure
     const entries = await fs.readdir(extractPath, { withFileTypes: true })
