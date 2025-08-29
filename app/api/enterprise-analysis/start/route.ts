@@ -33,8 +33,8 @@ const ANALYSIS_STRATEGIES: Record<string, AnalysisStrategy> = {
   },
   full: {
     name: 'Full Analysis',
-    description: 'Complete repository analysis with cloning',
-    estimatedTime: 'Based on repository size',
+    description: 'Comprehensive analysis of up to 300 files',
+    estimatedTime: '3-8 minutes',
     priority: 'medium'
   }
 }
@@ -154,8 +154,8 @@ async function getRepositoryFiles(repoInfo: RepositoryInfo, strategy: string, cl
         break
         
       case 'full':
-        // Analyze all files but with reasonable limits
-        selectedFiles = allFiles.slice(0, Math.min(1000, allFiles.length))
+        // Analyze all files but with reasonable limits for production
+        selectedFiles = allFiles.slice(0, Math.min(300, allFiles.length))
         console.log(`🏭 FULL: Selected ${selectedFiles.length} files for comprehensive analysis`)
         break
         
@@ -312,7 +312,7 @@ async function processAnalysisInBackground(
     
     // Step 3: Analyze files in batches
     console.log(`🔍 STEP 3: Analyzing ${totalFiles} files`)
-    const batchSize = strategy === 'incremental' ? 10 : (strategy === 'priority' ? 8 : 5)
+    const batchSize = strategy === 'incremental' ? 10 : (strategy === 'priority' ? 8 : 7)
     
     for (let i = 0; i < repositoryFiles.length; i += batchSize) {
       const batch = repositoryFiles.slice(i, i + batchSize)
