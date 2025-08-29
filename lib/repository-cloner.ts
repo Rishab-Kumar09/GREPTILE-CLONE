@@ -3,8 +3,7 @@ import path from 'path'
 import { createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
-// Using yauzl for ZIP extraction (lightweight, no dependencies)
-// Note: We'll implement a simple ZIP extractor using Node.js built-ins
+import StreamZip from 'node-stream-zip'
 
 export interface RepositoryInfo {
   owner: string
@@ -238,7 +237,7 @@ async function downloadRepositoryArchive(
 }
 
 /**
- * Extract repository archive with progress tracking
+ * Extract repository archive with progress tracking using pure JavaScript
  */
 async function extractRepositoryArchive(
   archivePath: string, 
@@ -253,54 +252,78 @@ async function extractRepositoryArchive(
     message: 'Extracting repository files...'
   })
   
-  // For simplicity, we'll use a basic ZIP extraction approach
-  // In production, you might want to use a proper ZIP library like 'yauzl' or 'node-stream-zip'
-  // For now, we'll implement a basic extraction using Node.js built-ins
-  
   try {
-    // Create a simple ZIP extractor using child_process as fallback
-    // This is a temporary solution - in production you'd use a proper ZIP library
-    const { exec } = require('child_process')
-    const { promisify } = require('util')
-    const execAsync = promisify(exec)
-    
     await fs.mkdir(extractPath, { recursive: true })
     
-    // Try to use system unzip command (works on most systems)
-    try {
-      await execAsync(`unzip -q "${archivePath}" -d "${extractPath}"`)
-    } catch (error) {
-      // Fallback: try PowerShell on Windows
-      try {
-        await execAsync(`powershell -command "Expand-Archive -Path '${archivePath}' -DestinationPath '${extractPath}' -Force"`)
-      } catch (psError) {
-        throw new Error('ZIP extraction failed. Please ensure unzip or PowerShell is available.')
+    // Use pure JavaScript ZIP extraction (works on any serverless platform)
+    const zip = new StreamZip.async({ file: archivePath })
+    
+    // Get entries count for progress tracking
+    const entries = await zip.entries()
+    const entryNames = Object.keys(entries)
+    const totalEntries = entryNames.length
+    let extractedCount = 0
+    
+    console.log(`📦 Found ${totalEntries} files in archive`)
+    
+    // Find the root directory (GitHub creates a directory with commit hash)
+    let rootDir = ''
+    if (totalEntries > 0) {
+      const firstEntry = entryNames[0]
+      const pathParts = firstEntry.split('/')
+      if (pathParts.length > 1) {
+        rootDir = pathParts[0] + '/'
       }
     }
     
-    // Find the extracted directory (GitHub creates a directory with commit hash)
-    const entries = await fs.readdir(extractPath, { withFileTypes: true })
-    const extractedDir = entries.find(entry => entry.isDirectory())
-    
-    if (extractedDir) {
-      // Move contents from subdirectory to main directory
-      const subDirPath = path.join(extractPath, extractedDir.name)
-      const tempPath = path.join(extractPath, 'temp_extracted')
+    // Extract all files
+    for (const entryName of entryNames) {
+      const entry = entries[entryName]
       
-      // Move subdirectory to temp location
-      await fs.rename(subDirPath, tempPath)
-      
-      // Move contents from temp to main directory
-      const subEntries = await fs.readdir(tempPath, { withFileTypes: true })
-      for (const entry of subEntries) {
-        const srcPath = path.join(tempPath, entry.name)
-        const destPath = path.join(extractPath, entry.name)
-        await fs.rename(srcPath, destPath)
+      // Skip the root directory itself and calculate relative path
+      let relativePath = entryName
+      if (rootDir && entryName.startsWith(rootDir)) {
+        relativePath = entryName.substring(rootDir.length)
       }
       
-      // Remove temp directory
-      await fs.rmdir(tempPath)
+      // Skip empty paths (root directory)
+      if (!relativePath) {
+        extractedCount++
+        continue
+      }
+      
+      const outputPath = path.join(extractPath, relativePath)
+      
+      if (entry.isDirectory) {
+        // Create directory
+        await fs.mkdir(outputPath, { recursive: true })
+      } else {
+        // Extract file
+        const dir = path.dirname(outputPath)
+        await fs.mkdir(dir, { recursive: true })
+        
+        // Extract file content
+        const data = await zip.entryData(entryName)
+        await fs.writeFile(outputPath, data)
+      }
+      
+      extractedCount++
+      
+      // Update progress every 50 files
+      if (extractedCount % 50 === 0 || extractedCount === totalEntries) {
+        const progress = 85 + Math.round((extractedCount / totalEntries) * 10) // 85-95%
+        progressCallback?.({
+          stage: 'extracting',
+          progress,
+          message: `Extracted ${extractedCount} / ${totalEntries} files`,
+          extractedFiles: extractedCount,
+          totalFiles: totalEntries
+        })
+      }
     }
+    
+    // Close the ZIP file
+    await zip.close()
     
     progressCallback?.({
       stage: 'extracting',
@@ -308,7 +331,7 @@ async function extractRepositoryArchive(
       message: 'Extraction complete, optimizing...'
     })
     
-    console.log(`✅ Successfully extracted repository to ${extractPath}`)
+    console.log(`✅ Successfully extracted ${extractedCount} files to ${extractPath}`)
     
   } catch (error) {
     throw new Error(`Failed to extract archive: ${error instanceof Error ? error.message : 'Unknown error'}`)
