@@ -8,6 +8,14 @@ interface AnalysisProgressModalProps {
   repositoryName: string
   progress: {
     percentage: number
+    stage?: 'initializing' | 'downloading' | 'extracting' | 'analyzing' | 'complete'
+    message?: string
+    downloadSpeed?: string
+    eta?: string
+    downloadedBytes?: number
+    totalBytes?: number
+    extractedFiles?: number
+    totalFiles?: number
   }
   isComplete: boolean
   hasError: boolean
@@ -41,7 +49,7 @@ export default function AnalysisProgressModal({
     return 'bg-green-500' // Green throughout the process, just like YouTube, Netflix, etc.
   }
 
-  // Determine status text
+  // Determine status text based on stage
   const getStatusText = () => {
     if (hasError) return 'Analysis failed'
     if (isComplete) {
@@ -50,7 +58,38 @@ export default function AnalysisProgressModal({
       }
       return 'Analysis complete!'
     }
-    return 'Analyzing repository...'
+    
+    // Show stage-specific status
+    switch (progress.stage) {
+      case 'initializing':
+        return 'Preparing analysis...'
+      case 'downloading':
+        return 'Downloading repository...'
+      case 'extracting':
+        return 'Extracting files...'
+      case 'analyzing':
+        return 'Analyzing code...'
+      default:
+        return 'Processing repository...'
+    }
+  }
+
+  // Get stage icon
+  const getStageIcon = () => {
+    switch (progress.stage) {
+      case 'initializing':
+        return '🚀'
+      case 'downloading':
+        return '📥'
+      case 'extracting':
+        return '📂'
+      case 'analyzing':
+        return '🔍'
+      case 'complete':
+        return '✅'
+      default:
+        return '⚡'
+    }
   }
 
   return (
@@ -58,10 +97,15 @@ export default function AnalysisProgressModal({
       <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {getStatusText()}
-          </h3>
-          <p className="text-gray-500 text-sm mt-1 truncate">{repositoryName}</p>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{getStageIcon()}</span>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {getStatusText()}
+              </h3>
+              <p className="text-gray-500 text-sm mt-1 truncate">{repositoryName}</p>
+            </div>
+          </div>
         </div>
 
         {/* Progress Content */}
@@ -71,6 +115,15 @@ export default function AnalysisProgressModal({
             <span className="text-2xl font-bold text-gray-900">
               {progress.percentage}%
             </span>
+            {/* Stage-specific details */}
+            {progress.message && (
+              <p className="text-sm text-gray-600 mt-1">{progress.message}</p>
+            )}
+            {progress.downloadSpeed && progress.eta && (
+              <p className="text-xs text-gray-500 mt-1">
+                {progress.downloadSpeed} • ETA: {progress.eta}
+              </p>
+            )}
           </div>
           
           {/* Progress Bar */}

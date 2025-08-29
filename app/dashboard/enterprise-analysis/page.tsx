@@ -54,6 +54,9 @@ export default function EnterpriseAnalysis() {
   const [filesAnalyzed, setFilesAnalyzed] = useState(0)
   const [totalFiles, setTotalFiles] = useState(0)
   const [estimatedTime, setEstimatedTime] = useState('')
+  const [currentStage, setCurrentStage] = useState<'initializing' | 'downloading' | 'extracting' | 'analyzing' | 'complete'>('initializing')
+  const [downloadSpeed, setDownloadSpeed] = useState('')
+  const [eta, setEta] = useState('')
   
   // Results streaming
   const [results, setResults] = useState<AnalysisResult[]>([])
@@ -141,6 +144,17 @@ export default function EnterpriseAnalysis() {
         setFilesAnalyzed(update.data.filesAnalyzed)
         setTotalFiles(update.data.totalFiles)
         setEstimatedTime(update.data.estimatedTime)
+        
+        // Handle new stage-specific progress
+        if (update.data.stage) {
+          setCurrentStage(update.data.stage)
+        }
+        if (update.data.downloadSpeed) {
+          setDownloadSpeed(update.data.downloadSpeed)
+        }
+        if (update.data.eta) {
+          setEta(update.data.eta)
+        }
         break
         
       case 'result':
@@ -354,12 +368,32 @@ export default function EnterpriseAnalysis() {
           <div className="px-6 py-4 space-y-4">
             <div>
               <div className="flex justify-between text-sm mb-2">
-                <span>Progress: {filesAnalyzed} / {totalFiles} files</span>
+                <span>
+                  {currentStage === 'downloading' && '📥 Downloading repository...'}
+                  {currentStage === 'extracting' && '📂 Extracting files...'}
+                  {currentStage === 'analyzing' && `🔍 Analyzing: ${filesAnalyzed} / ${totalFiles} files`}
+                  {currentStage === 'initializing' && '🚀 Preparing analysis...'}
+                  {currentStage === 'complete' && '✅ Analysis complete!'}
+                </span>
                 <span>{Math.round(progress)}%</span>
               </div>
+              
+              {/* Stage-specific details */}
+              {currentStage === 'downloading' && downloadSpeed && eta && (
+                <div className="text-xs text-gray-600 mb-2">
+                  {downloadSpeed} • ETA: {eta}
+                </div>
+              )}
+              
+              {currentStage === 'analyzing' && currentFile && (
+                <div className="text-xs text-gray-600 mb-2 truncate">
+                  Current: {currentFile}
+                </div>
+              )}
+              
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div 
-                  className="bg-blue-600 h-3 rounded-full transition-all duration-300" 
+                  className="bg-green-600 h-3 rounded-full transition-all duration-300" 
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
