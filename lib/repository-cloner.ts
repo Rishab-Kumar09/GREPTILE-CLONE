@@ -3,7 +3,8 @@ import path from 'path'
 import { createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
-const StreamZip = require('node-stream-zip')
+import { createReadStream } from 'fs'
+import { Extract } from 'unzipper'
 
 export interface RepositoryInfo {
   owner: string
@@ -255,75 +256,53 @@ async function extractRepositoryArchive(
   try {
     await fs.mkdir(extractPath, { recursive: true })
     
-    // Use pure JavaScript ZIP extraction (works on any serverless platform)
-    const zip = new StreamZip.async({ file: archivePath })
+    // Use pure JavaScript ZIP extraction with unzipper library
+    console.log(`📦 Extracting ZIP archive using unzipper...`)
     
-    // Get entries count for progress tracking
-    const entries = await zip.entries()
-    const entryNames = Object.keys(entries)
-    const totalEntries = entryNames.length
-    let extractedCount = 0
-    
-    console.log(`📦 Found ${totalEntries} files in archive`)
-    
-    // Find the root directory (GitHub creates a directory with commit hash)
-    let rootDir = ''
-    if (totalEntries > 0) {
-      const firstEntry = entryNames[0]
-      const pathParts = firstEntry.split('/')
-      if (pathParts.length > 1) {
-        rootDir = pathParts[0] + '/'
-      }
-    }
-    
-    // Extract all files
-    for (const entryName of entryNames) {
-      const entry = entries[entryName]
-      
-      // Skip the root directory itself and calculate relative path
-      let relativePath = entryName
-      if (rootDir && entryName.startsWith(rootDir)) {
-        relativePath = entryName.substring(rootDir.length)
-      }
-      
-      // Skip empty paths (root directory)
-      if (!relativePath) {
-        extractedCount++
-        continue
-      }
-      
-      const outputPath = path.join(extractPath, relativePath)
-      
-      if (entry.isDirectory) {
-        // Create directory
-        await fs.mkdir(outputPath, { recursive: true })
-      } else {
-        // Extract file
-        const dir = path.dirname(outputPath)
-        await fs.mkdir(dir, { recursive: true })
-        
-        // Extract file content
-        const data = await zip.entryData(entryName)
-        await fs.writeFile(outputPath, data)
-      }
-      
-      extractedCount++
-      
-      // Update progress every 50 files
-      if (extractedCount % 50 === 0 || extractedCount === totalEntries) {
-        const progress = 85 + Math.round((extractedCount / totalEntries) * 10) // 85-95%
-        progressCallback?.({
-          stage: 'extracting',
-          progress,
-          message: `Extracted ${extractedCount} / ${totalEntries} files`,
-          extractedFiles: extractedCount,
-          totalFiles: totalEntries
+    await new Promise<void>((resolve, reject) => {
+      createReadStream(archivePath)
+        .pipe(Extract({ path: extractPath }))
+        .on('close', () => {
+          console.log(`✅ Successfully extracted archive`)
+          resolve()
         })
+        .on('error', (error: Error) => {
+          reject(new Error(`Failed to extract ZIP: ${error.message}`))
+        })
+    })
+    
+    // Find and flatten the GitHub root directory structure
+    const entries = await fs.readdir(extractPath, { withFileTypes: true })
+    const rootDirs = entries.filter(entry => entry.isDirectory())
+    
+    if (rootDirs.length === 1) {
+      // GitHub creates a single root directory with commit hash
+      const rootDir = rootDirs[0]
+      const rootPath = path.join(extractPath, rootDir.name)
+      
+      console.log(`📁 Flattening GitHub root directory: ${rootDir.name}`)
+      
+      // Move all contents from root directory to extract path
+      const rootContents = await fs.readdir(rootPath, { withFileTypes: true })
+      
+      for (const item of rootContents) {
+        const sourcePath = path.join(rootPath, item.name)
+        const targetPath = path.join(extractPath, item.name)
+        
+        try {
+          await fs.rename(sourcePath, targetPath)
+        } catch (renameError) {
+          console.warn(`⚠️ Failed to move ${item.name}:`, renameError)
+        }
+      }
+      
+      // Remove the now-empty root directory
+      try {
+        await fs.rmdir(rootPath)
+      } catch (rmdirError) {
+        console.warn(`⚠️ Failed to remove root directory:`, rmdirError)
       }
     }
-    
-    // Close the ZIP file
-    await zip.close()
     
     progressCallback?.({
       stage: 'extracting',
@@ -331,7 +310,7 @@ async function extractRepositoryArchive(
       message: 'Extraction complete, optimizing...'
     })
     
-    console.log(`✅ Successfully extracted ${extractedCount} files to ${extractPath}`)
+    console.log(`✅ Successfully extracted and flattened repository structure`)
     
   } catch (error) {
     throw new Error(`Failed to extract archive: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -513,9 +492,14 @@ export async function getFileContent(clonePath: string, relativePath: string): P
   const fullPath = path.join(clonePath, relativePath)
   
   try {
+    // Check if file exists first
+    await fs.access(fullPath)
     const content = await fs.readFile(fullPath, 'utf8')
     return content
   } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      throw new Error(`File not found: ${relativePath}`)
+    }
     throw new Error(`Failed to read file ${relativePath}: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }

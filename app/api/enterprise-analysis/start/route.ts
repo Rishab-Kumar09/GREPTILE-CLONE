@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs/promises'
+import path from 'path'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 import { 
   getRepositoryInfo, 
@@ -220,13 +222,14 @@ export async function POST(request: NextRequest) {
       })
       
       // Start background processing with cloning
-      processAnalysisInBackground(analysisId, repoInfo, strategy).catch(error => {
-        console.error(`❌ Background processing failed for ${analysisId}:`, error)
-        updateAnalysisStatus(analysisId, {
-          status: 'failed',
-          errors: [error.message || 'Unknown error in background processing']
-        })
+          processAnalysisInBackground(analysisId, repoInfo, strategy).catch(error => {
+      console.error(`❌ Background processing failed for ${analysisId}:`, error)
+      console.error('Full error stack:', error.stack)
+      updateAnalysisStatus(analysisId, {
+        status: 'failed',
+        errors: [error.message || 'Unknown error in background processing']
       })
+    })
       
       return NextResponse.json({
         success: true,
@@ -324,6 +327,15 @@ async function processAnalysisInBackground(
         const batchResults = []
         for (const file of batch) {
           try {
+            // Validate file exists before trying to read it
+            const fullPath = path.join(clonePath, file.path)
+            try {
+              await fs.access(fullPath)
+            } catch (accessError) {
+              console.warn(`⚠️ Skipping non-existent file: ${file.path}`)
+              continue
+            }
+            
             // Get file content from cloned repository
             const fileContent = await getFileContent(clonePath, file.path)
             
