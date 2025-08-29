@@ -3,7 +3,7 @@ import path from 'path'
 import { createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
 import { Readable } from 'stream'
-import StreamZip from 'node-stream-zip'
+const StreamZip = require('node-stream-zip')
 
 export interface RepositoryInfo {
   owner: string

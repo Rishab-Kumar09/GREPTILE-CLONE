@@ -220,7 +220,13 @@ export async function POST(request: NextRequest) {
       })
       
       // Start background processing with cloning
-      processAnalysisInBackground(analysisId, repoInfo, strategy)
+      processAnalysisInBackground(analysisId, repoInfo, strategy).catch(error => {
+        console.error(`❌ Background processing failed for ${analysisId}:`, error)
+        updateAnalysisStatus(analysisId, {
+          status: 'failed',
+          errors: [error.message || 'Unknown error in background processing']
+        })
+      })
       
       return NextResponse.json({
         success: true,
