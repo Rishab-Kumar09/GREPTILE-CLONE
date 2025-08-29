@@ -27,7 +27,8 @@ export async function GET(
     
     // Calculate estimated completion time
     let estimatedCompletion = null
-    if (status.status === 'processing' && status.progress > 0) {
+    const activeStatuses = ['cloning', 'scanning', 'analyzing']
+    if (activeStatuses.includes(status.status) && status.progress > 0) {
       const elapsed = Date.now() - status.startTime
       const estimatedTotal = (elapsed / status.progress) * 100
       estimatedCompletion = status.startTime + estimatedTotal
