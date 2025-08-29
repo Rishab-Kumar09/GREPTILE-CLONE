@@ -23,7 +23,7 @@ export interface CloneProgress {
 
 // Storage configuration
 const STORAGE_BASE_PATH = process.env.REPO_STORAGE_PATH || '/tmp/greptile-repos'
-const MAX_REPO_SIZE_MB = 1000 // 1GB limit per repository
+const MAX_REPO_SIZE_MB = 10000 // 10GB limit (practically unlimited - handles any repository)
 const CLEANUP_AFTER_HOURS = 24 // Clean up cloned repos after 24 hours
 
 /**
