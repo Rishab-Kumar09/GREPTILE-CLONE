@@ -1,16 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import fs from 'fs/promises'
-import path from 'path'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
-import { 
-  getRepositoryInfo, 
-  downloadRepositoryArchive,
-  getAllAnalyzableFiles,
-  extractSelectiveFiles,
-  type RepositoryInfo,
-  type CloneProgress 
-} from '@/lib/repository-cloner'
+
+// Simple repository info interface (no cloning needed)
+interface RepositoryInfo {
+  owner: string
+  repo: string
+  fullName: string
+  size: number
+  estimatedTime: string
+}
+
+// Simple repository info function (no cloning dependencies)
+async function getRepositoryInfo(owner: string, repo: string): Promise<RepositoryInfo> {
+  console.log(`🔍 Getting repository info for ${owner}/${repo}`)
+  
+  try {
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`)
+    
+    if (!response.ok) {
+      throw new Error(`Repository not found: ${owner}/${repo}`)
+    }
+    
+    const repoData = await response.json()
+    const sizeMB = repoData.size / 1024 // GitHub returns size in KB
+    
+    return {
+      owner,
+      repo,
+      fullName: `${owner}/${repo}`,
+      size: sizeMB,
+      estimatedTime: sizeMB > 100 ? '5-10 minutes' : sizeMB > 10 ? '2-5 minutes' : '30 seconds - 2 minutes'
+    }
+  } catch (error) {
+    console.error(`❌ Error getting repository info:`, error)
+    throw new Error(`Failed to get repository info: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
 
 // Enterprise Analysis Strategies
 interface AnalysisStrategy {
@@ -228,12 +254,12 @@ async function processAnalysisInBackground(
     let filesProcessed = 0
     let totalFiles = 0
     
-    // Step 1: Clone repository with progress updates
-    console.log(`📥 STEP 1: Cloning repository ${repoInfo.fullName}`)
+    // Step 1: Get file list from GitHub API
+    console.log(`📁 STEP 1: Getting file list from ${repoInfo.fullName}`)
     updateAnalysisStatus(analysisId, { 
-      status: 'cloning',
+      status: 'scanning',
       progress: 5,
-      currentFile: `Cloning ${repoInfo.fullName}...`
+      currentFile: `Getting file list from ${repoInfo.fullName}...`
     })
     
     console.log(`📁 STEP 1: Getting repository file list...`)
