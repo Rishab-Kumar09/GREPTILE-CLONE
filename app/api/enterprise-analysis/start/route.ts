@@ -357,7 +357,7 @@ async function processAnalysisInBackground(
           
           // Try to download the file - handle large files with streaming
           let fileContent = ''
-          let issues = []
+          let issues: any[] = []
           
           try {
             const fileResponse = await fetch(rawUrl, {
