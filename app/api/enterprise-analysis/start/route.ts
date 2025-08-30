@@ -2,48 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 import { 
-  getRepositoryInfo as getRepoInfo, 
+  getRepositoryInfo,
   cloneRepository,
   getAllAnalyzableFiles,
-  type RepositoryInfo as RepoInfo,
-  type CloneProgress 
+  type RepositoryInfo,
+  type CloneProgress
 } from '@/lib/repository-cloner'
-
-// Simple repository info interface (no cloning needed)
-interface RepositoryInfo {
-  owner: string
-  repo: string
-  fullName: string
-  size: number
-  estimatedTime: string
-}
-
-// Simple repository info function (no cloning dependencies)
-async function getRepositoryInfo(owner: string, repo: string): Promise<RepositoryInfo> {
-  console.log(`🔍 Getting repository info for ${owner}/${repo}`)
-  
-  try {
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`)
-    
-    if (!response.ok) {
-      throw new Error(`Repository not found: ${owner}/${repo}`)
-    }
-    
-    const repoData = await response.json()
-    const sizeMB = repoData.size / 1024 // GitHub returns size in KB
-    
-    return {
-      owner,
-      repo,
-      fullName: `${owner}/${repo}`,
-      size: sizeMB,
-      estimatedTime: sizeMB > 100 ? '5-10 minutes' : sizeMB > 10 ? '2-5 minutes' : '30 seconds - 2 minutes'
-    }
-  } catch (error) {
-    console.error(`❌ Error getting repository info:`, error)
-    throw new Error(`Failed to get repository info: ${error instanceof Error ? error.message : 'Unknown error'}`)
-  }
-}
 
 // Enterprise Analysis Strategies
 interface AnalysisStrategy {
@@ -123,7 +87,7 @@ export async function POST(request: NextRequest) {
         results: []
       })
       
-      // Start background processing with simple 3-step process
+      // Start background processing with repository cloning
       processAnalysisInBackground(analysisId, repoInfo, strategy)
       
       return NextResponse.json({
@@ -176,10 +140,7 @@ async function processAnalysisInBackground(
       currentFile: `Cloning ${repoInfo.fullName}...`
     })
     
-    // Create full repository info for cloning
-    const fullRepoInfo = await getRepoInfo(repoInfo.owner, repoInfo.repo)
-    
-    const clonePath = await cloneRepository(fullRepoInfo, (progress) => {
+    const clonePath = await cloneRepository(repoInfo, (progress) => {
       console.log(`📊 Clone: ${progress.progress}% - ${progress.message}`)
       updateAnalysisStatus(analysisId, {
         status: 'cloning',
