@@ -476,9 +476,9 @@ async function processAnalysisInBackground(
           await new Promise(resolve => setTimeout(resolve, 50))
           
         } catch (fileError) {
-          if (fileError.name === 'TimeoutError') {
+          if (fileError instanceof Error && fileError.name === 'TimeoutError') {
             console.warn(`⚠️ Timeout downloading ${file.path}, skipping...`)
-          } else if (fileError.name === 'AbortError') {
+          } else if (fileError instanceof Error && fileError.name === 'AbortError') {
             console.warn(`⚠️ Download aborted for ${file.path}, skipping...`)
           } else {
             console.warn(`⚠️ Failed to process ${file.path}:`, fileError)
