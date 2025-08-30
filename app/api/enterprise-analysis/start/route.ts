@@ -236,20 +236,19 @@ async function processAnalysisInBackground(
       currentFile: `Cloning ${repoInfo.fullName}...`
     })
     
-    console.log(`📥 Starting repository download...`)
+    console.log(`📁 STEP 1: Getting repository file list...`)
     try {
-      // SIMPLIFIED APPROACH: Use GitHub Contents API directly (no ZIP extraction!)
-      console.log(`📁 STEP 2: Getting repository file tree via GitHub API`)
+      // NO ZIP DOWNLOADS! Get file list directly from GitHub API
       updateAnalysisStatus(analysisId, {
         status: 'scanning',
-        progress: 10, // Start lower, not 25%
-        currentFile: 'Getting repository file tree...'
+        progress: 10,
+        currentFile: `Getting file list from ${repoInfo.fullName}...`
       })
       
-      // Get file tree from GitHub API (much more reliable!)
-      // Try multiple branch names to find the right one
+      // Get file tree from GitHub API (try multiple branches)
       let treeData = null
-      const branchesToTry = ['main', 'master', 'develop'] // Try common branch names
+      let foundBranch = ''
+      const branchesToTry = ['main', 'master', 'develop']
       
       for (const branch of branchesToTry) {
         if (!branch) continue
@@ -259,6 +258,7 @@ async function processAnalysisInBackground(
           const data = await response.json()
           if (data.tree) {
             treeData = data
+            foundBranch = branch
             console.log(`✅ Found files on branch: ${branch}`)
             break
           }
@@ -271,7 +271,7 @@ async function processAnalysisInBackground(
         throw new Error('Failed to get repository file tree from GitHub API')
       }
       
-      // UNIVERSAL APPROACH: Analyze ALL files except binaries/images!
+      // UNIVERSAL FILE FILTER: Analyze ALL files except binaries
       const analyzableFiles = treeData.tree
         .filter((item: any) => item.type === 'blob') // Only files, not directories
         .filter((item: any) => {
@@ -306,40 +306,40 @@ async function processAnalysisInBackground(
           // ANALYZE EVERYTHING ELSE! (All text-based files)
           return true
         })
-        .slice(0, 1000) // Increased limit - analyze more files!
+        .slice(0, 2000) // Increased limit - analyze up to 2000 files!
       
       totalFiles = analyzableFiles.length
-      console.log(`🚀 FOUND ${totalFiles} ANALYZABLE FILES - PROCESSING ALL OF THEM!`)
+      console.log(`🚀 FOUND ${totalFiles} FILES - DOWNLOADING & ANALYZING ALL OF THEM!`)
       
-      // Step 3: Process files ONE BY ONE using GitHub Contents API
-      console.log(`🔍 STEP 3: ONE-BY-ONE analysis of ${totalFiles} files via GitHub API`)
+      // STEP 2: Process files ONE BY ONE (download → analyze → discard)
+      console.log(`🔍 STEP 2: ONE-BY-ONE direct file download & analysis`)
       updateAnalysisStatus(analysisId, {
         status: 'analyzing',
-        progress: 15, // Start analysis at 15%, not 30%
+        progress: 15,
         totalFiles,
-        currentFile: 'Starting GitHub API-based analysis...'
+        currentFile: 'Starting direct file downloads...'
       })
       
-      // Process each file individually via GitHub Contents API
+      // Process each file individually (NO ZIP, NO EXTRACTION!)
       for (let i = 0; i < analyzableFiles.length; i++) {
         const file = analyzableFiles[i]
         
         try {
           console.log(`🔍 Processing file ${i + 1}/${totalFiles}: ${file.path}`)
           
-          // Get file content directly from GitHub API (no extraction needed!)
-          const fileResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/contents/${file.path}`)
-          const fileData = await fileResponse.json()
+          // Download file directly using GitHub raw URL (NO ZIP!)
+          const rawUrl = `https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${foundBranch}/${file.path}`
+          console.log(`📥 Downloading: ${rawUrl}`)
           
-          if (fileData.content && fileData.encoding === 'base64') {
-            // Decode base64 content
-            const fileContent = Buffer.from(fileData.content, 'base64').toString('utf-8')
+          const fileResponse = await fetch(rawUrl)
+          if (fileResponse.ok) {
+            const fileContent = await fileResponse.text()
             
-            // Analyze this single file
+            // Analyze this single file immediately
             const issues = generateRealisticIssues(file.path, fileContent)
             
             if (issues.length > 0) {
-              // Add results immediately (streaming!) - ACCUMULATE, don't replace!
+              // Add results immediately (streaming!)
               updateAnalysisStatus(analysisId, {
                 status: 'analyzing',
                 progress: 15 + ((i + 1) / totalFiles) * 80, // 15-95% for analysis
@@ -348,11 +348,13 @@ async function processAnalysisInBackground(
                 results: [{
                   file: file.path,
                   issues: issues
-                }] // This will be accumulated by updateAnalysisStatus
+                }]
               })
               
               console.log(`✅ Found ${issues.length} issues in ${file.path}`)
             }
+          } else {
+            console.warn(`⚠️ Failed to download ${file.path}: ${fileResponse.status}`)
           }
           
           filesProcessed = i + 1
@@ -361,14 +363,14 @@ async function processAnalysisInBackground(
           if (filesProcessed % 10 === 0 || filesProcessed === totalFiles) {
             updateAnalysisStatus(analysisId, {
               status: 'analyzing',
-              progress: 15 + (filesProcessed / totalFiles) * 80, // 15-95% range
+              progress: 15 + (filesProcessed / totalFiles) * 80,
               filesAnalyzed: filesProcessed,
               currentFile: file.path
             })
           }
           
-          // Small delay to avoid GitHub API rate limits
-          await new Promise(resolve => setTimeout(resolve, 100))
+          // Small delay to avoid overwhelming GitHub
+          await new Promise(resolve => setTimeout(resolve, 50))
           
         } catch (fileError) {
           console.warn(`⚠️ Failed to process ${file.path}:`, fileError)
