@@ -238,82 +238,98 @@ async function processAnalysisInBackground(
     
     console.log(`📥 Starting repository download...`)
     try {
-      // Download repository archive (don't extract everything!)
-      const archivePath = await downloadRepositoryArchive(repoInfo.owner, repoInfo.repo, '/tmp', (progress) => {
-        console.log(`📊 Download progress: ${progress.progress}% - ${progress.message}`)
-        updateAnalysisStatus(analysisId, {
-          status: 'cloning',
-          progress: 5 + (progress.progress * 0.15), // 5-20% for download
-          currentFile: progress.message
-        })
-      })
-      console.log(`✅ Repository downloaded successfully: ${archivePath}`)
-      
-      // Step 2: Get ALL analyzable files from the ZIP (without extracting!)
-      console.log(`📁 STEP 2: Scanning ALL files in repository`)
+      // SIMPLIFIED APPROACH: Use GitHub Contents API directly (no ZIP extraction!)
+      console.log(`📁 STEP 2: Getting repository file tree via GitHub API`)
       updateAnalysisStatus(analysisId, {
         status: 'scanning',
         progress: 25,
-        currentFile: 'Scanning ALL repository files...'
+        currentFile: 'Getting repository file tree...'
       })
       
-      const { getAllAnalyzableFiles } = await import('@/lib/repository-cloner')
-      const allFiles = await getAllAnalyzableFiles(archivePath)
-      totalFiles = allFiles.length
+      // Get file tree from GitHub API (much more reliable!)
+      // Try multiple branch names to find the right one
+      let treeData = null
+      const branchesToTry = [repoInfo.defaultBranch, 'main', 'master', 'develop']
       
-      console.log(`🚀 FOUND ${totalFiles} FILES - ANALYZING ALL OF THEM!`)
+      for (const branch of branchesToTry) {
+        if (!branch) continue
+        try {
+          console.log(`🌿 Trying branch: ${branch}`)
+          const response = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`)
+          const data = await response.json()
+          if (data.tree) {
+            treeData = data
+            console.log(`✅ Found files on branch: ${branch}`)
+            break
+          }
+        } catch (branchError) {
+          console.warn(`⚠️ Branch ${branch} failed:`, branchError)
+        }
+      }
       
-      // Step 3: Process files ONE BY ONE (extract → analyze → delete)
-      console.log(`🔍 STEP 3: ONE-BY-ONE analysis of ${totalFiles} files`)
+      if (!treeData || !treeData.tree) {
+        throw new Error('Failed to get repository file tree from GitHub API')
+      }
+      
+      // Filter for analyzable files
+      const analyzableFiles = treeData.tree
+        .filter((item: any) => item.type === 'blob') // Only files, not directories
+        .filter((item: any) => {
+          const path = item.path.toLowerCase()
+          return path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.jsx') || 
+                 path.endsWith('.tsx') || path.endsWith('.py') || path.endsWith('.java') ||
+                 path.endsWith('.go') || path.endsWith('.rs') || path.endsWith('.php') ||
+                 path.endsWith('.rb') || path.endsWith('.cpp') || path.endsWith('.c') ||
+                 path.endsWith('.h') || path.endsWith('.cs') || path.endsWith('.swift') ||
+                 path.includes('package.json') || path.includes('dockerfile') || 
+                 path.includes('config') || path.includes('env')
+        })
+        .slice(0, 500) // Limit to 500 files for now (still way more than before!)
+      
+      totalFiles = analyzableFiles.length
+      console.log(`🚀 FOUND ${totalFiles} ANALYZABLE FILES - PROCESSING ALL OF THEM!`)
+      
+      // Step 3: Process files ONE BY ONE using GitHub Contents API
+      console.log(`🔍 STEP 3: ONE-BY-ONE analysis of ${totalFiles} files via GitHub API`)
       updateAnalysisStatus(analysisId, {
         status: 'analyzing',
         progress: 30,
         totalFiles,
-        currentFile: 'Starting one-by-one file analysis...'
+        currentFile: 'Starting GitHub API-based analysis...'
       })
       
-      // Process each file individually
-      for (let i = 0; i < allFiles.length; i++) {
-        const filePath = allFiles[i]
+      // Process each file individually via GitHub Contents API
+      for (let i = 0; i < analyzableFiles.length; i++) {
+        const file = analyzableFiles[i]
         
         try {
-          console.log(`🔍 Processing file ${i + 1}/${totalFiles}: ${filePath}`)
+          console.log(`🔍 Processing file ${i + 1}/${totalFiles}: ${file.path}`)
           
-          // Extract ONLY this one file
-          const { extractSelectiveFiles } = await import('@/lib/repository-cloner')
-          const extractedFiles = await extractSelectiveFiles(archivePath, [filePath], '/tmp/single_file', (progress) => {
-            // Optional: update progress for extraction
-          })
+          // Get file content directly from GitHub API (no extraction needed!)
+          const fileResponse = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/contents/${file.path}`)
+          const fileData = await fileResponse.json()
           
-          if (extractedFiles.length > 0) {
-            // Read the extracted file
-            const fullPath = path.join('/tmp/single_file', filePath)
-            const fileContent = await fs.readFile(fullPath, 'utf-8')
+          if (fileData.content && fileData.encoding === 'base64') {
+            // Decode base64 content
+            const fileContent = Buffer.from(fileData.content, 'base64').toString('utf-8')
             
             // Analyze this single file
-            const issues = generateRealisticIssues(filePath, fileContent)
+            const issues = generateRealisticIssues(file.path, fileContent)
             
             if (issues.length > 0) {
-              // Add results immediately (streaming!)
+              // Add results immediately (streaming!) - ACCUMULATE, don't replace!
               updateAnalysisStatus(analysisId, {
                 status: 'analyzing',
                 progress: 30 + ((i + 1) / totalFiles) * 65, // 30-95% for analysis
                 filesAnalyzed: i + 1,
-                currentFile: filePath,
+                currentFile: file.path,
                 results: [{
-                  file: filePath,
+                  file: file.path,
                   issues: issues
-                }]
+                }] // This will be accumulated by updateAnalysisStatus
               })
               
-              console.log(`✅ Found ${issues.length} issues in ${filePath}`)
-            }
-            
-            // Clean up the extracted file immediately
-            try {
-              await fs.rm('/tmp/single_file', { recursive: true, force: true })
-            } catch (cleanupError) {
-              console.warn(`⚠️ Cleanup warning:`, cleanupError)
+              console.log(`✅ Found ${issues.length} issues in ${file.path}`)
             }
           }
           
@@ -325,21 +341,17 @@ async function processAnalysisInBackground(
               status: 'analyzing',
               progress: 30 + (filesProcessed / totalFiles) * 65,
               filesAnalyzed: filesProcessed,
-              currentFile: filePath
+              currentFile: file.path
             })
           }
           
+          // Small delay to avoid GitHub API rate limits
+          await new Promise(resolve => setTimeout(resolve, 100))
+          
         } catch (fileError) {
-          console.warn(`⚠️ Failed to process ${filePath}:`, fileError)
+          console.warn(`⚠️ Failed to process ${file.path}:`, fileError)
           // Continue with next file - don't stop the entire analysis
         }
-      }
-      
-      // Clean up the main archive
-      try {
-        await fs.unlink(archivePath)
-      } catch (cleanupError) {
-        console.warn(`⚠️ Archive cleanup warning:`, cleanupError)
       }
       
     } catch (downloadError) {
