@@ -237,7 +237,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Background processing function with repository cloning
+// Background processing function with direct downloads
 async function processAnalysisInBackground(
   analysisId: string,
   repoInfo: RepositoryInfo,
@@ -246,8 +246,6 @@ async function processAnalysisInBackground(
   console.log(`🔄 Starting background analysis for ${analysisId}`)
   console.log(`📊 Repository info:`, repoInfo)
   console.log(`🎯 Strategy: ${strategy}`)
-  
-  let clonePath = ''
   
   try {
     const startTime = Date.now()
@@ -529,25 +527,19 @@ async function processAnalysisInBackground(
     
   } catch (error) {
     console.error(`❌ ANALYSIS FAILED [${analysisId}]:`, error)
+    console.error('Full error stack:', error.stack)
     
-    // Clean up on failure
-    if (clonePath) {
-      try {
-        const fs = await import('fs/promises')
-        await fs.rm(clonePath, { recursive: true, force: true })
-        console.log(`🗑️ Cleaned up failed clone: ${clonePath}`)
-      } catch (cleanupError) {
-        console.warn(`⚠️ Failed to cleanup after error:`, cleanupError)
-      }
+    // Mark as failed (no cleanup needed for direct downloads)
+    try {
+      updateAnalysisStatus(analysisId, { 
+        status: 'failed',
+        progress: 0,
+        currentFile: 'Analysis failed',
+        errors: [error instanceof Error ? error.message : 'Unknown error']
+      })
+    } catch (statusError) {
+      console.error(`❌ Failed to update status:`, statusError)
     }
-    
-    // Mark as failed
-    updateAnalysisStatus(analysisId, { 
-      status: 'failed',
-      progress: 0,
-      currentFile: 'Analysis failed',
-      errors: [error instanceof Error ? error.message : 'Unknown error']
-    })
   }
 }
 

@@ -400,7 +400,8 @@ export default function EnterpriseAnalysis() {
               <div className="flex justify-between text-sm mb-2">
                 <span>
                   {currentStage === 'downloading' && '📥 Downloading repository...'}
-                  {currentStage === 'extracting' && '📂 Extracting files...'}
+                  {currentStage === 'extracting' && '📥 Downloading files...'}
+                  {currentStage === 'scanning' && '📁 Getting file list...'}
                   {currentStage === 'analyzing' && `🔍 Analyzing: ${filesAnalyzed} / ${totalFiles} files`}
                   {currentStage === 'initializing' && '🚀 Preparing analysis...'}
                   {currentStage === 'complete' && '✅ Analysis complete!'}
