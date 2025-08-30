@@ -3,9 +3,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 import { 
   getRepositoryInfo as getRepoInfo, 
-  downloadRepositoryArchive,
+  cloneRepository,
   getAllAnalyzableFiles,
-  extractSelectiveFiles,
   type RepositoryInfo as RepoInfo,
   type CloneProgress 
 } from '@/lib/repository-cloner'
@@ -156,7 +155,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// SIMPLE 3-STEP PROCESS: Download → Extract → Analyze
+// SIMPLE 3-STEP PROCESS: Clone Repo → Get Files → Analyze ALL
 async function processAnalysisInBackground(
   analysisId: string,
   repoInfo: RepositoryInfo,
@@ -169,41 +168,39 @@ async function processAnalysisInBackground(
   try {
     const startTime = Date.now()
     
-    // STEP 1: DOWNLOAD THE WHOLE REPO (ZIP)
-    console.log(`📥 STEP 1: Downloading entire repository...`)
+    // STEP 1: CLONE THE WHOLE REPO (NO ZIP!)
+    console.log(`📥 STEP 1: Cloning entire repository WITHOUT zipping...`)
     updateAnalysisStatus(analysisId, { 
       status: 'cloning',
       progress: 10,
-      currentFile: `Downloading ${repoInfo.fullName}...`
+      currentFile: `Cloning ${repoInfo.fullName}...`
     })
     
-    const archivePath = await downloadRepositoryArchive(repoInfo.owner, repoInfo.repo, '/tmp', (progress) => {
-      console.log(`📊 Download: ${progress.progress}% - ${progress.message}`)
+    const clonePath = await cloneRepository(repoInfo.owner, repoInfo.repo, '/tmp', (progress) => {
+      console.log(`📊 Clone: ${progress.progress}% - ${progress.message}`)
       updateAnalysisStatus(analysisId, {
         status: 'cloning',
-        progress: 10 + (progress.progress * 0.4), // 10-50% for download
+        progress: 10 + (progress.progress * 0.4), // 10-50% for cloning
         currentFile: progress.message
       })
     })
     
-    console.log(`✅ STEP 1 COMPLETE: Repository downloaded to ${archivePath}`)
+    console.log(`✅ STEP 1 COMPLETE: Repository cloned to ${clonePath}`)
     
-    // STEP 2: GET ALL FILES FROM ZIP
-    console.log(`📁 STEP 2: Getting files from downloaded ZIP...`)
+    // STEP 2: GET ALL FILES FROM CLONED REPO
+    console.log(`📁 STEP 2: Getting ALL files from cloned repository...`)
     updateAnalysisStatus(analysisId, {
       status: 'scanning',
       progress: 55,
-      currentFile: 'Scanning downloaded repository...'
+      currentFile: 'Scanning cloned repository...'
     })
     
-    const allFiles = await getAllAnalyzableFiles(archivePath)
-    console.log(`✅ STEP 2 COMPLETE: Found ${allFiles.length} files in ZIP`)
+    const allFiles = await getAllAnalyzableFiles(clonePath)
+    const totalFiles = allFiles.length
+    console.log(`✅ STEP 2 COMPLETE: Found ${totalFiles} files to analyze`)
     
-    // STEP 3: ANALYZE 50 FILES IN PARALLEL
-    console.log(`🔍 STEP 3: Analyzing 50 files in parallel...`)
-    const filesToAnalyze = allFiles.slice(0, 50) // Take first 50 files
-    const totalFiles = filesToAnalyze.length
-    
+    // STEP 3: ANALYZE ALL FILES IN PARALLEL
+    console.log(`🔍 STEP 3: Analyzing ALL ${totalFiles} files in parallel...`)
     updateAnalysisStatus(analysisId, {
       status: 'analyzing',
       progress: 60,
@@ -211,51 +208,48 @@ async function processAnalysisInBackground(
       currentFile: `Analyzing ${totalFiles} files in parallel...`
     })
     
-    // PARALLEL ANALYSIS - Process all files at once
-    const analysisPromises = filesToAnalyze.map(async (filePath, index) => {
+    // Process ALL files in parallel (no limits!)
+    const analysisPromises = allFiles.map(async (filePath: string, index: number) => {
       try {
         console.log(`🔍 Analyzing file ${index + 1}/${totalFiles}: ${filePath}`)
         
-        // Extract this single file from ZIP
-        const extractedFiles = await extractSelectiveFiles(archivePath, [filePath], '/tmp/analysis')
+        // Read file directly from cloned repository
+        const fs = await import('fs/promises')
+        const path = await import('path')
+        const fullPath = path.join(clonePath, filePath)
         
-        if (extractedFiles.length > 0) {
-          const fs = await import('fs/promises')
-          const path = await import('path')
-          const fullPath = path.join('/tmp/analysis', filePath)
-          const fileContent = await fs.readFile(fullPath, 'utf-8')
-          
-          // Analyze this file
-          const issues = generateRealisticIssues(filePath, fileContent)
-          
-          // Update progress
-          const progress = 60 + ((index + 1) / totalFiles) * 35 // 60-95%
-          updateAnalysisStatus(analysisId, {
-            status: 'analyzing',
-            progress,
-            filesAnalyzed: index + 1,
-            currentFile: filePath,
-            results: [{
-              file: filePath,
-              issues: issues
-            }]
-          })
-          
-          console.log(`✅ Found ${issues.length} issues in ${filePath}`)
-          return { file: filePath, issues }
-        }
+        const fileContent = await fs.readFile(fullPath, 'utf-8')
+        
+        // Analyze this file
+        const issues = generateRealisticIssues(filePath, fileContent)
+        
+        // Update progress
+        const progress = 60 + ((index + 1) / totalFiles) * 35 // 60-95%
+        updateAnalysisStatus(analysisId, {
+          status: 'analyzing',
+          progress,
+          filesAnalyzed: index + 1,
+          currentFile: filePath,
+          results: [{
+            file: filePath,
+            issues: issues
+          }]
+        })
+        
+        console.log(`✅ Found ${issues.length} issues in ${filePath}`)
+        return { file: filePath, issues }
       } catch (fileError) {
         console.warn(`⚠️ Failed to analyze ${filePath}:`, fileError)
         return null
       }
     })
     
-    // Wait for all analyses to complete
+    // Wait for ALL analyses to complete
     const results = await Promise.all(analysisPromises)
     const validResults = results.filter(result => result !== null)
     
-    console.log(`✅ STEP 3 COMPLETE: Analyzed ${validResults.length} files`)
-    console.log(`🎉 ANALYSIS COMPLETE in ${((Date.now() - startTime) / 1000).toFixed(1)}s`)
+    console.log(`✅ ANALYSIS COMPLETE: Analyzed ${validResults.length}/${totalFiles} files`)
+    console.log(`🎉 TOTAL TIME: ${((Date.now() - startTime) / 1000).toFixed(1)}s`)
     
     // Mark analysis as completed
     updateAnalysisStatus(analysisId, {
@@ -265,12 +259,11 @@ async function processAnalysisInBackground(
       currentFile: 'Analysis complete!'
     })
     
-    // Clean up
+    // Clean up cloned repository
     try {
       const fs = await import('fs/promises')
-      await fs.unlink(archivePath)
-      await fs.rm('/tmp/analysis', { recursive: true, force: true })
-      console.log(`🗑️ Cleaned up temporary files`)
+      await fs.rm(clonePath, { recursive: true, force: true })
+      console.log(`🗑️ Cleaned up cloned repository: ${clonePath}`)
     } catch (cleanupError) {
       console.warn(`⚠️ Cleanup warning:`, cleanupError)
     }
