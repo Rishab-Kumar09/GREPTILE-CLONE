@@ -5,9 +5,9 @@ import path from 'path'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 import { 
   getRepositoryInfo, 
-  cloneRepository, 
-  getAnalyzableFiles, 
-  getFileContent,
+  downloadRepositoryArchive,
+  getAllAnalyzableFiles,
+  extractSelectiveFiles,
   type RepositoryInfo,
   type CloneProgress 
 } from '@/lib/repository-cloner'
@@ -284,34 +284,116 @@ async function processAnalysisInBackground(
       currentFile: `Cloning ${repoInfo.fullName}...`
     })
     
-    console.log(`📥 Starting repository clone...`)
+    console.log(`📥 Starting repository download...`)
     try {
-      clonePath = await cloneRepository(repoInfo, (progress) => {
-        console.log(`📊 Clone progress: ${progress.progress}% - ${progress.message}`)
+      // Download repository archive (don't extract everything!)
+      const archivePath = await downloadRepositoryArchive(repoInfo.owner, repoInfo.repo, '/tmp', (progress) => {
+        console.log(`📊 Download progress: ${progress.progress}% - ${progress.message}`)
         updateAnalysisStatus(analysisId, {
           status: 'cloning',
-          progress: 5 + (progress.progress * 0.15), // 5-20% for cloning
+          progress: 5 + (progress.progress * 0.15), // 5-20% for download
           currentFile: progress.message
         })
       })
-      console.log(`✅ Repository cloned successfully to: ${clonePath}`)
-    } catch (cloneError) {
-      console.error(`❌ Clone failed:`, cloneError)
-      throw cloneError
+      console.log(`✅ Repository downloaded successfully: ${archivePath}`)
+      
+      // Step 2: Get ALL analyzable files from the ZIP (without extracting!)
+      console.log(`📁 STEP 2: Scanning ALL files in repository`)
+      updateAnalysisStatus(analysisId, {
+        status: 'scanning',
+        progress: 25,
+        currentFile: 'Scanning ALL repository files...'
+      })
+      
+      const { getAllAnalyzableFiles } = await import('@/lib/repository-cloner')
+      const allFiles = await getAllAnalyzableFiles(archivePath)
+      totalFiles = allFiles.length
+      
+      console.log(`🚀 FOUND ${totalFiles} FILES - ANALYZING ALL OF THEM!`)
+      
+      // Step 3: Process files ONE BY ONE (extract → analyze → delete)
+      console.log(`🔍 STEP 3: ONE-BY-ONE analysis of ${totalFiles} files`)
+      updateAnalysisStatus(analysisId, {
+        status: 'analyzing',
+        progress: 30,
+        totalFiles,
+        currentFile: 'Starting one-by-one file analysis...'
+      })
+      
+      // Process each file individually
+      for (let i = 0; i < allFiles.length; i++) {
+        const filePath = allFiles[i]
+        
+        try {
+          console.log(`🔍 Processing file ${i + 1}/${totalFiles}: ${filePath}`)
+          
+          // Extract ONLY this one file
+          const { extractSelectiveFiles } = await import('@/lib/repository-cloner')
+          const extractedFiles = await extractSelectiveFiles(archivePath, [filePath], '/tmp/single_file', (progress) => {
+            // Optional: update progress for extraction
+          })
+          
+          if (extractedFiles.length > 0) {
+            // Read the extracted file
+            const fullPath = path.join('/tmp/single_file', filePath)
+            const fileContent = await fs.readFile(fullPath, 'utf-8')
+            
+            // Analyze this single file
+            const issues = generateRealisticIssues(filePath, fileContent)
+            
+            if (issues.length > 0) {
+              // Add results immediately (streaming!)
+              updateAnalysisStatus(analysisId, {
+                status: 'analyzing',
+                progress: 30 + ((i + 1) / totalFiles) * 65, // 30-95% for analysis
+                filesAnalyzed: i + 1,
+                currentFile: filePath,
+                results: [{
+                  file: filePath,
+                  issues: issues
+                }]
+              })
+              
+              console.log(`✅ Found ${issues.length} issues in ${filePath}`)
+            }
+            
+            // Clean up the extracted file immediately
+            try {
+              await fs.rm('/tmp/single_file', { recursive: true, force: true })
+            } catch (cleanupError) {
+              console.warn(`⚠️ Cleanup warning:`, cleanupError)
+            }
+          }
+          
+          filesProcessed = i + 1
+          
+          // Update progress every 10 files
+          if (filesProcessed % 10 === 0 || filesProcessed === totalFiles) {
+            updateAnalysisStatus(analysisId, {
+              status: 'analyzing',
+              progress: 30 + (filesProcessed / totalFiles) * 65,
+              filesAnalyzed: filesProcessed,
+              currentFile: filePath
+            })
+          }
+          
+        } catch (fileError) {
+          console.warn(`⚠️ Failed to process ${filePath}:`, fileError)
+          // Continue with next file - don't stop the entire analysis
+        }
+      }
+      
+      // Clean up the main archive
+      try {
+        await fs.unlink(archivePath)
+      } catch (cleanupError) {
+        console.warn(`⚠️ Archive cleanup warning:`, cleanupError)
+      }
+      
+    } catch (downloadError) {
+      console.error(`❌ Download failed:`, downloadError)
+      throw downloadError
     }
-    
-    console.log(`✅ Repository cloned to: ${clonePath}`)
-    
-    // Step 2: Get files to analyze
-    console.log(`📁 STEP 2: Scanning repository files`)
-    updateAnalysisStatus(analysisId, {
-      status: 'scanning',
-      progress: 25,
-      currentFile: 'Scanning repository files...'
-    })
-    
-    const repositoryFiles = await getRepositoryFiles(repoInfo, strategy, clonePath)
-    totalFiles = repositoryFiles.length
     
     console.log(`📊 Found ${totalFiles} files to analyze with ${strategy} strategy`)
     

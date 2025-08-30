@@ -106,6 +106,112 @@ function getEstimatedAnalysisTime(sizeMB: number, primaryLanguage?: string): str
 /**
  * Download repository archive with progress tracking (replaces Git cloning)
  */
+/**
+ * Get ALL analyzable files from repository (NO LIMITS!)
+ */
+export async function getAllAnalyzableFiles(archivePath: string): Promise<string[]> {
+  console.log(`🚀 Getting ALL files for complete analysis - NO LIMITS!`)
+  
+  try {
+    const zip = new StreamZip.async({ file: archivePath })
+    const entries = await zip.entries()
+    const entryNames = Object.keys(entries)
+    
+    // Find GitHub root directory
+    let rootDir = ''
+    if (entryNames.length > 0) {
+      const firstEntry = entryNames[0]
+      const pathParts = firstEntry.split('/')
+      if (pathParts.length > 1) {
+        rootDir = pathParts[0] + '/'
+      }
+    }
+    
+    // Get ALL code files (filter out binaries, images, etc.)
+    const analyzableExtensions = [
+      '.js', '.ts', '.jsx', '.tsx', '.vue', '.svelte',
+      '.py', '.pyx', '.pyi',
+      '.java', '.kt', '.scala',
+      '.go', '.mod',
+      '.rs', '.toml',
+      '.php', '.phtml',
+      '.rb', '.rake', '.gemspec',
+      '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp',
+      '.cs', '.vb',
+      '.swift', '.m', '.mm',
+      '.dart',
+      '.lua',
+      '.sh', '.bash', '.zsh', '.fish',
+      '.sql', '.psql', '.mysql',
+      '.html', '.htm', '.xml', '.xhtml',
+      '.css', '.scss', '.sass', '.less',
+      '.json', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf',
+      '.md', '.txt', '.rst', '.adoc',
+      '.dockerfile', '.dockerignore',
+      '.gitignore', '.gitattributes',
+      '.env', '.envrc',
+      '.makefile', '.cmake',
+      '.gradle', '.maven', '.sbt',
+      '.package', '.lock', '.sum'
+    ]
+    
+    const allFiles = entryNames
+      .filter(name => !entries[name].isDirectory) // Only files
+      .map(name => rootDir ? name.replace(rootDir, '') : name) // Remove root dir
+      .filter(name => name.length > 0) // Remove empty paths
+      .filter(name => {
+        // Include files with analyzable extensions OR important config files
+        const lowerName = name.toLowerCase()
+        const hasAnalyzableExt = analyzableExtensions.some(ext => lowerName.endsWith(ext))
+        const isConfigFile = /^(package\.json|composer\.json|requirements\.txt|gemfile|cargo\.toml|pom\.xml|build\.gradle|dockerfile|docker-compose\.yml|makefile|cmake|\.env|\.gitignore)$/i.test(name.split('/').pop() || '')
+        const isImportantFile = /^(readme|license|changelog|contributing|security|api|index|main|app|server|config)/i.test(name.split('/').pop() || '')
+        
+        return hasAnalyzableExt || isConfigFile || isImportantFile
+      })
+      .filter(name => {
+        // Exclude common non-analyzable paths
+        const excludePatterns = [
+          /node_modules\//,
+          /\.git\//,
+          /vendor\//,
+          /build\//,
+          /dist\//,
+          /target\//,
+          /\.next\//,
+          /\.nuxt\//,
+          /coverage\//,
+          /\.nyc_output\//,
+          /\.pytest_cache\//,
+          /__pycache__\//,
+          /\.vscode\//,
+          /\.idea\//,
+          /\.DS_Store/,
+          /thumbs\.db/i,
+          /\.log$/,
+          /\.tmp$/,
+          /\.temp$/,
+          /\.cache$/,
+          /\.min\.(js|css)$/,
+          /\.bundle\.(js|css)$/,
+          /\.chunk\.(js|css)$/
+        ]
+        
+        return !excludePatterns.some(pattern => pattern.test(name))
+      })
+    
+    await zip.close()
+    
+    console.log(`🎯 Found ${allFiles.length} analyzable files - ANALYZING ALL OF THEM!`)
+    console.log(`📋 Sample files:`, allFiles.slice(0, 10).join(', '), allFiles.length > 10 ? '...' : '')
+    
+    return allFiles
+    
+  } catch (error) {
+    console.error(`❌ Failed to get all files:`, error)
+    return []
+  }
+}
+
 export async function cloneRepository(
   repoInfo: RepositoryInfo, 
   progressCallback?: (progress: CloneProgress) => void
@@ -199,7 +305,7 @@ export async function cloneRepository(
 /**
  * Download repository archive from GitHub
  */
-async function downloadRepositoryArchive(
+export async function downloadRepositoryArchive(
   owner: string, 
   repo: string, 
   basePath: string, 
@@ -270,6 +376,109 @@ async function downloadRepositoryArchive(
   
   console.log(`✅ Downloaded ${(downloadedBytes / 1024 / 1024).toFixed(1)}MB to ${archivePath}`)
   return archivePath
+}
+
+/**
+ * Extract specific files from repository archive (selective extraction)
+ */
+export async function extractSelectiveFiles(
+  archivePath: string,
+  targetFiles: string[],
+  extractPath: string,
+  progressCallback?: (progress: CloneProgress) => void
+): Promise<string[]> {
+  console.log(`📂 Selective extraction: ${targetFiles.length} files from archive`)
+  
+  progressCallback?.({
+    stage: 'extracting',
+    progress: 85,
+    message: `Extracting ${targetFiles.length} important files...`
+  })
+  
+  const extractedFiles: string[] = []
+  
+  try {
+    await fs.mkdir(extractPath, { recursive: true })
+    
+    console.log(`🔍 Opening ZIP for selective extraction...`)
+    const zip = new StreamZip.async({ file: archivePath })
+    
+    const entries = await zip.entries()
+    const entryNames = Object.keys(entries)
+    
+    // Find GitHub root directory
+    let rootDir = ''
+    if (entryNames.length > 0) {
+      const firstEntry = entryNames[0]
+      const pathParts = firstEntry.split('/')
+      if (pathParts.length > 1) {
+        rootDir = pathParts[0] + '/'
+      }
+    }
+    console.log(`📁 GitHub root directory: ${rootDir || 'none'}`)
+    
+    // Extract only the files we need
+    let extractedCount = 0
+    for (const targetFile of targetFiles) {
+      try {
+        // Find the file in the ZIP (accounting for GitHub root directory)
+        const possiblePaths = [
+          targetFile,
+          rootDir + targetFile,
+          rootDir + targetFile.replace(/^\//, '')
+        ]
+        
+        let foundEntry = null
+        let foundPath = ''
+        
+        for (const possiblePath of possiblePaths) {
+          if (entries[possiblePath] && !entries[possiblePath].isDirectory) {
+            foundEntry = entries[possiblePath]
+            foundPath = possiblePath
+            break
+          }
+        }
+        
+        if (foundEntry) {
+          // Extract this specific file
+          const outputPath = path.join(extractPath, targetFile.replace(/^\//, ''))
+          const dir = path.dirname(outputPath)
+          await fs.mkdir(dir, { recursive: true })
+          
+          const data = await zip.entryData(foundPath)
+          await fs.writeFile(outputPath, data)
+          
+          extractedFiles.push(targetFile)
+          extractedCount++
+          
+          console.log(`✅ Extracted: ${targetFile}`)
+          
+          // Update progress
+          const progress = 85 + Math.round((extractedCount / targetFiles.length) * 10)
+          progressCallback?.({
+            stage: 'extracting',
+            progress,
+            message: `Extracted ${extractedCount} / ${targetFiles.length} files`,
+            extractedFiles: extractedCount,
+            totalFiles: targetFiles.length
+          })
+        } else {
+          console.warn(`⚠️ File not found in archive: ${targetFile}`)
+        }
+      } catch (fileError) {
+        console.warn(`⚠️ Failed to extract ${targetFile}:`, fileError)
+      }
+    }
+    
+    await zip.close()
+    console.log(`✅ Selective extraction complete: ${extractedCount}/${targetFiles.length} files`)
+    
+    return extractedFiles
+    
+  } catch (error) {
+    console.error(`❌ Selective extraction failed:`, error)
+    throw new Error(`Failed to extract files: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
 }
 
 /**
