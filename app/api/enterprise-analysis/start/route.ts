@@ -280,8 +280,29 @@ async function realGitClone(
     // Clone repository using isomorphic-git (shallow clone for speed)
     console.log(`🔧 Using isomorphic-git for pure JavaScript cloning...`)
     
+    // Create HTTP client for isomorphic-git
+    const http = {
+      request: async (options: any) => {
+        const response = await fetch(options.url, {
+          method: options.method || 'GET',
+          headers: options.headers,
+          body: options.body
+        })
+        
+        return {
+          url: response.url,
+          method: options.method || 'GET',
+          headers: Object.fromEntries(response.headers.entries()),
+          body: response.body,
+          statusCode: response.status,
+          statusMessage: response.statusText
+        }
+      }
+    }
+    
     await git.default.clone({
       fs: fs,
+      http: http,
       dir: clonePath,
       url: repoUrl,
       depth: 1, // Shallow clone for speed
