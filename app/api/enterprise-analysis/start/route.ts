@@ -122,55 +122,7 @@ async function getCriticalFiles(allFiles: string[]): Promise<string[]> {
   }).slice(0, 100) // Limit to top 100 critical files
 }
 
-// Get repository files using cloning approach
-async function getRepositoryFiles(repoInfo: RepositoryInfo, strategy: string, clonePath: string) {
-  try {
-    console.log(`📁 Getting files from cloned repository: ${clonePath}`)
-    
-    // Get all analyzable files from the cloned repository
-    const allFiles = await getAnalyzableFiles(clonePath)
-    console.log(`📊 Found ${allFiles.length} analyzable files`)
-    
-    let selectedFiles: string[] = []
-    
-    // Apply strategy-specific filtering
-    switch (strategy) {
-      case 'incremental':
-        selectedFiles = await getCriticalFiles(allFiles)
-        console.log(`🚀 INCREMENTAL: Selected ${selectedFiles.length} critical files`)
-        break
-        
-      case 'priority':
-        // Sort by priority and take top files
-        const prioritizedFiles = allFiles
-          .map(file => ({
-            path: file,
-            priority: getFilePriority(file)
-          }))
-          .sort((a, b) => b.priority - a.priority)
-          .slice(0, Math.min(200, allFiles.length)) // Top 200 or all files if less
-          .map(f => f.path)
-        
-        selectedFiles = prioritizedFiles
-        console.log(`🎯 PRIORITY: Selected ${selectedFiles.length} high-priority files`)
-        break
-        
-      case 'full':
-        // Analyze all files but with reasonable limits for production
-        selectedFiles = allFiles.slice(0, Math.min(300, allFiles.length))
-        console.log(`🏭 FULL: Selected ${selectedFiles.length} files for comprehensive analysis`)
-        break
-        
-      default:
-        selectedFiles = await getCriticalFiles(allFiles)
-    }
-    
-    return selectedFiles.map(path => ({ path, size: 0 })) // Size not needed for cloned files
-  } catch (error) {
-    console.error('Failed to get repository files:', error)
-    throw error
-  }
-}
+// Old function removed - now using getAllAnalyzableFiles directly from ZIP
 
 export async function POST(request: NextRequest) {
   try {
