@@ -289,11 +289,25 @@ async function realGitClone(
           body: options.body
         })
         
+        // Convert ReadableStream to AsyncIterableIterator for isomorphic-git
+        const body = response.body ? (async function* () {
+          const reader = response.body!.getReader()
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              yield value
+            }
+          } finally {
+            reader.releaseLock()
+          }
+        })() : undefined
+        
         return {
           url: response.url,
           method: options.method || 'GET',
           headers: Object.fromEntries(response.headers.entries()),
-          body: response.body,
+          body: body,
           statusCode: response.status,
           statusMessage: response.statusText
         }
