@@ -527,7 +527,7 @@ async function processAnalysisInBackground(
     
   } catch (error) {
     console.error(`❌ ANALYSIS FAILED [${analysisId}]:`, error)
-    console.error('Full error stack:', error.stack)
+    console.error('Full error stack:', error instanceof Error ? error.stack : 'No stack trace available')
     
     // Mark as failed (no cleanup needed for direct downloads)
     try {
