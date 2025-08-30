@@ -242,7 +242,7 @@ async function processAnalysisInBackground(
       console.log(`📁 STEP 2: Getting repository file tree via GitHub API`)
       updateAnalysisStatus(analysisId, {
         status: 'scanning',
-        progress: 25,
+        progress: 10, // Start lower, not 25%
         currentFile: 'Getting repository file tree...'
       })
       
@@ -271,20 +271,25 @@ async function processAnalysisInBackground(
         throw new Error('Failed to get repository file tree from GitHub API')
       }
       
-      // Filter for analyzable files
+      // Filter for analyzable files (MUCH MORE INCLUSIVE!)
       const analyzableFiles = treeData.tree
         .filter((item: any) => item.type === 'blob') // Only files, not directories
         .filter((item: any) => {
           const path = item.path.toLowerCase()
+          // Include ALL text-based files, not just code
           return path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.jsx') || 
                  path.endsWith('.tsx') || path.endsWith('.py') || path.endsWith('.java') ||
                  path.endsWith('.go') || path.endsWith('.rs') || path.endsWith('.php') ||
                  path.endsWith('.rb') || path.endsWith('.cpp') || path.endsWith('.c') ||
                  path.endsWith('.h') || path.endsWith('.cs') || path.endsWith('.swift') ||
+                 path.endsWith('.md') || path.endsWith('.txt') || path.endsWith('.yml') ||
+                 path.endsWith('.yaml') || path.endsWith('.json') || path.endsWith('.xml') ||
+                 path.endsWith('.sh') || path.endsWith('.dockerfile') || path.endsWith('.sql') ||
                  path.includes('package.json') || path.includes('dockerfile') || 
-                 path.includes('config') || path.includes('env')
+                 path.includes('config') || path.includes('env') || path.includes('readme') ||
+                 path.includes('makefile') || path.includes('license') || path.includes('.gitignore')
         })
-        .slice(0, 500) // Limit to 500 files for now (still way more than before!)
+        .slice(0, 500) // Limit to 500 files for now
       
       totalFiles = analyzableFiles.length
       console.log(`🚀 FOUND ${totalFiles} ANALYZABLE FILES - PROCESSING ALL OF THEM!`)
@@ -293,7 +298,7 @@ async function processAnalysisInBackground(
       console.log(`🔍 STEP 3: ONE-BY-ONE analysis of ${totalFiles} files via GitHub API`)
       updateAnalysisStatus(analysisId, {
         status: 'analyzing',
-        progress: 30,
+        progress: 15, // Start analysis at 15%, not 30%
         totalFiles,
         currentFile: 'Starting GitHub API-based analysis...'
       })
@@ -320,7 +325,7 @@ async function processAnalysisInBackground(
               // Add results immediately (streaming!) - ACCUMULATE, don't replace!
               updateAnalysisStatus(analysisId, {
                 status: 'analyzing',
-                progress: 30 + ((i + 1) / totalFiles) * 65, // 30-95% for analysis
+                progress: 15 + ((i + 1) / totalFiles) * 80, // 15-95% for analysis
                 filesAnalyzed: i + 1,
                 currentFile: file.path,
                 results: [{
@@ -339,7 +344,7 @@ async function processAnalysisInBackground(
           if (filesProcessed % 10 === 0 || filesProcessed === totalFiles) {
             updateAnalysisStatus(analysisId, {
               status: 'analyzing',
-              progress: 30 + (filesProcessed / totalFiles) * 65,
+              progress: 15 + (filesProcessed / totalFiles) * 80, // 15-95% range
               filesAnalyzed: filesProcessed,
               currentFile: file.path
             })
