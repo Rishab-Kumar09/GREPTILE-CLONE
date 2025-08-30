@@ -249,7 +249,7 @@ async function processAnalysisInBackground(
       // Get file tree from GitHub API (much more reliable!)
       // Try multiple branch names to find the right one
       let treeData = null
-      const branchesToTry = [repoInfo.defaultBranch, 'main', 'master', 'develop']
+      const branchesToTry = ['main', 'master', 'develop'] // Try common branch names
       
       for (const branch of branchesToTry) {
         if (!branch) continue
