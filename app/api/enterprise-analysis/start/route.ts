@@ -355,7 +355,17 @@ async function processAnalysisInBackground(
           const rawUrl = `https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${foundBranch}/${file.path}`
           console.log(`📥 Downloading: ${rawUrl}`)
           
-          const fileResponse = await fetch(rawUrl)
+          // Add timeout to prevent hanging on large files
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+          
+          const fileResponse = await fetch(rawUrl, { 
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'Greptile-Clone-Analysis'
+            }
+          })
+          clearTimeout(timeoutId)
           if (fileResponse.ok) {
             const fileContent = await fileResponse.text()
             
@@ -397,8 +407,13 @@ async function processAnalysisInBackground(
           await new Promise(resolve => setTimeout(resolve, 50))
           
         } catch (fileError) {
-          console.warn(`⚠️ Failed to process ${file.path}:`, fileError)
+          if (fileError.name === 'AbortError') {
+            console.warn(`⏰ Timeout downloading ${file.path} (>10s) - skipping`)
+          } else {
+            console.warn(`⚠️ Failed to process ${file.path}:`, fileError)
+          }
           // Continue with next file - don't stop the entire analysis
+          filesProcessed = i + 1
         }
       }
       
