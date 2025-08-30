@@ -3,10 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 import { 
   getRepositoryInfo,
-  cloneRepository,
-  getAllAnalyzableFiles,
-  type RepositoryInfo,
-  type CloneProgress
+  type RepositoryInfo
 } from '@/lib/repository-cloner'
 
 // Enterprise Analysis Strategies
@@ -119,58 +116,59 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// SIMPLE 3-STEP PROCESS: Clone Repo → Get Files → Analyze ALL
+// REAL GIT CLONE APPROACH: Clone → Scan → Analyze ALL
 async function processAnalysisInBackground(
   analysisId: string,
   repoInfo: RepositoryInfo,
   strategy: string
 ) {
-  console.log(`🔄 SIMPLE 3-STEP PROCESS for ${analysisId}`)
+  console.log(`🔄 REAL GIT CLONE APPROACH for ${analysisId}`)
   console.log(`📊 Repository: ${repoInfo.fullName}`)
   console.log(`🎯 Strategy: ${strategy}`)
   
   try {
     const startTime = Date.now()
     
-    // STEP 1: CLONE THE WHOLE REPO (NO ZIP!)
-    console.log(`📥 STEP 1: Cloning entire repository WITHOUT zipping...`)
+    // STEP 1: CLONE REPOSITORY WITH REAL GIT
+    console.log(`📥 STEP 1: Cloning repository with real git clone...`)
     updateAnalysisStatus(analysisId, { 
       status: 'cloning',
       progress: 10,
-      currentFile: `Cloning ${repoInfo.fullName}...`
+      currentFile: `Cloning ${repoInfo.fullName} with git...`
     })
     
-    const clonePath = await cloneRepository(repoInfo, (progress) => {
-      console.log(`📊 Clone: ${progress.progress}% - ${progress.message}`)
+    const clonePath = await realGitClone(repoInfo.owner, repoInfo.repo, (progress) => {
+      console.log(`📊 Clone: ${progress}% - Cloning repository...`)
       updateAnalysisStatus(analysisId, {
         status: 'cloning',
-        progress: 10 + (progress.progress * 0.4), // 10-50% for cloning
-        currentFile: progress.message
+        progress: 10 + (progress * 0.4), // 10-50% for cloning
+        currentFile: `Cloning: ${progress}% complete`
       })
     })
     
     console.log(`✅ STEP 1 COMPLETE: Repository cloned to ${clonePath}`)
     
-    // STEP 2: GET ALL FILES FROM CLONED REPO
-    console.log(`📁 STEP 2: Getting ALL files from cloned repository...`)
+    // STEP 2: SCAN ALL FILES FROM CLONED REPO
+    console.log(`📁 STEP 2: Scanning ALL files from cloned repository...`)
     updateAnalysisStatus(analysisId, {
       status: 'scanning',
       progress: 55,
       currentFile: 'Scanning cloned repository...'
     })
     
-    const allFiles = await getAllAnalyzableFiles(clonePath)
+    const allFiles = await scanClonedRepository(clonePath)
     const totalFiles = allFiles.length
     console.log(`✅ STEP 2 COMPLETE: Found ${totalFiles} files to analyze`)
     
-    // STEP 3: ANALYZE ALL FILES IN PARALLEL
-    console.log(`🔍 STEP 3: Analyzing ALL ${totalFiles} files in parallel...`)
     updateAnalysisStatus(analysisId, {
       status: 'analyzing',
       progress: 60,
       totalFiles,
-      currentFile: `Analyzing ${totalFiles} files in parallel...`
+      currentFile: `Found ${totalFiles} files - starting analysis...`
     })
+    
+    // STEP 3: ANALYZE ALL FILES IN PARALLEL
+    console.log(`🔍 STEP 3: Analyzing ALL ${totalFiles} files in parallel...`)
     
     // Process ALL files in parallel (no limits!)
     const analysisPromises = allFiles.map(async (filePath: string, index: number) => {
@@ -248,6 +246,167 @@ async function processAnalysisInBackground(
       console.error(`❌ Failed to update status:`, statusError)
     }
   }
+}
+
+// Real git clone function for AWS Lambda
+async function realGitClone(
+  owner: string, 
+  repo: string, 
+  progressCallback?: (progress: number) => void
+): Promise<string> {
+  const { execSync } = await import('child_process')
+  const fs = await import('fs/promises')
+  const path = await import('path')
+  
+  console.log(`🔍 Starting real git clone for ${owner}/${repo}`)
+  
+  // Create unique clone path
+  const clonePath = path.join('/tmp', `greptile-clone-${owner}-${repo}-${Date.now()}`)
+  
+  try {
+    console.log(`📁 Clone path: ${clonePath}`)
+    
+    // Ensure /tmp directory exists
+    await fs.mkdir('/tmp', { recursive: true })
+    
+    progressCallback?.(10)
+    
+    // Check if git is available
+    try {
+      execSync('git --version', { encoding: 'utf8' })
+      console.log(`✅ Git is available in Lambda environment`)
+    } catch (gitError) {
+      console.error(`❌ Git not available:`, gitError)
+      throw new Error('Git is not available in this Lambda environment. Please add a Lambda Layer with git.')
+    }
+    
+    progressCallback?.(25)
+    
+    // Clone repository (shallow clone for speed)
+    const repoUrl = `https://github.com/${owner}/${repo}.git`
+    console.log(`🔄 Cloning: ${repoUrl}`)
+    
+    const cloneCommand = `git clone --depth=1 --single-branch "${repoUrl}" "${clonePath}"`
+    console.log(`🔧 Command: ${cloneCommand}`)
+    
+    progressCallback?.(50)
+    
+    // Execute git clone
+    const output = execSync(cloneCommand, { 
+      encoding: 'utf8',
+      timeout: 300000, // 5 minute timeout
+      maxBuffer: 1024 * 1024 * 100 // 100MB buffer
+    })
+    
+    console.log(`✅ Git clone output:`, output)
+    
+    progressCallback?.(90)
+    
+    // Verify clone was successful
+    const stats = await fs.stat(clonePath)
+    if (!stats.isDirectory()) {
+      throw new Error('Clone path is not a directory')
+    }
+    
+    console.log(`✅ Repository successfully cloned to: ${clonePath}`)
+    progressCallback?.(100)
+    
+    return clonePath
+    
+  } catch (error) {
+    console.error(`❌ Git clone failed:`, error)
+    
+    // Clean up failed clone
+    try {
+      await fs.rm(clonePath, { recursive: true, force: true })
+    } catch (cleanupError) {
+      console.warn('Failed to clean up after failed clone:', cleanupError)
+    }
+    
+    throw new Error(`Git clone failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+// Scan cloned repository for all analyzable files
+async function scanClonedRepository(clonePath: string): Promise<string[]> {
+  const fs = await import('fs/promises')
+  const path = await import('path')
+  
+  console.log(`🔍 Scanning cloned repository: ${clonePath}`)
+  
+  const analyzableFiles: string[] = []
+  
+  // Recursively scan directory
+  async function scanDirectory(dirPath: string, relativePath: string = ''): Promise<void> {
+    try {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true })
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name)
+        const relativeFilePath = path.join(relativePath, entry.name)
+        
+        // Skip .git directory and other common ignore patterns
+        if (entry.name.startsWith('.git') || 
+            entry.name === 'node_modules' || 
+            entry.name === '__pycache__' ||
+            entry.name === '.next' ||
+            entry.name === 'dist' ||
+            entry.name === 'build') {
+          continue
+        }
+        
+        if (entry.isDirectory()) {
+          // Recursively scan subdirectory
+          await scanDirectory(fullPath, relativeFilePath)
+        } else if (entry.isFile()) {
+          // Check if file is analyzable
+          if (isAnalyzableFile(entry.name)) {
+            analyzableFiles.push(relativeFilePath)
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️ Failed to scan directory ${dirPath}:`, error)
+    }
+  }
+  
+  await scanDirectory(clonePath)
+  
+  console.log(`✅ Found ${analyzableFiles.length} analyzable files`)
+  return analyzableFiles
+}
+
+// Check if file is analyzable based on extension
+function isAnalyzableFile(fileName: string): boolean {
+  const lowerName = fileName.toLowerCase()
+  
+  // Include all common code file types
+  const codeExtensions = [
+    '.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte',
+    '.py', '.rb', '.php', '.java', '.kt', '.scala',
+    '.go', '.rs', '.cpp', '.c', '.h', '.hpp',
+    '.cs', '.vb', '.fs', '.clj', '.cljs',
+    '.html', '.htm', '.css', '.scss', '.sass', '.less',
+    '.json', '.xml', '.yaml', '.yml', '.toml',
+    '.sql', '.graphql', '.proto',
+    '.sh', '.bash', '.zsh', '.fish', '.ps1',
+    '.dockerfile', '.makefile', '.cmake',
+    '.md', '.txt', '.rst', '.adoc'
+  ]
+  
+  // Check if file has analyzable extension
+  const hasCodeExtension = codeExtensions.some(ext => lowerName.endsWith(ext))
+  
+  // Include files without extension that are likely code files
+  const isLikelyCodeFile = !lowerName.includes('.') && (
+    lowerName.includes('dockerfile') ||
+    lowerName.includes('makefile') ||
+    lowerName.includes('rakefile') ||
+    lowerName.includes('gemfile') ||
+    lowerName.includes('procfile')
+  )
+  
+  return hasCodeExtension || isLikelyCodeFile
 }
 
 // Generate realistic issues for demo with file content analysis  
