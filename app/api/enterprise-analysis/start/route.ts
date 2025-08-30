@@ -355,40 +355,109 @@ async function processAnalysisInBackground(
           const rawUrl = `https://raw.githubusercontent.com/${repoInfo.owner}/${repoInfo.repo}/${foundBranch}/${file.path}`
           console.log(`📥 Downloading: ${rawUrl}`)
           
-          // Add timeout to prevent hanging on large files
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+          // Try to download the file - handle large files with streaming
+          let fileContent = ''
+          let issues = []
           
-          const fileResponse = await fetch(rawUrl, { 
-            signal: controller.signal,
-            headers: {
-              'User-Agent': 'Greptile-Clone-Analysis'
-            }
-          })
-          clearTimeout(timeoutId)
-          if (fileResponse.ok) {
-            const fileContent = await fileResponse.text()
+          try {
+            const fileResponse = await fetch(rawUrl, {
+              signal: AbortSignal.timeout(30000), // 30 second timeout
+            })
             
-            // Analyze this single file immediately
-            const issues = generateRealisticIssues(file.path, fileContent)
-            
-            if (issues.length > 0) {
-              // Add results immediately (streaming!)
-              updateAnalysisStatus(analysisId, {
-                status: 'analyzing',
-                progress: 15 + ((i + 1) / totalFiles) * 80, // 15-95% for analysis
-                filesAnalyzed: i + 1,
-                currentFile: file.path,
-                results: [{
-                  file: file.path,
-                  issues: issues
-                }]
-              })
+            if (fileResponse.ok) {
+              console.log(`📥 Successfully fetched ${file.path}`)
               
-              console.log(`✅ Found ${issues.length} issues in ${file.path}`)
+              // Check if it's a large file by content-length header
+              const contentLength = fileResponse.headers.get('content-length')
+              const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0
+              
+              if (fileSizeMB > 10) {
+                console.log(`🔥 LARGE FILE DETECTED: ${file.path} (${fileSizeMB.toFixed(1)}MB)`)
+                console.log(`🚀 PROCESSING LARGE FILE WITH STREAMING ANALYSIS...`)
+                
+                // For very large files, process in chunks using streaming
+                const reader = fileResponse.body?.getReader()
+                const decoder = new TextDecoder()
+                let chunk = ''
+                let chunkCount = 0
+                
+                if (reader) {
+                  while (true) {
+                    const { done, value } = await reader.read()
+                    if (done) break
+                    
+                    chunk += decoder.decode(value, { stream: true })
+                    chunkCount++
+                    
+                    // Process every 100KB chunk
+                    if (chunk.length > 100000) {
+                      console.log(`🔍 Analyzing chunk ${chunkCount} of ${file.path}`)
+                      const chunkIssues = generateRealisticIssues(file.path, chunk)
+                      issues.push(...chunkIssues)
+                      
+                      // Keep only the last 10KB for context between chunks
+                      chunk = chunk.slice(-10000)
+                    }
+                  }
+                  
+                  // Process final chunk
+                  if (chunk.length > 0) {
+                    const finalIssues = generateRealisticIssues(file.path, chunk)
+                    issues.push(...finalIssues)
+                  }
+                  
+                  console.log(`✅ LARGE FILE PROCESSED: ${file.path} - Found ${issues.length} issues in ${chunkCount} chunks`)
+                }
+              } else {
+                // Normal file processing
+                fileContent = await fileResponse.text()
+                console.log(`📊 File size: ${(fileContent.length / 1024).toFixed(1)}KB`)
+                issues = generateRealisticIssues(file.path, fileContent)
+              }
+            } else {
+              throw new Error(`HTTP ${fileResponse.status}: ${fileResponse.statusText}`)
             }
-          } else {
-            console.warn(`⚠️ Failed to download ${file.path}: ${fileResponse.status}`)
+          } catch (fetchError) {
+            if (fetchError.message.includes('413')) {
+              console.log(`🔥 413 ERROR - TRYING ALTERNATIVE APPROACH FOR: ${file.path}`)
+              
+              // Alternative: Use GitHub API to get file content (handles larger files)
+              try {
+                const apiUrl = `https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/contents/${file.path}?ref=${foundBranch}`
+                const apiResponse = await fetch(apiUrl)
+                
+                if (apiResponse.ok) {
+                  const apiData = await apiResponse.json()
+                  if (apiData.content && apiData.encoding === 'base64') {
+                    fileContent = Buffer.from(apiData.content, 'base64').toString('utf-8')
+                    console.log(`✅ ALTERNATIVE SUCCESS: ${file.path} via GitHub API (${(fileContent.length / 1024).toFixed(1)}KB)`)
+                    issues = generateRealisticIssues(file.path, fileContent)
+                  }
+                }
+              } catch (apiError) {
+                console.warn(`⚠️ Both raw and API failed for ${file.path}:`, apiError.message)
+                throw fetchError
+              }
+            } else {
+              throw fetchError
+            }
+          }
+          
+          // Process the analysis results
+          if (issues.length > 0) {
+            // Add results immediately (streaming!)
+            updateAnalysisStatus(analysisId, {
+              status: 'analyzing',
+              progress: 15 + ((i + 1) / totalFiles) * 80, // 15-95% for analysis
+              filesAnalyzed: i + 1,
+              currentFile: file.path,
+              results: [{
+                file: file.path,
+                issues: issues
+              }]
+            })
+            
+            console.log(`✅ Found ${issues.length} issues in ${file.path}`)
           }
           
           filesProcessed = i + 1
@@ -407,13 +476,14 @@ async function processAnalysisInBackground(
           await new Promise(resolve => setTimeout(resolve, 50))
           
         } catch (fileError) {
-          if (fileError.name === 'AbortError') {
-            console.warn(`⏰ Timeout downloading ${file.path} (>10s) - skipping`)
+          if (fileError.name === 'TimeoutError') {
+            console.warn(`⚠️ Timeout downloading ${file.path}, skipping...`)
+          } else if (fileError.name === 'AbortError') {
+            console.warn(`⚠️ Download aborted for ${file.path}, skipping...`)
           } else {
             console.warn(`⚠️ Failed to process ${file.path}:`, fileError)
           }
           // Continue with next file - don't stop the entire analysis
-          filesProcessed = i + 1
         }
       }
       
