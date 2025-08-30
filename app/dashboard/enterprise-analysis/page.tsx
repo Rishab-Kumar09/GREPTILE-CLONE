@@ -54,7 +54,7 @@ export default function EnterpriseAnalysis() {
   const [filesAnalyzed, setFilesAnalyzed] = useState(0)
   const [totalFiles, setTotalFiles] = useState(0)
   const [estimatedTime, setEstimatedTime] = useState('')
-  const [currentStage, setCurrentStage] = useState<'initializing' | 'downloading' | 'extracting' | 'analyzing' | 'complete'>('initializing')
+  const [currentStage, setCurrentStage] = useState<'initializing' | 'downloading' | 'extracting' | 'scanning' | 'analyzing' | 'complete'>('initializing')
   const [downloadSpeed, setDownloadSpeed] = useState('')
   const [eta, setEta] = useState('')
   
@@ -133,7 +133,7 @@ export default function EnterpriseAnalysis() {
       if (status.status === 'cloning') {
         setCurrentStage('downloading')
       } else if (status.status === 'scanning') {
-        setCurrentStage('extracting')  
+        setCurrentStage('scanning')  
       } else if (status.status === 'analyzing') {
         setCurrentStage('analyzing')
       } else if (status.status === 'completed') {
