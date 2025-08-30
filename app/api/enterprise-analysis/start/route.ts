@@ -176,7 +176,10 @@ async function processAnalysisInBackground(
       currentFile: `Cloning ${repoInfo.fullName}...`
     })
     
-    const clonePath = await cloneRepository(repoInfo.owner, repoInfo.repo, '/tmp', (progress) => {
+    // Create full repository info for cloning
+    const fullRepoInfo = await getRepoInfo(repoInfo.owner, repoInfo.repo)
+    
+    const clonePath = await cloneRepository(fullRepoInfo, (progress) => {
       console.log(`📊 Clone: ${progress.progress}% - ${progress.message}`)
       updateAnalysisStatus(analysisId, {
         status: 'cloning',
