@@ -367,13 +367,13 @@ async function processAnalysisInBackground(
       // No cleanup needed for new ZIP-based approach
       
       try {
-        console.log(`🔍 Analyzing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} files`)
+        console.log(`✅ Analysis already completed using one-by-one approach`)
         
-        // Analyze files from cloned repository
+        // Old batch processing code commented out - replaced by one-by-one approach
+        /*
         const batchResults = []
         for (const file of batch) {
           try {
-            // Validate file exists before trying to read it
             const fullPath = path.join(clonePath, file.path)
             try {
               await fs.access(fullPath)
@@ -456,12 +456,12 @@ async function processAnalysisInBackground(
     // Optional: Clean up cloned repository after some time
     // (You might want to keep it for a while for re-analysis)
     setTimeout(async () => {
-      try {
-        const fs = await import('fs/promises')
-        await fs.rm(clonePath, { recursive: true, force: true })
-        console.log(`🗑️ Cleaned up cloned repository: ${clonePath}`)
+        */
+        
+        // No cleanup needed for ZIP-based approach
+        console.log(`✅ No cleanup needed`)
       } catch (cleanupError) {
-        console.warn(`⚠️ Failed to cleanup ${clonePath}:`, cleanupError)
+        console.warn(`⚠️ Cleanup not needed for ZIP approach`)
       }
     }, 30 * 60 * 1000) // Clean up after 30 minutes
     
