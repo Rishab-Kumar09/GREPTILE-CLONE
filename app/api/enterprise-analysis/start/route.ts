@@ -314,7 +314,8 @@ async function realGitClone(
       }
     }
     
-    await git.default.clone({
+    // Add timeout and better error handling for isomorphic-git
+    const clonePromise = git.default.clone({
       fs: fs,
       http: http,
       dir: clonePath,
@@ -323,10 +324,18 @@ async function realGitClone(
       singleBranch: true, // Only clone default branch
       onProgress: (progress) => {
         const percent = Math.round((progress.loaded / progress.total) * 100)
-        console.log(`📊 Clone progress: ${percent}% (${progress.phase})`)
+        console.log(`📊 Clone progress: ${percent}% (${progress.phase}) - ${progress.loaded}/${progress.total} bytes`)
         progressCallback?.(25 + (percent * 0.65)) // 25-90%
       }
     })
+    
+    // Add timeout for clone operation (5 minutes max)
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Clone operation timed out after 5 minutes')), 300000)
+    })
+    
+    console.log(`⏱️ Starting clone with 5-minute timeout...`)
+    await Promise.race([clonePromise, timeoutPromise])
     
     console.log(`✅ Isomorphic-git clone completed`)
     
@@ -353,6 +362,7 @@ async function realGitClone(
     
   } catch (error) {
     console.error(`❌ Isomorphic-git clone failed:`, error)
+    console.log(`🔄 Falling back to GitHub Archive API for large repository...`)
     
     // Clean up failed clone
     try {
@@ -361,7 +371,107 @@ async function realGitClone(
       console.warn('Failed to clean up after failed clone:', cleanupError)
     }
     
-    throw new Error(`Git clone failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    // Fallback to system git clone (if available)
+    try {
+      progressCallback?.(30)
+      console.log(`🔧 FALLBACK: Trying system git clone...`)
+      
+      const { execSync } = await import('child_process')
+      
+      // Check if git is available
+      try {
+        execSync('git --version', { encoding: 'utf8' })
+        console.log(`✅ System git is available`)
+      } catch (gitCheckError) {
+        throw new Error('System git not available in Lambda environment')
+      }
+      
+      progressCallback?.(40)
+      
+      // Create clone directory
+      await fs.mkdir(clonePath, { recursive: true })
+      
+      // Try system git clone with minimal options
+      const repoUrl = `https://github.com/${owner}/${repo}.git`
+      const cloneCommand = `git clone --depth=1 --single-branch --no-tags "${repoUrl}" "${clonePath}"`
+      
+      console.log(`🔧 System git command: ${cloneCommand}`)
+      progressCallback?.(50)
+      
+      // Execute with longer timeout and larger buffer for massive repos
+      const output = execSync(cloneCommand, { 
+        encoding: 'utf8',
+        timeout: 600000, // 10 minute timeout for massive repos
+        maxBuffer: 1024 * 1024 * 500, // 500MB buffer
+        stdio: 'pipe'
+      })
+      
+      console.log(`✅ System git clone output:`, output)
+      progressCallback?.(85)
+      
+      // Verify clone was successful
+      const stats = await fs.stat(clonePath)
+      if (!stats.isDirectory()) {
+        throw new Error('System git clone failed - directory not created')
+      }
+      
+      console.log(`✅ FALLBACK SUCCESS: System git cloned to ${clonePath}`)
+      progressCallback?.(90)
+      
+      return clonePath
+      
+    } catch (fallbackError) {
+      console.error(`❌ System git fallback also failed:`, fallbackError)
+      
+      // Final fallback: Try sparse checkout for massive repos
+      try {
+        console.log(`🔧 FINAL FALLBACK: Trying sparse checkout...`)
+        progressCallback?.(35)
+        
+        const { execSync } = await import('child_process')
+        
+        // Initialize empty repo
+        await fs.mkdir(clonePath, { recursive: true })
+        execSync('git init', { cwd: clonePath })
+        
+        // Add remote
+        const repoUrl = `https://github.com/${owner}/${repo}.git`
+        execSync(`git remote add origin "${repoUrl}"`, { cwd: clonePath })
+        
+        // Enable sparse checkout
+        execSync('git config core.sparseCheckout true', { cwd: clonePath })
+        
+        // Set sparse checkout patterns (focus on code files)
+        const sparsePatterns = [
+          '*.js', '*.jsx', '*.ts', '*.tsx', '*.py', '*.java', '*.go', '*.rs',
+          '*.cpp', '*.c', '*.h', '*.php', '*.rb', '*.cs', '*.scala', '*.kt',
+          '*.html', '*.css', '*.scss', '*.json', '*.yaml', '*.yml', '*.md'
+        ].join('\n')
+        
+        const path = await import('path')
+        await fs.writeFile(path.join(clonePath, '.git', 'info', 'sparse-checkout'), sparsePatterns)
+        
+        progressCallback?.(50)
+        
+        // Fetch and checkout with depth=1
+        execSync('git fetch --depth=1 origin', { 
+          cwd: clonePath,
+          timeout: 600000, // 10 minutes
+          maxBuffer: 1024 * 1024 * 500 // 500MB
+        })
+        
+        execSync('git checkout origin/HEAD', { cwd: clonePath })
+        
+        console.log(`✅ SPARSE CHECKOUT SUCCESS: ${clonePath}`)
+        progressCallback?.(90)
+        
+        return clonePath
+        
+      } catch (sparseError) {
+        console.error(`❌ All git methods failed:`, sparseError)
+        throw new Error(`All git clone methods failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    }
   }
 }
 
