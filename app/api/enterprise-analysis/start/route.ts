@@ -248,17 +248,17 @@ async function processAnalysisInBackground(
   }
 }
 
-// Real git clone function for AWS Lambda
+// Pure JavaScript git clone using isomorphic-git (Lambda-compatible)
 async function realGitClone(
   owner: string, 
   repo: string, 
   progressCallback?: (progress: number) => void
 ): Promise<string> {
-  const { execSync } = await import('child_process')
+  const git = await import('isomorphic-git')
   const fs = await import('fs/promises')
   const path = await import('path')
   
-  console.log(`🔍 Starting real git clone for ${owner}/${repo}`)
+  console.log(`🔍 Starting isomorphic-git clone for ${owner}/${repo}`)
   
   // Create unique clone path
   const clonePath = path.join('/tmp', `greptile-clone-${owner}-${repo}-${Date.now()}`)
@@ -266,39 +266,34 @@ async function realGitClone(
   try {
     console.log(`📁 Clone path: ${clonePath}`)
     
-    // Ensure /tmp directory exists
-    await fs.mkdir('/tmp', { recursive: true })
+    // Ensure clone directory exists
+    await fs.mkdir(clonePath, { recursive: true })
     
     progressCallback?.(10)
     
-    // Check if git is available
-    try {
-      execSync('git --version', { encoding: 'utf8' })
-      console.log(`✅ Git is available in Lambda environment`)
-    } catch (gitError) {
-      console.error(`❌ Git not available:`, gitError)
-      throw new Error('Git is not available in this Lambda environment. Please add a Lambda Layer with git.')
-    }
-    
-    progressCallback?.(25)
-    
-    // Clone repository (shallow clone for speed)
+    // Repository URL
     const repoUrl = `https://github.com/${owner}/${repo}.git`
     console.log(`🔄 Cloning: ${repoUrl}`)
     
-    const cloneCommand = `git clone --depth=1 --single-branch "${repoUrl}" "${clonePath}"`
-    console.log(`🔧 Command: ${cloneCommand}`)
+    progressCallback?.(25)
     
-    progressCallback?.(50)
+    // Clone repository using isomorphic-git (shallow clone for speed)
+    console.log(`🔧 Using isomorphic-git for pure JavaScript cloning...`)
     
-    // Execute git clone
-    const output = execSync(cloneCommand, { 
-      encoding: 'utf8',
-      timeout: 300000, // 5 minute timeout
-      maxBuffer: 1024 * 1024 * 100 // 100MB buffer
+    await git.default.clone({
+      fs: fs,
+      dir: clonePath,
+      url: repoUrl,
+      depth: 1, // Shallow clone for speed
+      singleBranch: true, // Only clone default branch
+      onProgress: (progress) => {
+        const percent = Math.round((progress.loaded / progress.total) * 100)
+        console.log(`📊 Clone progress: ${percent}% (${progress.phase})`)
+        progressCallback?.(25 + (percent * 0.65)) // 25-90%
+      }
     })
     
-    console.log(`✅ Git clone output:`, output)
+    console.log(`✅ Isomorphic-git clone completed`)
     
     progressCallback?.(90)
     
@@ -308,13 +303,21 @@ async function realGitClone(
       throw new Error('Clone path is not a directory')
     }
     
+    // Check if .git directory exists
+    try {
+      await fs.stat(path.join(clonePath, '.git'))
+      console.log(`✅ .git directory found - clone successful`)
+    } catch (gitDirError) {
+      console.warn(`⚠️ .git directory not found, but proceeding...`)
+    }
+    
     console.log(`✅ Repository successfully cloned to: ${clonePath}`)
     progressCallback?.(100)
     
     return clonePath
     
   } catch (error) {
-    console.error(`❌ Git clone failed:`, error)
+    console.error(`❌ Isomorphic-git clone failed:`, error)
     
     // Clean up failed clone
     try {
