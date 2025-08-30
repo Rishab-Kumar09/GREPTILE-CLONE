@@ -271,25 +271,42 @@ async function processAnalysisInBackground(
         throw new Error('Failed to get repository file tree from GitHub API')
       }
       
-      // Filter for analyzable files (MUCH MORE INCLUSIVE!)
+      // UNIVERSAL APPROACH: Analyze ALL files except binaries/images!
       const analyzableFiles = treeData.tree
         .filter((item: any) => item.type === 'blob') // Only files, not directories
         .filter((item: any) => {
           const path = item.path.toLowerCase()
-          // Include ALL text-based files, not just code
-          return path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.jsx') || 
-                 path.endsWith('.tsx') || path.endsWith('.py') || path.endsWith('.java') ||
-                 path.endsWith('.go') || path.endsWith('.rs') || path.endsWith('.php') ||
-                 path.endsWith('.rb') || path.endsWith('.cpp') || path.endsWith('.c') ||
-                 path.endsWith('.h') || path.endsWith('.cs') || path.endsWith('.swift') ||
-                 path.endsWith('.md') || path.endsWith('.txt') || path.endsWith('.yml') ||
-                 path.endsWith('.yaml') || path.endsWith('.json') || path.endsWith('.xml') ||
-                 path.endsWith('.sh') || path.endsWith('.dockerfile') || path.endsWith('.sql') ||
-                 path.includes('package.json') || path.includes('dockerfile') || 
-                 path.includes('config') || path.includes('env') || path.includes('readme') ||
-                 path.includes('makefile') || path.includes('license') || path.includes('.gitignore')
+          
+          // EXCLUDE only binary/media files (everything else is analyzable!)
+          const binaryExtensions = [
+            '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', '.webp',
+            '.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv',
+            '.mp3', '.wav', '.ogg', '.flac', '.aac', '.wma',
+            '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+            '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2',
+            '.exe', '.dll', '.so', '.dylib', '.bin', '.deb', '.rpm',
+            '.jar', '.war', '.ear', '.class', '.pyc', '.pyo',
+            '.woff', '.woff2', '.ttf', '.eot', '.otf',
+            '.db', '.sqlite', '.sqlite3'
+          ]
+          
+          // Skip if it's a binary file
+          const isBinary = binaryExtensions.some(ext => path.endsWith(ext))
+          if (isBinary) return false
+          
+          // Skip common non-analyzable directories
+          const skipPaths = [
+            'node_modules/', '.git/', 'vendor/', 'build/', 'dist/', 
+            'target/', '.next/', '.nuxt/', 'coverage/', '__pycache__/',
+            '.vscode/', '.idea/', 'logs/', 'tmp/', 'temp/'
+          ]
+          const shouldSkip = skipPaths.some(skipPath => path.includes(skipPath))
+          if (shouldSkip) return false
+          
+          // ANALYZE EVERYTHING ELSE! (All text-based files)
+          return true
         })
-        .slice(0, 500) // Limit to 500 files for now
+        .slice(0, 1000) // Increased limit - analyze more files!
       
       totalFiles = analyzableFiles.length
       console.log(`🚀 FOUND ${totalFiles} ANALYZABLE FILES - PROCESSING ALL OF THEM!`)
