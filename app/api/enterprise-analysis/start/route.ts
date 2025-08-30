@@ -418,7 +418,7 @@ async function processAnalysisInBackground(
               throw new Error(`HTTP ${fileResponse.status}: ${fileResponse.statusText}`)
             }
           } catch (fetchError) {
-            if (fetchError.message.includes('413')) {
+            if (fetchError instanceof Error && fetchError.message.includes('413')) {
               console.log(`🔥 413 ERROR - TRYING ALTERNATIVE APPROACH FOR: ${file.path}`)
               
               // Alternative: Use GitHub API to get file content (handles larger files)
@@ -435,7 +435,7 @@ async function processAnalysisInBackground(
                   }
                 }
               } catch (apiError) {
-                console.warn(`⚠️ Both raw and API failed for ${file.path}:`, apiError.message)
+                console.warn(`⚠️ Both raw and API failed for ${file.path}:`, apiError instanceof Error ? apiError.message : 'Unknown error')
                 throw fetchError
               }
             } else {
