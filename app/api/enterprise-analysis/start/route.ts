@@ -349,20 +349,22 @@ async function processAnalysisInBackground(
     
     console.log(`📊 Found ${totalFiles} files to analyze with ${strategy} strategy`)
     
-    // Update status with file count
+    // Analysis was completed in the one-by-one processing above
+    console.log(`🎉 ONE-BY-ONE ANALYSIS COMPLETE!`)
+    console.log(`📊 Processed ${filesProcessed} files`)
+    console.log(`⏱️ Total time: ${((Date.now() - startTime) / 1000).toFixed(1)}s`)
+    
+    // Mark analysis as completed
     updateAnalysisStatus(analysisId, {
-      status: 'analyzing',
-      progress: 30,
-      totalFiles,
-      currentFile: 'Starting file analysis...'
+      status: 'completed',
+      progress: 100,
+      filesAnalyzed: totalFiles,
+      currentFile: 'Analysis complete!'
     })
     
-    // Step 3: Analyze files in batches
-    console.log(`🔍 STEP 3: Analyzing ${totalFiles} files`)
-    const batchSize = strategy === 'incremental' ? 10 : (strategy === 'priority' ? 8 : 7)
-    
-    for (let i = 0; i < repositoryFiles.length; i += batchSize) {
-      const batch = repositoryFiles.slice(i, i + batchSize)
+    // Schedule cleanup after 30 minutes  
+    setTimeout(async () => {
+      // No cleanup needed for new ZIP-based approach
       
       try {
         console.log(`🔍 Analyzing batch ${Math.floor(i / batchSize) + 1}: ${batch.length} files`)
