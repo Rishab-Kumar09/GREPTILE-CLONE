@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
       
       if (shouldUseBatch) {
         console.log(`🚀 LARGE REPOSITORY (${repoInfo.size}MB) - USING AWS BATCH!`)
-        updateAnalysisStatus(analysisId, {
+        await updateAnalysisStatus(analysisId, {
           status: 'downloading',
           progress: 5,
           currentFile: `Submitting to AWS Batch for git clone + parallel analysis (${repoInfo.size}MB)`
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
           const batchResult = await batchResponse.json()
           console.log(`✅ AWS Batch job submitted: ${batchResult.jobId}`)
           
-          updateAnalysisStatus(analysisId, {
+          await updateAnalysisStatus(analysisId, {
             status: 'cloning',
             progress: 10,
             currentFile: `AWS Batch job submitted: ${batchResult.jobId}`,
@@ -262,7 +262,7 @@ export async function POST(request: NextRequest) {
         } catch (batchError) {
           console.error(`❌ AWS Batch submission failed:`, batchError)
           const errorMessage = batchError instanceof Error ? batchError.message : 'Unknown batch error'
-          updateAnalysisStatus(analysisId, {
+          await updateAnalysisStatus(analysisId, {
             status: 'failed',
             errors: [`AWS Batch submission failed: ${errorMessage}`]
           })
@@ -277,10 +277,10 @@ export async function POST(request: NextRequest) {
         console.log(`📊 SMALL/MEDIUM REPOSITORY (${repoInfo.size}MB) - USING LAMBDA`)
         
         // Start background processing with GitHub API
-        processAnalysisInBackground(analysisId, repoInfo, strategy).catch(error => {
+        processAnalysisInBackground(analysisId, repoInfo, strategy).catch(async error => {
           console.error(`❌ Background processing failed for ${analysisId}:`, error)
           console.error('Full error stack:', error.stack)
-          updateAnalysisStatus(analysisId, {
+          await updateAnalysisStatus(analysisId, {
             status: 'failed',
             errors: [error.message || 'Unknown error in background processing']
           })

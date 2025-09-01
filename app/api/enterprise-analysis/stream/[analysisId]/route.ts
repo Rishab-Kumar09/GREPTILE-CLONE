@@ -29,9 +29,9 @@ export async function GET(
       controller.enqueue(encoder.encode(initialData))
 
       // Set up interval to send progress updates
-      const interval = setInterval(() => {
+      const interval = setInterval(async () => {
         try {
-          const status = getAnalysisStatus(analysisId)
+          const status = await getAnalysisStatus(analysisId)
           
           if (!status) {
             // Analysis not found, close connection
