@@ -321,7 +321,7 @@ async function processAnalysisInBackground(
       }
       
       // UNIVERSAL FILE FILTER: Analyze ALL files except binaries
-      const analyzableFiles = treeData.tree
+      let analyzableFiles = treeData.tree
         .filter((item: any) => item.type === 'blob') // Only files, not directories
         .filter((item: any) => {
           const path = item.path.toLowerCase()
