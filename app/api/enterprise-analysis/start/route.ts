@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
       console.log(`   Environment ENABLE_BATCH: ${process.env.ENABLE_BATCH}`)
       
       // Create initial analysis status
-      createAnalysisStatus(analysisId, {
+      await createAnalysisStatus(analysisId, {
         status: 'initializing',
         strategy: updatedStrategy,
         repository: repoInfo.fullName,

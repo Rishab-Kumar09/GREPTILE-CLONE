@@ -15,8 +15,8 @@ export async function GET(
       )
     }
     
-    // Get status from storage (in real app, this would be from database)
-    const status = getAnalysisStatus(analysisId)
+    // Get status from database
+    const status = await getAnalysisStatus(analysisId)
     
     if (!status) {
       return NextResponse.json(

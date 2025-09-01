@@ -34,6 +34,28 @@ model Repository {
   @@unique([userId, fullName]) // Unique per user
 }
 
+model AnalysisStatus {
+  id                String   @id // Analysis UUID
+  status            String   // 'initializing' | 'downloading' | 'cloning' | 'scanning' | 'analyzing' | 'completed' | 'failed'
+  progress          Int      @default(0)
+  filesAnalyzed     Int      @default(0)
+  totalFiles        Int      @default(0)
+  currentFile       String   @default("")
+  results           Json     @default("[]")
+  errors            Json     @default("[]")
+  startTime         BigInt   // Unix timestamp
+  strategy          Json?    // Strategy configuration
+  repository        String?  // Repository full name
+  repositoryInfo    Json?    // Repository metadata
+  estimatedCompletion BigInt? // Unix timestamp
+  batchJobId        String?  // AWS Batch job ID
+  batchStatus       String?  // AWS Batch status
+  batchStatusReason String?  // AWS Batch status reason
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 model UserProfile {
   id           String   @id @default("default-user")
   name         String   @default("R.K.")
