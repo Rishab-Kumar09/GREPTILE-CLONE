@@ -259,14 +259,15 @@ export async function POST(request: NextRequest) {
           
         } catch (batchError) {
           console.error(`❌ AWS Batch submission failed:`, batchError)
+          const errorMessage = batchError instanceof Error ? batchError.message : 'Unknown batch error'
           updateAnalysisStatus(analysisId, {
             status: 'failed',
-            errors: [`AWS Batch submission failed: ${batchError.message}`]
+            errors: [`AWS Batch submission failed: ${errorMessage}`]
           })
           
           return NextResponse.json({
             success: false,
-            error: `AWS Batch submission failed: ${batchError.message}`
+            error: `AWS Batch submission failed: ${errorMessage}`
           }, { status: 500 })
         }
         
