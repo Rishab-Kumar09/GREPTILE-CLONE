@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 
+// Feature flags for AWS Batch integration
+const ENABLE_BATCH = process.env.ENABLE_BATCH === 'true'
+const BATCH_THRESHOLD_SIZE_MB = parseInt(process.env.BATCH_THRESHOLD_SIZE_MB || '50')
+
 // Simple repository info interface (no cloning needed)
 interface RepositoryInfo {
   owner: string
@@ -186,6 +190,15 @@ export async function POST(request: NextRequest) {
       console.log(`   Estimated time: ${repoInfo.estimatedTime}`)
       console.log(`   Analysis ID: ${analysisId}`)
       
+      // Smart routing: Check if repo should use AWS Batch for git clone
+      const shouldUseBatch = ENABLE_BATCH && (repoInfo.size > BATCH_THRESHOLD_SIZE_MB)
+      
+      console.log(`🔍 BATCH ROUTING DECISION:`)
+      console.log(`   ENABLE_BATCH: ${ENABLE_BATCH}`)
+      console.log(`   Repository size: ${repoInfo.size}MB`)
+      console.log(`   Threshold: ${BATCH_THRESHOLD_SIZE_MB}MB`)
+      console.log(`   Should use Batch: ${shouldUseBatch}`)
+      
       // Create initial analysis status
       createAnalysisStatus(analysisId, {
         status: 'initializing',
@@ -198,6 +211,18 @@ export async function POST(request: NextRequest) {
         startTime: Date.now(),
         results: []
       })
+      
+      if (shouldUseBatch) {
+        console.log(`🚀 LARGE REPOSITORY (${repoInfo.size}MB) - WOULD USE AWS BATCH!`)
+        updateAnalysisStatus(analysisId, {
+          status: 'downloading',
+          progress: 5,
+          currentFile: `Large repo detected - would use AWS Batch for git clone (${repoInfo.size}MB)`
+        })
+        console.log(`📝 Note: AWS Batch infrastructure not deployed, falling back to smart analysis`)
+      } else {
+        console.log(`📊 SMALL/MEDIUM REPOSITORY (${repoInfo.size}MB) - USING LAMBDA`)
+      }
       
       // Start background processing with cloning
           processAnalysisInBackground(analysisId, repoInfo, strategy).catch(error => {
