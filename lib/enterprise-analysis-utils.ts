@@ -26,6 +26,13 @@ export async function updateAnalysisStatus(
   analysisId: string, 
   updates: Partial<AnalysisStatusData>
 ) {
+  // Skip database in local development if DATABASE_URL not set
+  if (!process.env.DATABASE_URL) {
+    console.log(`⚠️ No DATABASE_URL - skipping database update (local dev mode)`)
+    console.log(`📊 STATUS UPDATE [${analysisId}]:`, updates)
+    return
+  }
+  
   try {
     // Get current status from database
     const current = await prisma.analysisStatus.findUnique({
@@ -116,6 +123,13 @@ export async function getAnalysisStatus(analysisId: string) {
 
 // Helper function to create new analysis
 export async function createAnalysisStatus(analysisId: string, initialData: any) {
+  // Skip database in local development if DATABASE_URL not set
+  if (!process.env.DATABASE_URL) {
+    console.log(`⚠️ No DATABASE_URL - skipping database storage (local dev mode)`)
+    console.log(`✅ Created analysis status [${analysisId}] in memory (local)`)
+    return { id: analysisId, ...initialData }
+  }
+  
   try {
     const status = await prisma.analysisStatus.create({
       data: {

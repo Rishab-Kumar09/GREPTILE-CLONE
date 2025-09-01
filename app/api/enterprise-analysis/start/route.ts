@@ -259,14 +259,6 @@ export async function POST(request: NextRequest) {
         }, { status: 500 })
       }
       
-      return NextResponse.json({
-        success: true,
-        analysisId,
-        strategy: updatedStrategy,
-        repositoryInfo: repoInfo,
-        message: `Analysis started for ${repoInfo.fullName} (${repoInfo.size}MB)`
-      })
-      
     } catch (repoError) {
       console.error('Repository access error:', repoError)
       return NextResponse.json(
