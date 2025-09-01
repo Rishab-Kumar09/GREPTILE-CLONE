@@ -21,10 +21,23 @@ async function getRepositoryInfo(owner: string, repo: string): Promise<Repositor
   console.log(`🔍 Getting repository info for ${owner}/${repo}`)
   
   try {
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`)
+    // Add GitHub token for higher rate limits
+    const headers: Record<string, string> = {
+      'User-Agent': 'Greptile-Clone-Analysis'
+    }
+    
+    if (process.env.GITHUB_TOKEN) {
+      headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`
+    }
+    
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers
+    })
     
     if (!response.ok) {
-      throw new Error(`Repository not found: ${owner}/${repo}`)
+      const errorText = await response.text()
+      console.error(`GitHub API Error: ${response.status} ${response.statusText}`, errorText)
+      throw new Error(`Repository access failed: ${response.status} ${response.statusText}`)
     }
     
     const repoData = await response.json()
