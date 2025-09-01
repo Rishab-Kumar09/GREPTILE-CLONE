@@ -5,7 +5,7 @@ import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-ana
 // Feature flags for AWS Batch integration
 // ENABLE AWS BATCH FOR LARGE REPOS (>50MB)
 const ENABLE_BATCH = process.env.ENABLE_BATCH === 'true'
-const BATCH_THRESHOLD_SIZE_MB = parseInt(process.env.BATCH_THRESHOLD_SIZE_MB || '50')
+const BATCH_THRESHOLD_SIZE_MB = parseInt(process.env.BATCH_THRESHOLD_SIZE_MB || '10') // Lower threshold for testing
 
 // Simple repository info interface (no cloning needed)
 interface RepositoryInfo {
@@ -198,7 +198,9 @@ export async function POST(request: NextRequest) {
       console.log(`   ENABLE_BATCH: ${ENABLE_BATCH}`)
       console.log(`   Repository size: ${repoInfo.size}MB`)
       console.log(`   Threshold: ${BATCH_THRESHOLD_SIZE_MB}MB`)
+      console.log(`   Size > Threshold: ${repoInfo.size > BATCH_THRESHOLD_SIZE_MB}`)
       console.log(`   Should use Batch: ${shouldUseBatch}`)
+      console.log(`   Environment ENABLE_BATCH: ${process.env.ENABLE_BATCH}`)
       
       // Create initial analysis status
       createAnalysisStatus(analysisId, {
