@@ -174,10 +174,13 @@ async function getCriticalFiles(allFiles: string[]): Promise<string[]> {
 // Old function removed - now using getAllAnalyzableFiles directly from ZIP
 
 export async function POST(request: NextRequest) {
+  console.log(`🚀 ENTERPRISE ANALYSIS POST REQUEST STARTED`)
   try {
     const { owner, repo, strategy = 'incremental' } = await request.json()
+    console.log(`📝 Request params: owner=${owner}, repo=${repo}, strategy=${strategy}`)
     
     if (!owner || !repo) {
+      console.log(`❌ Missing required params: owner=${owner}, repo=${repo}`)
       return NextResponse.json(
         { error: 'Owner and repo are required' },
         { status: 400 }
@@ -192,7 +195,9 @@ export async function POST(request: NextRequest) {
     
     try {
       // Get repository information first
+      console.log(`📡 About to call getRepositoryInfo for ${owner}/${repo}`)
       const repoInfo = await getRepositoryInfo(owner, repo)
+      console.log(`✅ getRepositoryInfo succeeded: ${repoInfo.fullName} (${repoInfo.size}MB)`)
       console.log(`📊 Repository: ${repoInfo.fullName} (${repoInfo.size}MB)`)
       console.log(`⏱️ Estimated time: ${repoInfo.estimatedTime}`)
       
@@ -221,6 +226,7 @@ export async function POST(request: NextRequest) {
       console.log(`   Environment ENABLE_BATCH: ${process.env.ENABLE_BATCH}`)
       
       // Create initial analysis status
+      console.log(`💾 About to create analysis status in database for ${analysisId}`)
       await createAnalysisStatus(analysisId, {
         status: 'initializing',
         strategy: updatedStrategy,
