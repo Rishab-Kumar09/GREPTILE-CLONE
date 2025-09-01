@@ -65,8 +65,8 @@ const ANALYSIS_STRATEGIES: Record<string, AnalysisStrategy> = {
   },
   full: {
     name: 'Full Analysis',
-    description: 'Comprehensive analysis of up to 300 files',
-    estimatedTime: '3-8 minutes',
+    description: 'Complete analysis of ALL files (unlimited)',
+    estimatedTime: '5-30 minutes',
     priority: 'medium'
   }
 }
@@ -355,10 +355,24 @@ async function processAnalysisInBackground(
           // ANALYZE EVERYTHING ELSE! (All text-based files)
           return true
         })
-        .slice(0, 2000) // Increased limit - analyze up to 2000 files!
+      
+      // Apply strategy-based file limits
+      const originalCount = analyzableFiles.length
+      if (strategy === 'full') {
+        // FULL ANALYSIS: NO LIMITS - analyze EVERYTHING!
+        console.log(`🌊 FULL ANALYSIS: Processing ALL ${originalCount} files (unlimited)`)
+      } else if (strategy === 'priority') {
+        // PRIORITY: Up to 1000 files
+        analyzableFiles = analyzableFiles.slice(0, 1000)
+        console.log(`🎯 PRIORITY ANALYSIS: Processing ${analyzableFiles.length}/${originalCount} files (1000 max)`)
+      } else {
+        // INCREMENTAL: Up to 500 files  
+        analyzableFiles = analyzableFiles.slice(0, 500)
+        console.log(`⚡ INCREMENTAL ANALYSIS: Processing ${analyzableFiles.length}/${originalCount} files (500 max)`)
+      }
       
       totalFiles = analyzableFiles.length
-      console.log(`🚀 FOUND ${totalFiles} FILES - DOWNLOADING & ANALYZING ALL OF THEM!`)
+      console.log(`🚀 FINAL COUNT: ${totalFiles} files selected for analysis`)
       
       // STEP 2: Process files ONE BY ONE (download → analyze → discard)
       console.log(`🔍 STEP 2: ONE-BY-ONE direct file download & analysis`)
