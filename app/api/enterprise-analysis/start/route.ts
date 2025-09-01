@@ -199,65 +199,19 @@ export async function POST(request: NextRequest) {
         results: []
       })
       
-      // ALWAYS use AWS Batch for git clone (simple approach!)
-      console.log(`🚀 SUBMITTING TO AWS BATCH FOR GIT CLONE`)
-      await updateAnalysisStatus(analysisId, {
-        status: 'downloading',
-        progress: 5,
-        currentFile: `Submitting to AWS Batch for git clone + parallel analysis`
-      })
+      // REAL GITHUB API ANALYSIS - NO MORE MOCKS!
+      console.log(`🚀 STARTING REAL GITHUB API ANALYSIS FOR ${repoInfo.fullName}`)
       
-      // Submit to AWS Batch for git clone + parallel processing
-      try {
-        const repoUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}.git`
-        console.log(`📤 Submitting to Batch: ${repoUrl}`)
-        
-        const batchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/batch-analysis`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            repoUrl,
-            strategy,
-            analysisId
-          })
-        })
-        
-        if (!batchResponse.ok) {
-          throw new Error(`Batch submission failed: ${batchResponse.statusText}`)
-        }
-        
-        const batchResult = await batchResponse.json()
-        console.log(`✅ AWS Batch job submitted: ${batchResult.jobId}`)
-        
-        await updateAnalysisStatus(analysisId, {
-          status: 'cloning',
-          progress: 10,
-          currentFile: `AWS Batch job submitted: ${batchResult.jobId}`,
-          batchJobId: batchResult.jobId
-        })
-        
-        return NextResponse.json({
-          success: true,
-          analysisId,
-          strategy: updatedStrategy,
-          repositoryInfo: repoInfo,
-          batchJobId: batchResult.jobId,
-          message: `Analysis submitted to AWS Batch for git clone: ${repoInfo.fullName}`
-        })
-        
-      } catch (batchError) {
-        console.error(`❌ AWS Batch submission failed:`, batchError)
-        const errorMessage = batchError instanceof Error ? batchError.message : 'Unknown batch error'
-        await updateAnalysisStatus(analysisId, {
-          status: 'failed',
-          errors: [`AWS Batch submission failed: ${errorMessage}`]
-        })
-        
-        return NextResponse.json({
-          success: false,
-          error: `AWS Batch submission failed: ${errorMessage}`
-        }, { status: 500 })
-      }
+      // Start real analysis in background
+      processAnalysisInBackground(analysisId, repoInfo, strategy)
+      
+      return NextResponse.json({
+        success: true,
+        analysisId,
+        strategy: updatedStrategy,
+        repositoryInfo: repoInfo,
+        message: `🔥 REAL analysis started for ${repoInfo.fullName} - GitHub API approach`
+      })
       
     } catch (repoError) {
       console.error('Repository access error:', repoError)
