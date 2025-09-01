@@ -1,7 +1,9 @@
 // Enterprise Analysis Utilities
-// In-memory storage for demo (in production, use database)
+// Database storage for persistent status across Lambda instances
 
-const analysisStatus = new Map<string, {
+import { prisma } from './prisma'
+
+interface AnalysisStatus {
   status: 'initializing' | 'downloading' | 'cloning' | 'scanning' | 'analyzing' | 'completed' | 'failed'
   progress: number
   filesAnalyzed: number
@@ -14,7 +16,7 @@ const analysisStatus = new Map<string, {
   repository?: string
   repositoryInfo?: any
   estimatedCompletion?: number
-}>()
+}
 
 // Helper function to update analysis status
 export function updateAnalysisStatus(

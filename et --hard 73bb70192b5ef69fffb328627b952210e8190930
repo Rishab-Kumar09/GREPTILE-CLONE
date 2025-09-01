@@ -1,0 +1,20 @@
+[33mbdecdda[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m)[m  FIX: Revert file-based storage to in-memory for Lambda compatibility
+[33m7efb313[m  DEBUG: Add better error handling for stuck Tree API calls
+[33md87516d[m  FIX: Template literal syntax error in rate limiting code
+[33m756c419[m  FIX: Remove duplicate function definitions causing build error
+[33me34ff57[m  FIX: Remove orphaned code causing syntax error
+[33m73bb701[m  ENABLE AWS BATCH: Route large repos to Batch for git clone
+[33m4e7779a[m  ANALYZE EVERYTHING: Full Analysis now processes ALL files!
+[33m6054ee4[m  UNLIMITED FULL ANALYSIS: Analyze EVERYTHING!
+[33m891cad9[m  SMART FILE LIMITS: Adaptive analysis based on repository size and strategy
+[33m7b0759b[m  MAJOR FIX: Tab functionality - All Issues and Files tabs now fully clickable!
+[33m5879f8b[m Fix: TypeScript unknown type error in catch block
+[33m1392310[m Fix: Proper import for CancelJobCommand
+[33m9564ee0[m Fix: Construct GitHub URL from owner/repo instead of missing url property
+[33m9a8e004[m Fix RepositoryInfo type - use size instead of fileCount
+[33m0ce4346[m  FIX: Add batchJobId to analysis status types
+[33md2a360b[m Fix batchJobId types
+[33m7d2ad69[m  FIX: AWS Batch SDK type issues
+[33mb65a45d[m  FIX: AWS Batch API property names
+[33mb277923[m  AWS BATCH INTEGRATION (2025 Optimized)
+[33m750961b[m Fix timeouts and large files

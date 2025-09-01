@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 
 // Feature flags for AWS Batch integration
+// ENABLE AWS BATCH FOR LARGE REPOS (>50MB)
 const ENABLE_BATCH = process.env.ENABLE_BATCH === 'true'
 const BATCH_THRESHOLD_SIZE_MB = parseInt(process.env.BATCH_THRESHOLD_SIZE_MB || '50')
 
@@ -213,26 +214,75 @@ export async function POST(request: NextRequest) {
       })
       
       if (shouldUseBatch) {
-        console.log(`🚀 LARGE REPOSITORY (${repoInfo.size}MB) - WOULD USE AWS BATCH!`)
+        console.log(`🚀 LARGE REPOSITORY (${repoInfo.size}MB) - USING AWS BATCH!`)
         updateAnalysisStatus(analysisId, {
           status: 'downloading',
           progress: 5,
-          currentFile: `Large repo detected - would use AWS Batch for git clone (${repoInfo.size}MB)`
+          currentFile: `Submitting to AWS Batch for git clone + parallel analysis (${repoInfo.size}MB)`
         })
-        console.log(`📝 Note: AWS Batch infrastructure not deployed, falling back to smart analysis`)
+        
+        // Submit to AWS Batch for git clone + parallel processing
+        try {
+          const repoUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}.git`
+          const batchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/batch-analysis`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              repoUrl,
+              strategy,
+              analysisId
+            })
+          })
+          
+          if (!batchResponse.ok) {
+            throw new Error(`Batch submission failed: ${batchResponse.statusText}`)
+          }
+          
+          const batchResult = await batchResponse.json()
+          console.log(`✅ AWS Batch job submitted: ${batchResult.jobId}`)
+          
+          updateAnalysisStatus(analysisId, {
+            status: 'cloning',
+            progress: 10,
+            currentFile: `AWS Batch job submitted: ${batchResult.jobId}`,
+            batchJobId: batchResult.jobId
+          })
+          
+          return NextResponse.json({
+            success: true,
+            analysisId,
+            strategy: updatedStrategy,
+            repositoryInfo: repoInfo,
+            batchJobId: batchResult.jobId,
+            message: `Analysis submitted to AWS Batch for ${repoInfo.fullName} (${repoInfo.size}MB)`
+          })
+          
+        } catch (batchError) {
+          console.error(`❌ AWS Batch submission failed:`, batchError)
+          updateAnalysisStatus(analysisId, {
+            status: 'failed',
+            errors: [`AWS Batch submission failed: ${batchError.message}`]
+          })
+          
+          return NextResponse.json({
+            success: false,
+            error: `AWS Batch submission failed: ${batchError.message}`
+          }, { status: 500 })
+        }
+        
       } else {
         console.log(`📊 SMALL/MEDIUM REPOSITORY (${repoInfo.size}MB) - USING LAMBDA`)
+        
+        // Start background processing with GitHub API
+        processAnalysisInBackground(analysisId, repoInfo, strategy).catch(error => {
+          console.error(`❌ Background processing failed for ${analysisId}:`, error)
+          console.error('Full error stack:', error.stack)
+          updateAnalysisStatus(analysisId, {
+            status: 'failed',
+            errors: [error.message || 'Unknown error in background processing']
+          })
+        })
       }
-      
-      // Start background processing with cloning
-          processAnalysisInBackground(analysisId, repoInfo, strategy).catch(error => {
-      console.error(`❌ Background processing failed for ${analysisId}:`, error)
-      console.error('Full error stack:', error.stack)
-      updateAnalysisStatus(analysisId, {
-        status: 'failed',
-        errors: [error.message || 'Unknown error in background processing']
-      })
-    })
       
       return NextResponse.json({
         success: true,
