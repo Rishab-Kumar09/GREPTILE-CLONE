@@ -2,7 +2,7 @@
 // In-memory storage for demo (in production, use database)
 
 const analysisStatus = new Map<string, {
-  status: 'initializing' | 'cloning' | 'scanning' | 'analyzing' | 'completed' | 'failed'
+  status: 'initializing' | 'downloading' | 'cloning' | 'scanning' | 'analyzing' | 'completed' | 'failed'
   progress: number
   filesAnalyzed: number
   totalFiles: number
@@ -20,7 +20,7 @@ const analysisStatus = new Map<string, {
 export function updateAnalysisStatus(
   analysisId: string, 
   updates: Partial<{
-    status: 'initializing' | 'cloning' | 'scanning' | 'analyzing' | 'completed' | 'failed'
+    status: 'initializing' | 'downloading' | 'cloning' | 'scanning' | 'analyzing' | 'completed' | 'failed'
     progress: number
     filesAnalyzed: number
     totalFiles: number
