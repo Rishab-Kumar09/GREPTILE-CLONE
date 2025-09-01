@@ -369,7 +369,25 @@ async function processAnalysisInBackground(
         if (!branch) continue
         try {
           console.log(`🌿 Trying branch: ${branch}`)
-          const response = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`)
+          
+          // Add GitHub token for higher rate limits
+          const headers: Record<string, string> = {
+            'User-Agent': 'Greptile-Clone-Analysis'
+          }
+          
+          if (process.env.GITHUB_TOKEN) {
+            headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`
+          }
+          
+          const response = await fetch(`https://api.github.com/repos/${repoInfo.owner}/${repoInfo.repo}/git/trees/${branch}?recursive=1`, {
+            headers
+          })
+          
+          if (!response.ok) {
+            console.warn(`⚠️ Branch ${branch} failed: ${response.status} ${response.statusText}`)
+            continue
+          }
+          
           const data = await response.json()
           if (data.tree) {
             treeData = data
@@ -465,7 +483,17 @@ async function processAnalysisInBackground(
           let issues: any[] = []
           
           try {
+            // Add GitHub token for raw file downloads
+            const headers: Record<string, string> = {
+              'User-Agent': 'Greptile-Clone-Analysis'
+            }
+            
+            if (process.env.GITHUB_TOKEN) {
+              headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`
+            }
+            
             const fileResponse = await fetch(rawUrl, {
+              headers,
               signal: AbortSignal.timeout(30000), // 30 second timeout
             })
             
