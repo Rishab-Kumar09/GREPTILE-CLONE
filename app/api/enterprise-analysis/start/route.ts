@@ -26,8 +26,13 @@ async function getRepositoryInfo(owner: string, repo: string): Promise<Repositor
       'User-Agent': 'Greptile-Clone-Analysis'
     }
     
+    console.log(`🔑 GITHUB_TOKEN check: ${process.env.GITHUB_TOKEN ? 'SET' : 'NOT SET'}`)
+    
     if (process.env.GITHUB_TOKEN) {
       headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`
+      console.log(`✅ Added Authorization header`)
+    } else {
+      console.log(`⚠️ No GITHUB_TOKEN - using unauthenticated requests (60/hour limit)`)
     }
     
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
