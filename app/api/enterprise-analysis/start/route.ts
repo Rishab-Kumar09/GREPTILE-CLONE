@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 
-// Feature flags for AWS Batch integration
-// ENABLE AWS BATCH FOR LARGE REPOS (>50MB)
-const ENABLE_BATCH = process.env.ENABLE_BATCH === 'true'
-const BATCH_THRESHOLD_SIZE_MB = parseInt(process.env.BATCH_THRESHOLD_SIZE_MB || '10') // Lower threshold for testing
+// SIMPLE APPROACH: Always use git clone via AWS Batch
+// No more GitHub API rate limits or file-by-file downloads!
 
 // Simple repository info interface (no cloning needed)
 interface RepositoryInfo {
@@ -16,48 +14,17 @@ interface RepositoryInfo {
   estimatedTime: string
 }
 
-// Simple repository info function (no cloning dependencies)
-async function getRepositoryInfo(owner: string, repo: string): Promise<RepositoryInfo> {
-  console.log(`🔍 Getting repository info for ${owner}/${repo}`)
+// Simple repository info function (NO GitHub API - just parse URL)
+function getRepositoryInfo(owner: string, repo: string): RepositoryInfo {
+  console.log(`🔍 Creating repository info for ${owner}/${repo} (NO API CALLS)`)
   
-  try {
-    // Add GitHub token for higher rate limits
-    const headers: Record<string, string> = {
-      'User-Agent': 'Greptile-Clone-Analysis'
-    }
-    
-    console.log(`🔑 GITHUB_TOKEN check: ${process.env.GITHUB_TOKEN ? 'SET' : 'NOT SET'}`)
-    
-    if (process.env.GITHUB_TOKEN) {
-      headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`
-      console.log(`✅ Added Authorization header`)
-    } else {
-      console.log(`⚠️ No GITHUB_TOKEN - using unauthenticated requests (60/hour limit)`)
-    }
-    
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-      headers
-    })
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`GitHub API Error: ${response.status} ${response.statusText}`, errorText)
-      throw new Error(`Repository access failed: ${response.status} ${response.statusText}`)
-    }
-    
-    const repoData = await response.json()
-    const sizeMB = repoData.size / 1024 // GitHub returns size in KB
-    
-    return {
-      owner,
-      repo,
-      fullName: `${owner}/${repo}`,
-      size: sizeMB,
-      estimatedTime: sizeMB > 100 ? '5-10 minutes' : sizeMB > 10 ? '2-5 minutes' : '30 seconds - 2 minutes'
-    }
-  } catch (error) {
-    console.error(`❌ Error getting repository info:`, error)
-    throw new Error(`Failed to get repository info: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  // No GitHub API calls - just create the info we need
+  return {
+    owner,
+    repo,
+    fullName: `${owner}/${repo}`,
+    size: 999, // Assume large repo - route to Batch
+    estimatedTime: '5-30 minutes' // Git clone + analysis time
   }
 }
 
@@ -194,12 +161,10 @@ export async function POST(request: NextRequest) {
     const strategyConfig = ANALYSIS_STRATEGIES[strategy] || ANALYSIS_STRATEGIES.incremental
     
     try {
-      // Get repository information first
-      console.log(`📡 About to call getRepositoryInfo for ${owner}/${repo}`)
-      const repoInfo = await getRepositoryInfo(owner, repo)
-      console.log(`✅ getRepositoryInfo succeeded: ${repoInfo.fullName} (${repoInfo.size}MB)`)
-      console.log(`📊 Repository: ${repoInfo.fullName} (${repoInfo.size}MB)`)
-      console.log(`⏱️ Estimated time: ${repoInfo.estimatedTime}`)
+      // Get repository information (NO API CALLS!)
+      console.log(`📡 Creating repository info for ${owner}/${repo}`)
+      const repoInfo = getRepositoryInfo(owner, repo)
+      console.log(`✅ Repository info created: ${repoInfo.fullName}`)
       
       // Update strategy with realistic time estimate
       const updatedStrategy = {
@@ -207,23 +172,18 @@ export async function POST(request: NextRequest) {
         estimatedTime: repoInfo.estimatedTime
       }
       
-      console.log(`🚀 ENTERPRISE ANALYSIS STARTED:`)
+      console.log(`🚀 ENTERPRISE ANALYSIS STARTED (DIRECT GIT CLONE):`)
       console.log(`   Repository: ${repoInfo.fullName}`)
       console.log(`   Strategy: ${updatedStrategy.name}`)
-      console.log(`   Size: ${repoInfo.size}MB`)
-      console.log(`   Estimated time: ${repoInfo.estimatedTime}`)
+      console.log(`   Method: Direct git clone via AWS Batch`)
       console.log(`   Analysis ID: ${analysisId}`)
       
-      // Smart routing: Check if repo should use AWS Batch for git clone
-      const shouldUseBatch = ENABLE_BATCH && (repoInfo.size > BATCH_THRESHOLD_SIZE_MB)
+      // ALWAYS use AWS Batch for git clone (no more GitHub API!)
+      const shouldUseBatch = true // Force all repos to use git clone
       
-      console.log(`🔍 BATCH ROUTING DECISION:`)
-      console.log(`   ENABLE_BATCH: ${ENABLE_BATCH}`)
-      console.log(`   Repository size: ${repoInfo.size}MB`)
-      console.log(`   Threshold: ${BATCH_THRESHOLD_SIZE_MB}MB`)
-      console.log(`   Size > Threshold: ${repoInfo.size > BATCH_THRESHOLD_SIZE_MB}`)
-      console.log(`   Should use Batch: ${shouldUseBatch}`)
-      console.log(`   Environment ENABLE_BATCH: ${process.env.ENABLE_BATCH}`)
+      console.log(`🔍 ROUTING DECISION: ALWAYS USE GIT CLONE`)
+      console.log(`   Method: AWS Batch + git clone`)
+      console.log(`   Reason: No GitHub API limits, faster parallel processing`)
       
       // Create initial analysis status
       console.log(`💾 About to create analysis status in database for ${analysisId}`)
@@ -239,76 +199,64 @@ export async function POST(request: NextRequest) {
         results: []
       })
       
-      if (shouldUseBatch) {
-        console.log(`🚀 LARGE REPOSITORY (${repoInfo.size}MB) - USING AWS BATCH!`)
-        await updateAnalysisStatus(analysisId, {
-          status: 'downloading',
-          progress: 5,
-          currentFile: `Submitting to AWS Batch for git clone + parallel analysis (${repoInfo.size}MB)`
+      // ALWAYS use AWS Batch for git clone (simple approach!)
+      console.log(`🚀 SUBMITTING TO AWS BATCH FOR GIT CLONE`)
+      await updateAnalysisStatus(analysisId, {
+        status: 'downloading',
+        progress: 5,
+        currentFile: `Submitting to AWS Batch for git clone + parallel analysis`
+      })
+      
+      // Submit to AWS Batch for git clone + parallel processing
+      try {
+        const repoUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}.git`
+        console.log(`📤 Submitting to Batch: ${repoUrl}`)
+        
+        const batchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/batch-analysis`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repoUrl,
+            strategy,
+            analysisId
+          })
         })
         
-        // Submit to AWS Batch for git clone + parallel processing
-        try {
-          const repoUrl = `https://github.com/${repoInfo.owner}/${repoInfo.repo}.git`
-          const batchResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/batch-analysis`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              repoUrl,
-              strategy,
-              analysisId
-            })
-          })
-          
-          if (!batchResponse.ok) {
-            throw new Error(`Batch submission failed: ${batchResponse.statusText}`)
-          }
-          
-          const batchResult = await batchResponse.json()
-          console.log(`✅ AWS Batch job submitted: ${batchResult.jobId}`)
-          
-          await updateAnalysisStatus(analysisId, {
-            status: 'cloning',
-            progress: 10,
-            currentFile: `AWS Batch job submitted: ${batchResult.jobId}`,
-            batchJobId: batchResult.jobId
-          })
-          
-          return NextResponse.json({
-            success: true,
-            analysisId,
-            strategy: updatedStrategy,
-            repositoryInfo: repoInfo,
-            batchJobId: batchResult.jobId,
-            message: `Analysis submitted to AWS Batch for ${repoInfo.fullName} (${repoInfo.size}MB)`
-          })
-          
-        } catch (batchError) {
-          console.error(`❌ AWS Batch submission failed:`, batchError)
-          const errorMessage = batchError instanceof Error ? batchError.message : 'Unknown batch error'
-          await updateAnalysisStatus(analysisId, {
-            status: 'failed',
-            errors: [`AWS Batch submission failed: ${errorMessage}`]
-          })
-          
-          return NextResponse.json({
-            success: false,
-            error: `AWS Batch submission failed: ${errorMessage}`
-          }, { status: 500 })
+        if (!batchResponse.ok) {
+          throw new Error(`Batch submission failed: ${batchResponse.statusText}`)
         }
         
-      } else {
-        console.log(`📊 SMALL/MEDIUM REPOSITORY (${repoInfo.size}MB) - USING LAMBDA`)
+        const batchResult = await batchResponse.json()
+        console.log(`✅ AWS Batch job submitted: ${batchResult.jobId}`)
         
-        // Start background processing with GitHub API
-        processAnalysisInBackground(analysisId, repoInfo, strategy).catch(async error => {
-          console.error(`❌ Background processing failed for ${analysisId}:`, error)
-          console.error('Full error stack:', error.stack)
-          await updateAnalysisStatus(analysisId, {
-            status: 'failed',
-            errors: [error.message || 'Unknown error in background processing']
-          })
+        await updateAnalysisStatus(analysisId, {
+          status: 'cloning',
+          progress: 10,
+          currentFile: `AWS Batch job submitted: ${batchResult.jobId}`,
+          batchJobId: batchResult.jobId
         })
+        
+        return NextResponse.json({
+          success: true,
+          analysisId,
+          strategy: updatedStrategy,
+          repositoryInfo: repoInfo,
+          batchJobId: batchResult.jobId,
+          message: `Analysis submitted to AWS Batch for git clone: ${repoInfo.fullName}`
+        })
+        
+      } catch (batchError) {
+        console.error(`❌ AWS Batch submission failed:`, batchError)
+        const errorMessage = batchError instanceof Error ? batchError.message : 'Unknown batch error'
+        await updateAnalysisStatus(analysisId, {
+          status: 'failed',
+          errors: [`AWS Batch submission failed: ${errorMessage}`]
+        })
+        
+        return NextResponse.json({
+          success: false,
+          error: `AWS Batch submission failed: ${errorMessage}`
+        }, { status: 500 })
       }
       
       return NextResponse.json({
