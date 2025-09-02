@@ -1,5 +1,13 @@
+// Define proper types
+interface AnalysisResult {
+  type: string
+  pattern: string
+  match: string
+  timestamp: number
+}
+
 interface AnalysisResultsProps {
-  results: any[]
+  results: AnalysisResult[]
   status: string
 }
 
@@ -9,14 +17,14 @@ export function AnalysisResults({ results, status }: AnalysisResultsProps) {
     return null
   }
 
-  // Group results by type
-  const groupedResults = results.reduce((acc, result) => {
+  // Group results by type with proper typing
+  const groupedResults = results.reduce<Record<string, AnalysisResult[]>>((acc, result) => {
     if (!acc[result.type]) {
       acc[result.type] = []
     }
     acc[result.type].push(result)
     return acc
-  }, {} as Record<string, any[]>)
+  }, {})
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
@@ -31,7 +39,7 @@ export function AnalysisResults({ results, status }: AnalysisResultsProps) {
           <div className="space-y-4">
             {typeResults.map((result, index) => (
               <div 
-                key={index}
+                key={`${type}-${index}`}
                 className="p-4 bg-white rounded-lg shadow"
               >
                 <div className="font-mono text-sm mb-2">
