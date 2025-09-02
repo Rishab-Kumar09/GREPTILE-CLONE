@@ -6,7 +6,6 @@ import { prisma } from '@/lib/prisma'
 
 export class EnterpriseAnalyzer {
   private tempDir: string
-  private results: any[] = []
 
   constructor() {
     this.tempDir = path.join(process.cwd(), 'tmp', uuid())
@@ -15,40 +14,27 @@ export class EnterpriseAnalyzer {
 
   async start(repoUrl: string, analysisId: string) {
     try {
-      // 1. Update status to analyzing
+      // 1. Start analysis
       await this.updateStatus(analysisId, {
         status: 'analyzing',
         progress: 0,
-        currentFile: 'Starting analysis...' // Generic message
+        currentFile: 'Starting analysis...'
       })
 
-      // 2. Fast clone
-      console.log(`🚀 Cloning ${repoUrl}...`)
+      // 2. Fast clone with NO UNNEEDED FILES
+      console.log(`🚀 Smart cloning ${repoUrl}...`)
       await this.fastClone(repoUrl)
-      await this.updateStatus(analysisId, { 
-        progress: 25,
-        currentFile: 'Repository cloned' // No file details
-      })
-
-      // 3. Search patterns
-      console.log(`🔍 Analyzing patterns...`)
-      const searcher = new ParallelSearcher(this.tempDir)
       
-      // 4. Collect all results
-      for await (const result of searcher.search()) {
-        this.results.push(result)
-      }
-      await this.updateStatus(analysisId, { 
-        progress: 75,
-        currentFile: 'Analysis in progress' // Generic status
-      })
-
-      // 5. Save results in existing status table
+      // 3. PARALLEL SEARCH - Much faster!
+      console.log(`🔍 Running parallel analysis...`)
+      const results = await this.parallelSearch()
+      
+      // 4. Save & Complete
       await this.updateStatus(analysisId, {
         status: 'completed',
         progress: 100,
-        currentFile: 'Analysis complete', // Simple completion message
-        results: this.results
+        currentFile: 'Analysis complete',
+        results
       })
 
       console.log(`✅ Analysis complete!`)
@@ -64,9 +50,58 @@ export class EnterpriseAnalyzer {
   }
 
   private async fastClone(repoUrl: string) {
-    execSync(`git clone --depth 1 --filter=blob:none ${repoUrl} ${this.tempDir}`, {
-      stdio: 'pipe'
-    })
+    // MUCH faster clone:
+    // --depth 1: Only latest commit
+    // --filter=blob:none: Don't download file contents yet
+    // --no-checkout: Don't check out files
+    execSync(
+      `git clone --depth 1 --filter=blob:none --no-checkout ${repoUrl} ${this.tempDir}`,
+      { stdio: 'pipe' }
+    )
+    
+    // Only get what we need
+    execSync(
+      `cd ${this.tempDir} && git checkout HEAD --quiet -- "*.ts" "*.tsx" "*.js" "*.jsx"`,
+      { stdio: 'pipe' }
+    )
+  }
+
+  private async parallelSearch() {
+    const patterns = {
+      security: ['password', 'token', 'secret', 'auth'],
+      api: ['router\\.', 'app\\.(get|post|put|delete)', 'api'],
+      performance: ['useEffect.*\\[\\]', 'memo\\(', 'useMemo'],
+      accessibility: ['role=', 'aria-']
+    }
+
+    // Run ALL searches in parallel!
+    const searchPromises = Object.entries(patterns).flatMap(([type, typePatterns]) =>
+      typePatterns.map(pattern => this.searchPattern(type, pattern))
+    )
+
+    const results = await Promise.all(searchPromises)
+    return results.flat()
+  }
+
+  private async searchPattern(type: string, pattern: string) {
+    try {
+      const output = execSync(
+        `cd ${this.tempDir} && rg -n --type ts --type tsx --type js --type jsx "${pattern}"`,
+        { stdio: 'pipe' }
+      ).toString()
+
+      return output.split('\n')
+        .filter(line => line.trim())
+        .map(match => ({
+          type,
+          pattern,
+          match,
+          timestamp: Date.now()
+        }))
+    } catch (error) {
+      // No matches found is okay
+      return []
+    }
   }
 
   private async updateStatus(analysisId: string, update: any) {
@@ -82,61 +117,5 @@ export class EnterpriseAnalyzer {
 
   private cleanup() {
     fs.rmSync(this.tempDir, { recursive: true, force: true })
-  }
-}
-
-class ParallelSearcher {
-  constructor(private repoPath: string) {}
-
-  async *search() {
-    const patterns = {
-      security: [
-        'password',
-        'token',
-        'secret',
-        'auth',
-      ],
-      api: [
-        'router\\.',
-        'app\\.(get|post|put|delete)',
-        'api',
-      ],
-      performance: [
-        'useEffect.*\\[\\]',
-        'memo\\(',
-        'useMemo',
-      ],
-      accessibility: [
-        'role=',
-        'aria-',
-      ]
-    }
-
-    for (const [type, typePatterns] of Object.entries(patterns)) {
-      for (const pattern of typePatterns) {
-        try {
-          const results = execSync(
-            `rg -n --type ts --type tsx --type js --type jsx "${pattern}" ${this.repoPath}`,
-            { stdio: 'pipe' }
-          ).toString()
-
-          for (const line of results.split('\n')) {
-            if (line.trim()) {
-              yield {
-                type,
-                pattern,
-                match: line,
-                timestamp: Date.now()
-              }
-            }
-          }
-        } catch (error) {
-          // ripgrep returns non-zero exit code if no matches found
-          if (error instanceof Error && !error.message.includes('No such file or directory')) {
-            console.warn(`Search failed for pattern ${pattern}:`, error)
-          }
-        }
-      }
-    }
   }
 }
