@@ -4,8 +4,13 @@ import { EnterpriseAnalyzer } from '../analyzer'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
+  console.log('🎯 ROUTE CALLED: /api/enterprise-analysis/start')
+  
   try {
-    const { owner, repo, strategy = 'incremental' } = await request.json()
+    const body = await request.json()
+    const { owner, repo, strategy = 'incremental' } = body
+    
+    console.log('📋 Parsed params:', { owner, repo, strategy })
     
     if (!owner || !repo) {
       return NextResponse.json(
