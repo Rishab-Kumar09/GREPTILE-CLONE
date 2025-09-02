@@ -3,8 +3,19 @@ import { v4 as uuid } from 'uuid'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
-  console.log('🎯 ROUTE CALLED: /api/enterprise-analysis/start')
+  console.log('🎯 ENTERPRISE ROUTE CALLED!')
+  console.log('🎯 ENTERPRISE ROUTE CALLED!')
+  console.log('🎯 ENTERPRISE ROUTE CALLED!')
   
+  // SIMPLE TEST - just return immediately
+  return NextResponse.json({
+    success: true,
+    message: 'ROUTE IS WORKING!',
+    timestamp: Date.now()
+  })
+  
+  // Original code commented out for now
+  /*
   try {
     const body = await request.json()
     const { owner, repo, strategy = 'incremental' } = body
