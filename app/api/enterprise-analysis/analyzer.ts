@@ -26,51 +26,73 @@ export class EnterpriseAnalyzer {
         currentFile: 'Starting analysis...'
       })
 
-      // SUPER FAST CLONE
-      console.log(`🚀 Turbo cloning ${repoUrl}...`)
+      // 1. Fast clone
+      console.log(`🚀 Cloning ${repoUrl}...`)
       await this.fastClone(repoUrl)
       await this.updateStatus(analysisId, { 
         progress: 25,
-        currentFile: 'Repository cloned, analyzing...'
+        currentFile: 'Repository cloned, starting parallel analysis...'
       })
 
-      // PARALLEL ANALYSIS - NO COUNTING!
-      console.log(`⚡ Running parallel analysis...`)
-      
-      // Run ripgrep once for each pattern type in parallel
-      const results = await Promise.all(
-        Object.entries(this.PATTERNS).map(async ([type, patterns]) => {
-          // Join patterns with | for single ripgrep run
-          const patternString = patterns.join('|')
-          
-          try {
-            // Search all files at once!
-            const output = execSync(
-              `cd ${this.tempDir} && rg -n "${patternString}" --type ts --type tsx --type js --type jsx`,
-              { stdio: 'pipe' }
-            ).toString()
+      // 2. Get all files at once
+      const allFiles = execSync(
+        `cd ${this.tempDir} && git ls-files "*.ts" "*.tsx" "*.js" "*.jsx"`,
+        { stdio: 'pipe' }
+      ).toString().split('\n').filter(Boolean)
 
-            // Process results
-            return output.split('\n')
-              .filter(Boolean)
-              .map(match => ({
-                type,
-                match,
-                timestamp: Date.now()
-              }))
-          } catch (error) {
-            // No matches is okay
-            return []
-          }
+      // 3. REAL PARALLEL PROCESSING
+      // Split files into chunks of 20 for parallel processing
+      const chunks = []
+      for (let i = 0; i < allFiles.length; i += 20) {
+        chunks.push(allFiles.slice(i, i + 20))
+      }
+
+      console.log(`🚀 Processing ${chunks.length} chunks in parallel...`)
+      const results = []
+
+      // Process chunks in parallel
+      await Promise.all(chunks.map(async (chunk, chunkIndex) => {
+        // Update status with first file in chunk
+        await this.updateStatus(analysisId, {
+          currentFile: chunk[0],
+          progress: Math.min(25 + ((chunkIndex / chunks.length) * 75), 99)
         })
-      )
+
+        // Run ripgrep on all files in chunk at once
+        const chunkResults = await Promise.all(
+          Object.entries(this.PATTERNS).map(async ([type, patterns]) => {
+            const patternString = patterns.join('|')
+            const fileString = chunk.join(' ')
+
+            try {
+              const output = execSync(
+                `cd ${this.tempDir} && rg -n "${patternString}" ${fileString}`,
+                { stdio: 'pipe' }
+              ).toString()
+
+              return output.split('\n')
+                .filter(Boolean)
+                .map(match => ({
+                  type,
+                  match,
+                  timestamp: Date.now()
+                }))
+            } catch (error) {
+              // No matches is okay
+              return []
+            }
+          })
+        )
+
+        results.push(...chunkResults.flat())
+      }))
 
       // Complete
       await this.updateStatus(analysisId, {
         status: 'completed',
         progress: 100,
         currentFile: 'Analysis complete',
-        results: results.flat()
+        results
       })
 
       console.log(`✅ Analysis complete!`)
@@ -86,7 +108,7 @@ export class EnterpriseAnalyzer {
   }
 
   private async fastClone(repoUrl: string) {
-    // MAXIMUM SPEED CLONE
+    // Fast clone
     execSync(
       `git clone --depth 1 --filter=blob:none --no-checkout ${repoUrl} ${this.tempDir}`,
       { stdio: 'pipe' }
