@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuid } from 'uuid'
 import { prisma } from '@/lib/prisma'
+import { createAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 
 export async function POST(request: NextRequest) {
   console.log('🎯 ENTERPRISE ROUTE CALLED!')
@@ -17,7 +18,18 @@ export async function POST(request: NextRequest) {
     const analysisId = uuid()
     console.log('🆔 Generated analysisId:', analysisId)
     
-    // Call Lambda function directly - no database for now
+    // Create database record so status endpoint works
+    await createAnalysisStatus(analysisId, {
+      status: 'initializing',
+      progress: 0,
+      currentFile: 'Starting Lambda analysis...',
+      startTime: Date.now(),
+      repository: `${owner}/${repo}`,
+      strategy: { name: 'Lambda Git Clone', description: 'Fast git clone analysis' }
+    })
+    console.log('💾 Database record created')
+    
+    // Call Lambda function directly
     const lambdaUrl = 'https://zhs2iniuc3.execute-api.us-east-2.amazonaws.com/default/enterprise-code-analyzer'
     const repoUrl = `https://github.com/${owner}/${repo}.git`
     
