@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuid } from 'uuid'
 import { prisma } from '@/lib/prisma'
-import { createAnalysisStatus } from '@/lib/enterprise-analysis-utils'
+import { createAnalysisStatus, updateAnalysisStatus } from '@/lib/enterprise-analysis-utils'
 
 export async function POST(request: NextRequest) {
   console.log('🎯 ENTERPRISE ROUTE CALLED!')
@@ -38,15 +38,55 @@ export async function POST(request: NextRequest) {
     // Call Lambda in background - don't wait
     setTimeout(async () => {
       try {
+        console.log('🔄 Making Lambda request...')
+        console.log('📦 Payload:', { repoUrl, analysisId })
+        
         const response = await fetch(lambdaUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ repoUrl, analysisId })
         })
-        const data = await response.json()
-        console.log('✅ Lambda completed:', data)
+        
+        console.log(`📡 Lambda response status: ${response.status}`)
+        console.log(`📡 Lambda response headers:`, Object.fromEntries(response.headers.entries()))
+        
+        const responseText = await response.text()
+        console.log('📄 Lambda raw response:', responseText)
+        
+        let data
+        try {
+          data = JSON.parse(responseText)
+          console.log('✅ Lambda JSON response:', data)
+        } catch (parseError) {
+          console.error('❌ Failed to parse Lambda response as JSON:', parseError)
+          console.log('📄 Raw response was:', responseText)
+          return
+        }
+        
+        // Update database with results if successful
+        if (data.success && data.results) {
+          console.log('💾 Updating database with Lambda results...')
+          await updateAnalysisStatus(analysisId, {
+            status: 'completed',
+            progress: 100,
+            results: data.results,
+            currentFile: `Analysis completed! Found ${data.results.length} results`
+          })
+          console.log('✅ Database updated successfully')
+        } else {
+          console.log('⚠️ Lambda response missing success/results:', data)
+          await updateAnalysisStatus(analysisId, {
+            status: 'failed',
+            currentFile: 'Lambda did not return results'
+          })
+        }
+        
       } catch (error) {
-        console.error('❌ Lambda error:', error)
+        console.error('❌ Lambda call failed:', error)
+        await updateAnalysisStatus(analysisId, {
+          status: 'failed',
+          currentFile: `Lambda error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        })
       }
     }, 100)
     
