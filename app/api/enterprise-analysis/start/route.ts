@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuid } from 'uuid'
-import { EnterpriseAnalyzer } from '../analyzer'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
