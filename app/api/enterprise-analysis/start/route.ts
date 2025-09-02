@@ -36,35 +36,47 @@ export async function POST(request: NextRequest) {
       }
     })
     
-    // Use Lambda function for git clone analysis
+    // Call Lambda function synchronously for immediate results
     const lambdaUrl = 'https://zhs2iniuc3.execute-api.us-east-2.amazonaws.com/default/enterprise-code-analyzer'
     
-    // Call Lambda function asynchronously
-    setTimeout(async () => {
-      try {
-        const response = await fetch(lambdaUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ repoUrl, analysisId })
+    console.log(`🚀 Calling Lambda function for ${owner}/${repo}`)
+    
+    try {
+      const response = await fetch(lambdaUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoUrl, analysisId })
+      })
+      
+      const lambdaData = await response.json()
+      console.log('Lambda response:', lambdaData)
+      
+      // Update database with Lambda results
+      if (lambdaData.success && lambdaData.results) {
+        await prisma.analysisStatus.update({
+          where: { id: analysisId },
+          data: {
+            status: 'completed',
+            progress: 100,
+            results: lambdaData.results,
+            currentFile: 'Lambda analysis completed!'
+          }
         })
-        const data = await response.json()
-        console.log('Lambda analysis completed:', data)
         
-        // Update database with results
-        if (data.success && data.results) {
-          await prisma.analysisStatus.update({
-            where: { id: analysisId },
-            data: {
-              status: 'completed',
-              progress: 100,
-              results: data.results
-            }
-          })
-        }
-      } catch (error) {
-        console.error('Lambda error:', error)
+        console.log(`✅ Database updated with ${lambdaData.results.length} results`)
       }
-    }, 100)
+    } catch (lambdaError) {
+      console.error('Lambda call failed:', lambdaError)
+      
+      // Update status as failed
+      await prisma.analysisStatus.update({
+        where: { id: analysisId },
+        data: {
+          status: 'failed',
+          currentFile: `Lambda error: ${lambdaError instanceof Error ? lambdaError.message : 'Unknown error'}`
+        }
+      })
+    }
     
     return NextResponse.json({
       success: true,
