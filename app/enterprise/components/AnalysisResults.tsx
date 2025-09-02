@@ -1,4 +1,3 @@
-// Define proper types
 interface AnalysisResult {
   type: string
   pattern: string
@@ -33,7 +32,8 @@ export function AnalysisResults({ results, status }: AnalysisResultsProps) {
       {Object.entries(groupedResults).map(([type, typeResults]) => (
         <div key={type} className="mb-8">
           <h3 className="text-xl font-semibold mb-4 capitalize">
-            {type} ({typeResults.length})
+            {/* Remove file count, just show type */}
+            {type}
           </h3>
           
           <div className="space-y-4">

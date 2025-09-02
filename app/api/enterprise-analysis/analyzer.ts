@@ -15,11 +15,11 @@ export class EnterpriseAnalyzer {
 
   async start(repoUrl: string, analysisId: string) {
     try {
-      // 1. Update status to analyzing (using EXISTING table)
+      // 1. Update status to analyzing
       await this.updateStatus(analysisId, {
         status: 'analyzing',
         progress: 0,
-        currentFile: 'Starting analysis...'
+        currentFile: 'Starting analysis...' // Generic message
       })
 
       // 2. Fast clone
@@ -27,7 +27,7 @@ export class EnterpriseAnalyzer {
       await this.fastClone(repoUrl)
       await this.updateStatus(analysisId, { 
         progress: 25,
-        currentFile: 'Repository cloned, starting analysis...'
+        currentFile: 'Repository cloned' // No file details
       })
 
       // 3. Search patterns
@@ -40,15 +40,15 @@ export class EnterpriseAnalyzer {
       }
       await this.updateStatus(analysisId, { 
         progress: 75,
-        currentFile: 'Analysis complete, saving results...'
+        currentFile: 'Analysis in progress' // Generic status
       })
 
       // 5. Save results in existing status table
       await this.updateStatus(analysisId, {
         status: 'completed',
         progress: 100,
-        currentFile: 'Analysis complete!',
-        results: this.results  // Using existing results field
+        currentFile: 'Analysis complete', // Simple completion message
+        results: this.results
       })
 
       console.log(`✅ Analysis complete!`)
@@ -71,7 +71,6 @@ export class EnterpriseAnalyzer {
 
   private async updateStatus(analysisId: string, update: any) {
     try {
-      // Use EXISTING analysisStatus table
       await prisma.analysisStatus.update({
         where: { id: analysisId },
         data: update
