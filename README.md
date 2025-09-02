@@ -1,4 +1,4 @@
-# Greptile Clone
+# Greptile Clone - Database Restored
 
 ## Recent Updates
 
