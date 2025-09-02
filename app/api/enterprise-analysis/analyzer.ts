@@ -4,6 +4,12 @@ import path from 'path'
 import fs from 'fs'
 import { prisma } from '@/lib/prisma'
 
+interface AnalysisResult {
+  type: string
+  match: string
+  timestamp: number
+}
+
 export class EnterpriseAnalyzer {
   private tempDir: string
   private PATTERNS = {
@@ -48,7 +54,7 @@ export class EnterpriseAnalyzer {
       }
 
       console.log(`🚀 Processing ${chunks.length} chunks in parallel...`)
-      const results = []
+      const results: AnalysisResult[] = []  // Specify type!
 
       // Process chunks in parallel
       await Promise.all(chunks.map(async (chunk, chunkIndex) => {
