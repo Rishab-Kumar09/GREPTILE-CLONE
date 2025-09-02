@@ -40,16 +40,28 @@ export async function POST(request: NextRequest) {
     const lambdaUrl = 'https://zhs2iniuc3.execute-api.us-east-2.amazonaws.com/default/enterprise-code-analyzer'
     
     console.log(`🚀 Calling Lambda function for ${owner}/${repo}`)
+    console.log(`🔗 Lambda URL: ${lambdaUrl}`)
+    console.log(`📦 Payload:`, { repoUrl, analysisId })
     
     try {
+      console.log('⏳ Making fetch request to Lambda...')
       const response = await fetch(lambdaUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ repoUrl, analysisId })
       })
       
+      console.log(`📡 Lambda response status: ${response.status} ${response.statusText}`)
+      
+      if (!response.ok) {
+        throw new Error(`Lambda returned ${response.status}: ${response.statusText}`)
+      }
+      
       const lambdaData = await response.json()
-      console.log('Lambda response:', lambdaData)
+      console.log('✅ Lambda response received:', lambdaData)
       
       // Update database with Lambda results
       if (lambdaData.success && lambdaData.results) {
