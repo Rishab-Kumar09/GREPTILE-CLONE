@@ -36,9 +36,35 @@ export async function POST(request: NextRequest) {
       }
     })
     
-    // Start NEW parallel analyzer
-    const analyzer = new EnterpriseAnalyzer()
-    analyzer.start(repoUrl, analysisId)
+    // Use Lambda function for git clone analysis
+    const lambdaUrl = 'https://zhs2iniuc3.execute-api.us-east-2.amazonaws.com/default/enterprise-code-analyzer'
+    
+    // Call Lambda function asynchronously
+    setTimeout(async () => {
+      try {
+        const response = await fetch(lambdaUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repoUrl, analysisId })
+        })
+        const data = await response.json()
+        console.log('Lambda analysis completed:', data)
+        
+        // Update database with results
+        if (data.success && data.results) {
+          await prisma.analysisStatus.update({
+            where: { id: analysisId },
+            data: {
+              status: 'completed',
+              progress: 100,
+              results: data.results
+            }
+          })
+        }
+      } catch (error) {
+        console.error('Lambda error:', error)
+      }
+    }, 100)
     
     return NextResponse.json({
       success: true,
