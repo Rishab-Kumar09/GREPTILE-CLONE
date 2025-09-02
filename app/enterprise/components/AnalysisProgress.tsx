@@ -1,5 +1,3 @@
-import { Progress } from '@/components/ui/progress'
-
 interface AnalysisProgressProps {
   status: string
   progress: number
@@ -28,8 +26,13 @@ export function AnalysisProgress({ status, progress }: AnalysisProgressProps) {
         </h3>
       </div>
       
-      {/* Simple progress bar */}
-      <Progress value={progress} className="w-full" />
+      {/* Simple progress bar using div */}
+      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div 
+          className="h-full bg-blue-500 transition-all duration-500"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
       
       {/* Show percentage */}
       <p className="text-sm text-gray-500 mt-2">
