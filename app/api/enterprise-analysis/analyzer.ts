@@ -14,8 +14,8 @@ interface AnalysisResult {
 
 export class EnterpriseAnalyzer {
   private tempDir: string
-  private analysisId: string
-  private repoUrl: string
+  private analysisId!: string
+  private repoUrl!: string
   private results: AnalysisResult[] = []
 
   // Define patterns for analysis
