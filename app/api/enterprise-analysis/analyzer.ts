@@ -15,35 +15,40 @@ export class EnterpriseAnalyzer {
 
   async start(repoUrl: string, analysisId: string) {
     try {
-      // 1. Update status to analyzing
+      // 1. Update status to analyzing (using EXISTING table)
       await this.updateStatus(analysisId, {
         status: 'analyzing',
-        progress: 0
+        progress: 0,
+        currentFile: 'Starting analysis...'
       })
 
       // 2. Fast clone
       console.log(`🚀 Cloning ${repoUrl}...`)
       await this.fastClone(repoUrl)
-      await this.updateStatus(analysisId, { progress: 25 })
+      await this.updateStatus(analysisId, { 
+        progress: 25,
+        currentFile: 'Repository cloned, starting analysis...'
+      })
 
       // 3. Search patterns
       console.log(`🔍 Analyzing patterns...`)
       const searcher = new ParallelSearcher(this.tempDir)
       
-      // 4. Collect all results first
+      // 4. Collect all results
       for await (const result of searcher.search()) {
         this.results.push(result)
       }
-      await this.updateStatus(analysisId, { progress: 75 })
+      await this.updateStatus(analysisId, { 
+        progress: 75,
+        currentFile: 'Analysis complete, saving results...'
+      })
 
-      // 5. Save all results at once
-      console.log(`💾 Saving results...`)
-      await this.saveResults(analysisId, this.results)
-      
-      // 6. Mark as complete
+      // 5. Save results in existing status table
       await this.updateStatus(analysisId, {
         status: 'completed',
-        progress: 100
+        progress: 100,
+        currentFile: 'Analysis complete!',
+        results: this.results  // Using existing results field
       })
 
       console.log(`✅ Analysis complete!`)
@@ -66,25 +71,13 @@ export class EnterpriseAnalyzer {
 
   private async updateStatus(analysisId: string, update: any) {
     try {
+      // Use EXISTING analysisStatus table
       await prisma.analysisStatus.update({
         where: { id: analysisId },
         data: update
       })
     } catch (error) {
       console.error('Status update failed:', error)
-    }
-  }
-
-  private async saveResults(analysisId: string, results: any[]) {
-    try {
-      await prisma.analysisResults.create({
-        data: {
-          analysisId,
-          results: JSON.stringify(results)
-        }
-      })
-    } catch (error) {
-      console.error('Results save failed:', error)
     }
   }
 
