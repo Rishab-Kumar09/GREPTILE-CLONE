@@ -68,7 +68,10 @@ export default function EnterpriseAnalysis() {
           
           if (status.status === 'completed') {
             setIsAnalyzing(false)
-            clearInterval(pollingIntervalRef.current)
+            if (pollingIntervalRef.current) {
+              clearInterval(pollingIntervalRef.current)
+              pollingIntervalRef.current = null
+            }
           }
           
           if (!connectionStatus || connectionStatus === 'connecting') {
