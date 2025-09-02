@@ -84,9 +84,12 @@ export class EnterpriseAnalyzer {
       // Create temp directory
       await fs.mkdir(this.tempDir, { recursive: true })
       
+      // Use git from Lambda layer if available, otherwise system git
+      const gitPath = process.env.AWS_LAMBDA_FUNCTION_NAME ? '/opt/bin/git' : 'git'
+      
       // Shallow clone for speed
-      const cloneCmd = `git clone --depth 1 "${this.repoUrl}" "${this.tempDir}"`
-      console.log(`📥 Cloning: ${cloneCmd}`)
+      const cloneCmd = `${gitPath} clone --depth 1 "${this.repoUrl}" "${this.tempDir}"`
+      console.log(`📥 Cloning with ${gitPath}: ${cloneCmd}`)
       
       execSync(cloneCmd, { stdio: 'pipe' })
       console.log(`✅ Clone successful`)
