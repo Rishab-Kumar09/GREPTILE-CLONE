@@ -6,6 +6,13 @@ import { prisma } from '@/lib/prisma'
 
 export class EnterpriseAnalyzer {
   private tempDir: string
+  private BATCH_SIZE = 5  // Process 5 files at once
+  private PATTERNS = {
+    security: ['password', 'token', 'secret', 'auth'],
+    api: ['router\\.', 'app\\.(get|post|put|delete)', 'api'],
+    performance: ['useEffect.*\\[\\]', 'memo\\(', 'useMemo'],
+    accessibility: ['role=', 'aria-']
+  }
 
   constructor() {
     this.tempDir = path.join(process.cwd(), 'tmp', uuid())
@@ -14,37 +21,51 @@ export class EnterpriseAnalyzer {
 
   async start(repoUrl: string, analysisId: string) {
     try {
-      // 1. Start analysis
       await this.updateStatus(analysisId, {
         status: 'analyzing',
         progress: 0,
         currentFile: 'Starting analysis...'
       })
 
-      // 2. Fast clone with NO UNNEEDED FILES
+      // Fast clone
       console.log(`🚀 Smart cloning ${repoUrl}...`)
       await this.fastClone(repoUrl)
       await this.updateStatus(analysisId, { 
         progress: 25,
-        currentFile: 'Repository cloned, analyzing files...'
+        currentFile: 'Repository cloned, starting analysis...'
       })
 
-      // 3. PARALLEL SEARCH - Much faster!
-      console.log(`🔍 Running parallel analysis...`)
-      const results = await this.parallelSearch((file) => {
-        // Update current file but no counts
-        this.updateStatus(analysisId, {
-          currentFile: file,
-          progress: 50  // Keep simple progress
+      // Get all files to analyze
+      const files = execSync(
+        `cd ${this.tempDir} && git ls-files "*.ts" "*.tsx" "*.js" "*.jsx"`,
+        { stdio: 'pipe' }
+      ).toString().split('\n').filter(Boolean)
+
+      // Process files in parallel batches
+      const results = []
+      for (let i = 0; i < files.length; i += this.BATCH_SIZE) {
+        const batch = files.slice(i, i + this.BATCH_SIZE)
+        
+        // Update status with first file in batch
+        await this.updateStatus(analysisId, {
+          currentFile: batch[0],
+          progress: Math.min(25 + ((i / files.length) * 75), 99)  // 25-99%
         })
-      })
-      
-      // 4. Save & Complete
+
+        // Process batch in parallel
+        const batchResults = await Promise.all(
+          batch.map(file => this.analyzeFile(file))
+        )
+
+        results.push(...batchResults.flat())
+      }
+
+      // Complete
       await this.updateStatus(analysisId, {
         status: 'completed',
         progress: 100,
         currentFile: 'Analysis complete',
-        results
+        results: results.filter(Boolean)  // Remove empty results
       })
 
       console.log(`✅ Analysis complete!`)
@@ -60,10 +81,7 @@ export class EnterpriseAnalyzer {
   }
 
   private async fastClone(repoUrl: string) {
-    // MUCH faster clone:
-    // --depth 1: Only latest commit
-    // --filter=blob:none: Don't download file contents yet
-    // --no-checkout: Don't check out files
+    // Super fast clone
     execSync(
       `git clone --depth 1 --filter=blob:none --no-checkout ${repoUrl} ${this.tempDir}`,
       { stdio: 'pipe' }
@@ -76,58 +94,35 @@ export class EnterpriseAnalyzer {
     )
   }
 
-  private async parallelSearch(onFile: (file: string) => void) {
-    const patterns = {
-      security: ['password', 'token', 'secret', 'auth'],
-      api: ['router\\.', 'app\\.(get|post|put|delete)', 'api'],
-      performance: ['useEffect.*\\[\\]', 'memo\\(', 'useMemo'],
-      accessibility: ['role=', 'aria-']
-    }
+  private async analyzeFile(file: string) {
+    // Search all patterns in parallel for this file
+    const results = await Promise.all(
+      Object.entries(this.PATTERNS).map(async ([type, patterns]) => {
+        const fileResults = []
+        for (const pattern of patterns) {
+          try {
+            const output = execSync(
+              `cd ${this.tempDir} && rg -n "${pattern}" "${file}"`,
+              { stdio: 'pipe' }
+            ).toString()
 
-    // Run ALL searches in parallel!
-    const searchPromises = Object.entries(patterns).flatMap(([type, typePatterns]) =>
-      typePatterns.map(pattern => this.searchPattern(type, pattern, onFile))
+            if (output.trim()) {
+              fileResults.push({
+                type,
+                pattern,
+                match: output,
+                timestamp: Date.now()
+              })
+            }
+          } catch (error) {
+            // No matches in this file is okay
+          }
+        }
+        return fileResults
+      })
     )
 
-    const results = await Promise.all(searchPromises)
     return results.flat()
-  }
-
-  private async searchPattern(type: string, pattern: string, onFile: (file: string) => void) {
-    try {
-      // Get list of files to search
-      const files = execSync(
-        `cd ${this.tempDir} && git ls-files "*.ts" "*.tsx" "*.js" "*.jsx"`,
-        { stdio: 'pipe' }
-      ).toString().split('\n').filter(Boolean)
-
-      // Search each file (but don't show counts)
-      const results = []
-      for (const file of files) {
-        onFile(file)  // Show current file
-        try {
-          const output = execSync(
-            `cd ${this.tempDir} && rg -n "${pattern}" "${file}"`,
-            { stdio: 'pipe' }
-          ).toString()
-
-          if (output.trim()) {
-            results.push({
-              type,
-              pattern,
-              match: output,
-              timestamp: Date.now()
-            })
-          }
-        } catch (error) {
-          // No matches in this file is okay
-        }
-      }
-      return results
-    } catch (error) {
-      console.warn(`Search failed for pattern ${pattern}:`, error)
-      return []
-    }
   }
 
   private async updateStatus(analysisId: string, update: any) {
