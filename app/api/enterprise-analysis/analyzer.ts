@@ -24,10 +24,20 @@ export class EnterpriseAnalyzer {
       // 2. Fast clone with NO UNNEEDED FILES
       console.log(`🚀 Smart cloning ${repoUrl}...`)
       await this.fastClone(repoUrl)
-      
+      await this.updateStatus(analysisId, { 
+        progress: 25,
+        currentFile: 'Repository cloned, analyzing files...'
+      })
+
       // 3. PARALLEL SEARCH - Much faster!
       console.log(`🔍 Running parallel analysis...`)
-      const results = await this.parallelSearch()
+      const results = await this.parallelSearch((file) => {
+        // Update current file but no counts
+        this.updateStatus(analysisId, {
+          currentFile: file,
+          progress: 50  // Keep simple progress
+        })
+      })
       
       // 4. Save & Complete
       await this.updateStatus(analysisId, {
@@ -66,7 +76,7 @@ export class EnterpriseAnalyzer {
     )
   }
 
-  private async parallelSearch() {
+  private async parallelSearch(onFile: (file: string) => void) {
     const patterns = {
       security: ['password', 'token', 'secret', 'auth'],
       api: ['router\\.', 'app\\.(get|post|put|delete)', 'api'],
@@ -76,30 +86,46 @@ export class EnterpriseAnalyzer {
 
     // Run ALL searches in parallel!
     const searchPromises = Object.entries(patterns).flatMap(([type, typePatterns]) =>
-      typePatterns.map(pattern => this.searchPattern(type, pattern))
+      typePatterns.map(pattern => this.searchPattern(type, pattern, onFile))
     )
 
     const results = await Promise.all(searchPromises)
     return results.flat()
   }
 
-  private async searchPattern(type: string, pattern: string) {
+  private async searchPattern(type: string, pattern: string, onFile: (file: string) => void) {
     try {
-      const output = execSync(
-        `cd ${this.tempDir} && rg -n --type ts --type tsx --type js --type jsx "${pattern}"`,
+      // Get list of files to search
+      const files = execSync(
+        `cd ${this.tempDir} && git ls-files "*.ts" "*.tsx" "*.js" "*.jsx"`,
         { stdio: 'pipe' }
-      ).toString()
+      ).toString().split('\n').filter(Boolean)
 
-      return output.split('\n')
-        .filter(line => line.trim())
-        .map(match => ({
-          type,
-          pattern,
-          match,
-          timestamp: Date.now()
-        }))
+      // Search each file (but don't show counts)
+      const results = []
+      for (const file of files) {
+        onFile(file)  // Show current file
+        try {
+          const output = execSync(
+            `cd ${this.tempDir} && rg -n "${pattern}" "${file}"`,
+            { stdio: 'pipe' }
+          ).toString()
+
+          if (output.trim()) {
+            results.push({
+              type,
+              pattern,
+              match: output,
+              timestamp: Date.now()
+            })
+          }
+        } catch (error) {
+          // No matches in this file is okay
+        }
+      }
+      return results
     } catch (error) {
-      // No matches found is okay
+      console.warn(`Search failed for pattern ${pattern}:`, error)
       return []
     }
   }
