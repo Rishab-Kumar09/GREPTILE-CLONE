@@ -1,11 +1,11 @@
-const { execSync } = require('child_process');
-const fs = require('fs').promises;
-const path = require('path');
+import { execSync } from 'child_process';
+import { promises as fs } from 'fs';
+import path from 'path';
 
-exports.handler = async (event) => {
-  console.log('🚀 Lambda analyzer started:', JSON.stringify(event));
+export const handler = async (event) => {
+  console.log('🚀 Enhanced Lambda analyzer started:', JSON.stringify(event));
   
-  const { repoUrl, analysisId } = JSON.parse(event.body || '{}');
+  const { repoUrl, analysisId, batchPath = null } = JSON.parse(event.body || '{}');
   
   if (!repoUrl || !analysisId) {
     return {
@@ -16,23 +16,33 @@ exports.handler = async (event) => {
   
   const tempDir = path.join('/tmp', `analysis-${Date.now()}`);
   const results = [];
+  const isBatched = !!batchPath;
   
   try {
-    // Step 1: Clone repository
-    console.log('📥 Cloning repository...');
+    // Step 1: Clone repository (with batching support)
+    console.log(`📥 Cloning repository ${isBatched ? `(batch: ${batchPath})` : '(full)'}...`);
     await fs.mkdir(tempDir, { recursive: true });
     
     const gitPath = '/opt/bin/git'; // From git layer
-    const cloneCmd = `${gitPath} clone --depth 1 "${repoUrl}" "${tempDir}"`;
-    console.log('Clone command:', cloneCmd);
     
-    execSync(cloneCmd, { stdio: 'pipe' });
-    console.log('✅ Clone successful');
+    if (isBatched) {
+      // BATCHED CLONE - only specific directory
+      console.log(`🎯 Batched clone for directory: ${batchPath}`);
+      const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
+      execSync(cloneCmd, { stdio: 'pipe' });
+      console.log('✅ Base clone successful');
+    } else {
+      // FULL CLONE - entire repository
+      console.log('🌍 Full repository clone');
+      const cloneCmd = `${gitPath} clone --depth 1 "${repoUrl}" "${tempDir}"`;
+      execSync(cloneCmd, { stdio: 'pipe' });
+      console.log('✅ Full clone successful');
+    }
     
-    // Step 2: Find files (optimized)
+    // Step 2: Find files (with batch filtering)
     console.log('📁 Finding code files...');
-    const files = await findCodeFiles(tempDir);
-    console.log(`Found ${files.length} code files`);
+    const files = await findCodeFiles(tempDir, batchPath);
+    console.log(`Found ${files.length} code files ${isBatched ? `in ${batchPath}` : 'total'}`);
     
     // Step 3: Analyze files (smart batching)
     console.log(`🔍 Analyzing ${files.length} files...`);
@@ -55,17 +65,18 @@ exports.handler = async (event) => {
           totalIssues += issues.length;
         }
         
-        // Progress logging every 500 files
-        if (processedFiles % 500 === 0) {
-          console.log(`📊 Progress: ${processedFiles}/${files.length} files processed, ${totalIssues} total issues`);
+        // Progress logging every 200 files
+        if (processedFiles % 200 === 0) {
+          console.log(`📊 Progress: ${processedFiles}/${files.length} files, ${totalIssues} issues found`);
         }
         
       } catch (err) {
         console.warn(`Failed to analyze ${file}:`, err.message);
+        processedFiles++;
       }
     }
     
-    console.log(`✅ Analysis complete: ${totalIssues} issues found in ${results.length} files`);
+    console.log(`✅ Analysis complete: ${processedFiles} files processed, ${results.length} files with issues, ${totalIssues} total issues`);
     
     return {
       statusCode: 200,
@@ -73,65 +84,116 @@ exports.handler = async (event) => {
         success: true,
         analysisId,
         results,
-        message: `Analysis complete: ${totalIssues} issues found in ${results.length} files (${processedFiles} total files processed)`
+        isBatch: isBatched,
+        batchPath: batchPath,
+        stats: {
+          filesProcessed: processedFiles,
+          filesWithIssues: results.length,
+          totalIssues: totalIssues
+        },
+        message: `${isBatched ? `BATCH [${batchPath}]` : 'FULL'} Analysis complete: ${totalIssues} issues found in ${results.length} files`
       })
     };
     
   } catch (error) {
     console.error('❌ Analysis failed:', error);
+    
     return {
       statusCode: 500,
       body: JSON.stringify({
         success: false,
-        error: error.message || 'Unknown analysis error'
+        error: error.message
       })
     };
+    
   } finally {
     // Cleanup
     try {
       execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
-      console.log('🗑️ Cleanup successful');
     } catch (err) {
       console.warn('Cleanup failed:', err.message);
     }
   }
 };
 
-async function findCodeFiles(dir) {
+async function findCodeFiles(dir, batchPath = null) {
   const files = [];
   
-  async function scanDirectory(currentDir, depth = 0) {
-    if (depth > 10) return; // Prevent too deep recursion
+  // Priority file extensions - most important first
+  const highPriorityExts = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.go', '.rs'];
+  const mediumPriorityExts = ['.cpp', '.c', '.h', '.php', '.rb', '.swift', '.kt'];
+  const lowPriorityExts = ['.css', '.scss', '.html', '.json', '.yaml', '.yml', '.md'];
+  
+  const allExts = [...highPriorityExts, ...mediumPriorityExts, ...lowPriorityExts];
+  
+  // Determine scan directory based on batch
+  let scanDir = dir;
+  if (batchPath && batchPath !== '') {
+    scanDir = path.join(dir, batchPath);
+    console.log(`🎯 Scanning batch directory: ${scanDir}`);
     
+    // Check if batch directory exists
     try {
-      const items = await fs.readdir(currentDir);
-      
-      for (const item of items) {
-        // Skip common non-code directories
-        if (['node_modules', '.git', 'dist', 'build', '.next', 'coverage', 'vendor'].includes(item)) {
-          continue;
-        }
-        
-        const fullPath = path.join(currentDir, item);
-        const stats = await fs.stat(fullPath);
-        
-        if (stats.isDirectory()) {
-          await scanDirectory(fullPath, depth + 1);
-        } else if (stats.isFile()) {
-          const ext = path.extname(item).toLowerCase();
-          // Include common code file extensions
-          if (['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h', '.php', '.rb', '.swift', '.kt'].includes(ext)) {
-            files.push(fullPath);
-          }
-        }
-      }
+      await fs.access(scanDir);
     } catch (error) {
-      console.warn(`Failed to read directory ${currentDir}:`, error.message);
+      console.warn(`⚠️ Batch directory ${batchPath} not found, scanning root`);
+      scanDir = dir;
     }
   }
   
-  await scanDirectory(dir);
-  return files;
+  try {
+    await scanDirectory(scanDir, files, allExts, 0);
+  } catch (error) {
+    console.warn(`Failed to scan directory ${scanDir}:`, error.message);
+  }
+  
+  // Filter files by batch path if specified
+  let filteredFiles = files;
+  if (batchPath && batchPath !== '') {
+    const batchPrefix = path.join(dir, batchPath);
+    filteredFiles = files.filter(f => f.startsWith(batchPrefix));
+    console.log(`🔍 Filtered to ${filteredFiles.length} files in ${batchPath} directory`);
+  }
+  
+  // Sort by priority and limit to reasonable number
+  const prioritizedFiles = [
+    ...filteredFiles.filter(f => highPriorityExts.includes(path.extname(f).toLowerCase())),
+    ...filteredFiles.filter(f => mediumPriorityExts.includes(path.extname(f).toLowerCase())),
+    ...filteredFiles.filter(f => lowPriorityExts.includes(path.extname(f).toLowerCase()))
+  ];
+  
+  // Return up to 800 files (good balance)
+  return prioritizedFiles.slice(0, 800);
+}
+
+async function scanDirectory(dir, files, extensions, depth) {
+  // Prevent infinite recursion
+  if (depth > 10) return;
+  
+  try {
+    const items = await fs.readdir(dir, { withFileTypes: true });
+    
+    for (const item of items) {
+      // Skip common unimportant directories
+      if (item.name.startsWith('.') || 
+          ['node_modules', 'build', 'dist', 'coverage', '__pycache__', 'target', 'vendor'].includes(item.name)) {
+        continue;
+      }
+      
+      const fullPath = path.join(dir, item.name);
+      
+      if (item.isDirectory()) {
+        await scanDirectory(fullPath, files, extensions, depth + 1);
+      } else if (item.isFile()) {
+        const ext = path.extname(item.name).toLowerCase();
+        if (extensions.includes(ext)) {
+          files.push(fullPath);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn(`Failed to read directory ${dir}:`, error.message);
+  }
 }
 
 function analyzeFile(filePath, content) {
@@ -193,11 +255,10 @@ function analyzeFile(filePath, content) {
     }
     
     // API CALLS
-    if (trimmedLine.includes('fetch(') || trimmedLine.includes('axios') || 
-        trimmedLine.includes('http.') || trimmedLine.includes('requests.')) {
+    if (trimmedLine.match(/(fetch\(|axios\.|requests\.|http\.|curl|wget)/)) {
       issues.push({
         type: 'api',
-        message: 'API call detected',
+        message: 'API/Network call',
         line: lineNum,
         code: trimmedLine.substring(0, 100),
         severity: 'medium'
@@ -205,22 +266,22 @@ function analyzeFile(filePath, content) {
     }
     
     // SECURITY PATTERNS
-    if (trimmedLine.match(/(password|secret|token|key)\s*[=:]/i) && 
-        !trimmedLine.includes('process.env')) {
+    if (trimmedLine.match(/(password|secret|token|apikey|auth)\s*[=:]/i)) {
       issues.push({
         type: 'security',
-        message: 'Potential hardcoded credential',
+        message: 'Potential sensitive data',
         line: lineNum,
         code: trimmedLine.substring(0, 100),
         severity: 'high'
       });
     }
     
-    // DATABASE QUERIES
-    if (trimmedLine.match(/(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP)\s+/i)) {
+    // DATABASE/STORAGE
+    if (trimmedLine.match(/(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE|DROP TABLE)/i) ||
+        trimmedLine.match(/(\.query\(|\.exec\(|\.find\(|\.save\()/)) {
       issues.push({
         type: 'database',
-        message: 'Database query detected',
+        message: 'Database operation',
         line: lineNum,
         code: trimmedLine.substring(0, 100),
         severity: 'medium'
@@ -228,41 +289,14 @@ function analyzeFile(filePath, content) {
     }
     
     // CONFIGURATION
-    if (trimmedLine.includes('process.env') || trimmedLine.includes('config') ||
-        trimmedLine.match(/\.(env|config|settings|properties)$/)) {
+    if (trimmedLine.match(/(process\.env|config\.|\.env|settings\.|ENV\[)/)) {
       issues.push({
         type: 'config',
-        message: 'Configuration reference',
+        message: 'Configuration usage',
         line: lineNum,
         code: trimmedLine.substring(0, 100),
-        severity: 'info'
+        severity: 'medium'
       });
-    }
-    
-    // PERFORMANCE CONCERNS
-    if (trimmedLine.includes('console.log') || trimmedLine.includes('print(') ||
-        trimmedLine.includes('System.out')) {
-      issues.push({
-        type: 'performance',
-        message: 'Debug/logging statement',
-        line: lineNum,
-        code: trimmedLine.substring(0, 100),
-        severity: 'low'
-      });
-    }
-    
-    // TYPE DEFINITIONS (TypeScript/Flow)
-    if (ext === '.ts' || ext === '.tsx') {
-      if (trimmedLine.includes('interface ') || trimmedLine.includes('type ') ||
-          trimmedLine.includes(': any') || trimmedLine.includes('as any')) {
-        issues.push({
-          type: 'type',
-          message: 'Type definition or usage',
-          line: lineNum,
-          code: trimmedLine.substring(0, 100),
-          severity: 'info'
-        });
-      }
     }
   });
   

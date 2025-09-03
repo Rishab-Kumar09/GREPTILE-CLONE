@@ -323,6 +323,112 @@ export default function EnterpriseAnalysisPage() {
     }
   }
 
+  const shouldUseBatching = async (owner: string, repo: string) => {
+    try {
+      // Get repository info from GitHub API
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`)
+      if (!response.ok) {
+        console.warn('⚠️ Could not fetch repo info, defaulting to full analysis')
+        return false
+      }
+
+      const repoInfo = await response.json()
+      const size = repoInfo.size || 0 // Size in KB
+      const stargazers = repoInfo.stargazers_count || 0
+      
+      console.log(`📊 Repository stats: ${Math.round(size / 1024)}MB, ${stargazers} stars`)
+
+      // Simple batching criteria
+      const needsBatching = size > 50000 || stargazers > 10000 // >50MB or >10k stars
+      
+      console.log(`🤖 Batching decision: ${needsBatching}`)
+      return needsBatching
+
+    } catch (error) {
+      console.error('❌ Size check failed:', error)
+      return false
+    }
+  }
+
+  const startBatchedAnalysis = async (owner: string, repo: string) => {
+    console.log('🚀 Starting BATCHED analysis')
+    
+    // Simple batch strategy
+    const batches = [
+      { path: 'src', name: 'Source Code' },
+      { path: 'lib', name: 'Libraries' },
+      { path: 'packages', name: 'Packages' },
+      { path: '', name: 'Root Files' }
+    ]
+    
+    const allResults: AnalysisResult[] = []
+    let totalIssues = 0
+    
+    setAnalysisId(uuid())
+
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i]
+      const batchProgress = Math.round(((i + 1) / batches.length) * 100)
+      
+      setStatus(prev => ({
+        ...prev,
+        progress: batchProgress,
+        currentFile: `Batch ${i + 1}/${batches.length}: ${batch.name}...`
+      }))
+
+      console.log(`🔄 Processing batch ${i + 1}/${batches.length}: ${batch.name}`)
+
+      try {
+        const response = await fetch('/api/enterprise-analysis/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            owner, 
+            repo, 
+            batchPath: batch.path 
+          })
+        })
+
+        const data = await response.json()
+        console.log(`📡 Batch ${i + 1} response:`, data)
+
+        if (data.success && data.results) {
+          allResults.push(...data.results)
+          totalIssues += data.results.length
+          console.log(`✅ Batch ${i + 1} complete: ${data.results.length} issues found`)
+        } else {
+          console.warn(`⚠️ Batch ${i + 1} failed:`, data.error)
+        }
+
+        // Small delay between batches
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+      } catch (error) {
+        console.error(`❌ Batch ${i + 1} error:`, error)
+      }
+    }
+
+    // Final results
+    console.log(`🎉 BATCHED ANALYSIS COMPLETE: ${totalIssues} total issues`)
+    
+    // Auto-expand all files
+    const fileGroups = groupResultsByFile(allResults)
+    const autoExpandedFiles: {[key: string]: boolean} = {}
+    fileGroups.forEach(fileGroup => {
+      autoExpandedFiles[fileGroup.file] = true
+    })
+    setExpandedFiles(autoExpandedFiles)
+    
+    setStatus({
+      status: 'completed',
+      progress: 100,
+      currentFile: `BATCHED ANALYSIS COMPLETE: ${totalIssues} issues found`,
+      results: allResults
+    })
+    
+    setIsAnalyzing(false)
+  }
+
   const startSimpleAnalysis = async (owner: string, repo: string) => {
     setStatus(prev => ({
       ...prev,
@@ -399,8 +505,17 @@ export default function EnterpriseAnalysisPage() {
     try {
       const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
       
-      console.log('🔄 Starting simple analysis...')
-      await startSimpleAnalysis(owner, repo)
+      // Check if this is a large repo that needs batching
+      console.log('📏 Checking if batching is needed...')
+      const needsBatching = await shouldUseBatching(owner, repo)
+
+      if (needsBatching) {
+        console.log('🔄 LARGE REPO - Using batching strategy')
+        await startBatchedAnalysis(owner, repo)
+      } else {
+        console.log('🔄 NORMAL REPO - Using full analysis')
+        await startSimpleAnalysis(owner, repo)
+      }
       
     } catch (error) {
       console.error('❌ Analysis failed:', error)
