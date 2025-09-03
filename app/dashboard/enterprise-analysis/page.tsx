@@ -264,6 +264,65 @@ export default function EnterpriseAnalysisPage() {
     }
   }
 
+  const shouldUseBatching = async (owner: string, repo: string) => {
+    try {
+      setStatus(prev => ({
+        ...prev,
+        progress: 20,
+        currentFile: 'Analyzing repository size...'
+      }))
+
+      // Get repository info from GitHub API
+      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`)
+      if (!response.ok) {
+        console.warn('⚠️ Could not fetch repo info, defaulting to full analysis')
+        return false
+      }
+
+      const repoInfo = await response.json()
+      
+      // Decision criteria for batching
+      const size = repoInfo.size || 0 // Size in KB
+      const stargazers = repoInfo.stargazers_count || 0
+      const language = repoInfo.language || ''
+      
+      console.log(`📊 Repository stats:`, {
+        size: `${Math.round(size / 1024)}MB`,
+        stars: stargazers,
+        language,
+        name: `${owner}/${repo}`
+      })
+
+      // Batching criteria (multiple factors)
+      const sizeThreshold = size > 50000 // >50MB
+      const popularRepo = stargazers > 10000 // Popular repos tend to be large
+      const knownLargeLanguages = ['Go', 'C', 'C++', 'Java', 'JavaScript', 'TypeScript'].includes(language)
+      
+      // Known massive repos (backup check)
+      const knownMassive = [
+        'kubernetes', 'tensorflow', 'microsoft', 'facebook', 'google', 
+        'apache', 'nodejs', 'rust-lang', 'golang', 'dotnet'
+      ].some(org => `${owner}/${repo}`.toLowerCase().includes(org))
+
+      const shouldBatch = sizeThreshold || (popularRepo && knownLargeLanguages) || knownMassive
+      
+      console.log(`🤖 Batching decision:`, {
+        sizeThreshold,
+        popularRepo,
+        knownLargeLanguages,
+        knownMassive,
+        finalDecision: shouldBatch
+      })
+
+      return shouldBatch
+
+    } catch (error) {
+      console.error('❌ Size check failed:', error)
+      // Default to full analysis if size check fails
+      return false
+    }
+  }
+
   const startAnalysis = async () => {
     if (!repoUrl.includes('github.com')) {
       alert('Please enter a valid GitHub URL')
@@ -281,13 +340,12 @@ export default function EnterpriseAnalysisPage() {
     try {
       const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
       
-      // Check if this is a massive repo that needs batching
-      const massiveRepos = ['kubernetes/kubernetes', 'microsoft/vscode', 'tensorflow/tensorflow', 'facebook/react-native']
-      const repoFullName = `${owner}/${repo}`
-      const needsBatching = massiveRepos.includes(repoFullName) || repoFullName.includes('kubernetes')
+      // Check repo size to determine if batching is needed
+      console.log('📏 Checking repository size for batching decision...')
+      const needsBatching = await shouldUseBatching(owner, repo)
 
       if (needsBatching) {
-        console.log('🔄 MASSIVE REPO DETECTED - Using batching strategy')
+        console.log('🔄 LARGE REPO DETECTED - Using intelligent batching strategy')
         await startBatchedAnalysis(owner, repo)
       } else {
         console.log('🔄 NORMAL REPO - Using full analysis')
@@ -377,25 +435,70 @@ export default function EnterpriseAnalysisPage() {
   const startBatchedAnalysis = async (owner: string, repo: string) => {
     console.log('🚀 Starting BATCHED analysis for massive repo')
     
-    // Define batches for different repo types
-    const getBatchesForRepo = (repoName: string) => {
-      if (repoName.includes('kubernetes')) {
-        return [
-          { path: 'cmd/', name: 'Command Line Tools' },
-          { path: 'pkg/', name: 'Core Packages' },
-          { path: 'staging/', name: 'Staging APIs' },
-          { path: 'test/', name: 'Test Files' },
-          { path: '', name: 'Root Files' } // Empty string for root files
-        ]
-      } else if (repoName.includes('vscode')) {
-        return [
-          { path: 'src/', name: 'Source Code' },
-          { path: 'extensions/', name: 'Extensions' },
-          { path: 'test/', name: 'Tests' },
-          { path: '', name: 'Root Files' }
-        ]
-      } else {
-        // Default batching strategy
+    // Intelligent batches based on repository characteristics
+    const getBatchesForRepo = async (owner: string, repo: string) => {
+      try {
+        // Get repository info to determine structure
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`)
+        const repoInfo = await response.json()
+        const language = repoInfo.language || ''
+        const repoName = `${owner}/${repo}`.toLowerCase()
+        
+        console.log(`🎯 Determining batching strategy for ${language} repository: ${owner}/${repo}`)
+
+        // Language-specific batching strategies
+        if (language === 'Go' || repoName.includes('kubernetes') || repoName.includes('golang')) {
+          return [
+            { path: 'cmd/', name: 'Command Line Tools' },
+            { path: 'pkg/', name: 'Core Packages' },
+            { path: 'api/', name: 'API Definitions' },
+            { path: 'test/', name: 'Test Files' },
+            { path: '', name: 'Root & Config Files' }
+          ]
+        } else if (language === 'TypeScript' || language === 'JavaScript' || repoName.includes('vscode') || repoName.includes('nodejs')) {
+          return [
+            { path: 'src/', name: 'Source Code' },
+            { path: 'packages/', name: 'Packages' },
+            { path: 'extensions/', name: 'Extensions' },
+            { path: 'test/', name: 'Tests' },
+            { path: '', name: 'Root & Config Files' }
+          ]
+        } else if (language === 'Python' || repoName.includes('tensorflow') || repoName.includes('django')) {
+          return [
+            { path: 'src/', name: 'Source Code' },
+            { path: 'lib/', name: 'Libraries' },
+            { path: 'tests/', name: 'Tests' },
+            { path: 'examples/', name: 'Examples' },
+            { path: '', name: 'Root & Config Files' }
+          ]
+        } else if (language === 'Java' || repoName.includes('apache') || repoName.includes('spring')) {
+          return [
+            { path: 'src/main/', name: 'Main Source' },
+            { path: 'src/test/', name: 'Test Source' },
+            { path: 'lib/', name: 'Libraries' },
+            { path: '', name: 'Root & Config Files' }
+          ]
+        } else if (language === 'C++' || language === 'C' || repoName.includes('llvm') || repoName.includes('gcc')) {
+          return [
+            { path: 'src/', name: 'Source Code' },
+            { path: 'include/', name: 'Header Files' },
+            { path: 'lib/', name: 'Libraries' },
+            { path: 'test/', name: 'Tests' },
+            { path: '', name: 'Root & Build Files' }
+          ]
+        } else {
+          // Universal batching strategy for unknown repos
+          return [
+            { path: 'src/', name: 'Source Code' },
+            { path: 'lib/', name: 'Libraries' },
+            { path: 'packages/', name: 'Packages' },
+            { path: 'test/', name: 'Tests' },
+            { path: '', name: 'Root & Config Files' }
+          ]
+        }
+      } catch (error) {
+        console.error('❌ Failed to get repo info for batching strategy:', error)
+        // Fallback to universal strategy
         return [
           { path: 'src/', name: 'Source Code' },
           { path: 'lib/', name: 'Libraries' },
@@ -405,7 +508,7 @@ export default function EnterpriseAnalysisPage() {
       }
     }
 
-    const batches = getBatchesForRepo(`${owner}/${repo}`)
+    const batches = await getBatchesForRepo(owner, repo)
     const allResults: AnalysisResult[] = []
     let totalIssues = 0
     
