@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
         // Update database with results if successful
         if (data.success && data.results) {
           try {
+            console.log(`💾 Updating database with ${data.results.length} results...`)
             await prisma.analysisStatus.update({
               where: { id: analysisId },
               data: {
@@ -81,12 +82,26 @@ export async function POST(request: NextRequest) {
                 currentFile: `Analysis completed! Found ${data.results.length} results`
               }
             })
-            console.log('✅ Database updated successfully')
+            console.log('✅ Database updated successfully with real Lambda results!')
           } catch (dbError) {
-            console.error('Database update error:', dbError)
+            console.error('❌ Database update error:', dbError)
           }
         } else {
           console.log('⚠️ Lambda response missing success/results:', data)
+          console.log('🔍 Full Lambda response structure:', JSON.stringify(data, null, 2))
+          
+          // Update status as failed if no results
+          try {
+            await prisma.analysisStatus.update({
+              where: { id: analysisId },
+              data: {
+                status: 'failed',
+                currentFile: 'Lambda returned no results'
+              }
+            })
+          } catch (dbError) {
+            console.error('Database error setting failed status:', dbError)
+          }
         }
         
       } catch (error) {
