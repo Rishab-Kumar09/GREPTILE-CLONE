@@ -323,32 +323,7 @@ export default function EnterpriseAnalysisPage() {
     }
   }
 
-  const shouldUseBatching = async (owner: string, repo: string) => {
-    try {
-      // Get repository info from GitHub API
-      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`)
-      if (!response.ok) {
-        console.warn('⚠️ Could not fetch repo info, defaulting to full analysis')
-        return false
-      }
 
-      const repoInfo = await response.json()
-      const size = repoInfo.size || 0 // Size in KB
-      const stargazers = repoInfo.stargazers_count || 0
-      
-      console.log(`📊 Repository stats: ${Math.round(size / 1024)}MB, ${stargazers} stars`)
-
-      // Simple batching criteria
-      const needsBatching = size > 50000 || stargazers > 10000 // >50MB or >10k stars
-      
-      console.log(`🤖 Batching decision: ${needsBatching}`)
-      return needsBatching
-
-    } catch (error) {
-      console.error('❌ Size check failed:', error)
-      return false
-    }
-  }
 
   const startBatchedAnalysis = async (owner: string, repo: string) => {
     console.log('🚀 Starting BATCHED analysis')
