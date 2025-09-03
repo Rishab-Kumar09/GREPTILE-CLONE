@@ -323,6 +323,65 @@ export default function EnterpriseAnalysisPage() {
     }
   }
 
+  const startSimpleAnalysis = async (owner: string, repo: string) => {
+    setStatus(prev => ({
+      ...prev,
+      progress: 30,
+      currentFile: 'Analyzing repository...'
+    }))
+
+    console.log('🔄 Making simple analysis API request...')
+    const response = await fetch('/api/enterprise-analysis/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner, repo })
+    })
+
+    const data = await response.json()
+    console.log('📡 Simple analysis response:', data)
+
+    if (data.success) {
+      setAnalysisId(data.analysisId)
+      
+      // Handle direct results
+      if (data.results && data.results.length > 0) {
+        console.log(`🎉 Got ${data.results.length} results directly from Lambda!`)
+        
+        // Auto-expand all files
+        const fileGroups = groupResultsByFile(data.results)
+        const autoExpandedFiles: {[key: string]: boolean} = {}
+        fileGroups.forEach(fileGroup => {
+          autoExpandedFiles[fileGroup.file] = true
+        })
+        setExpandedFiles(autoExpandedFiles)
+        
+        setStatus({
+          status: 'completed',
+          progress: 100,
+          currentFile: data.message || 'Analysis completed!',
+          results: data.results
+        })
+      } else {
+        setStatus({
+          status: 'completed',
+          progress: 100,
+          currentFile: 'Analysis completed - no code patterns found',
+          results: []
+        })
+      }
+      
+    } else {
+      setStatus({
+        status: 'failed',
+        progress: 0,
+        currentFile: `Error: ${data.error}`,
+        results: []
+      })
+    }
+    
+    setIsAnalyzing(false)
+  }
+
   const startAnalysis = async () => {
     if (!repoUrl.includes('github.com')) {
       alert('Please enter a valid GitHub URL')
@@ -340,17 +399,8 @@ export default function EnterpriseAnalysisPage() {
     try {
       const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
       
-      // Check repo size to determine if batching is needed
-      console.log('📏 Checking repository size for batching decision...')
-      const needsBatching = await shouldUseBatching(owner, repo)
-
-      if (needsBatching) {
-        console.log('🔄 LARGE REPO DETECTED - Using intelligent batching strategy')
-        await startBatchedAnalysis(owner, repo)
-      } else {
-        console.log('🔄 NORMAL REPO - Using full analysis')
-        await startFullAnalysis(owner, repo)
-      }
+      console.log('🔄 Starting simple analysis...')
+      await startSimpleAnalysis(owner, repo)
       
     } catch (error) {
       console.error('❌ Analysis failed:', error)

@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json()
-    const { owner, repo, batchPath } = body
+    const { owner, repo } = body
     
     if (!owner || !repo) {
       return NextResponse.json(
@@ -15,23 +15,23 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    console.log(`📋 Starting ${batchPath ? `BATCHED [${batchPath}]` : 'FULL'} analysis for ${owner}/${repo}`)
+    console.log(`📋 Starting simple analysis for ${owner}/${repo}`)
     
     // Generate unique analysis ID
     const analysisId = uuid()
     
-    // Call Lambda function with batching support
+    // Call Lambda function
     const lambdaUrl = 'https://zhs2iniuc3.execute-api.us-east-2.amazonaws.com/default/enterprise-code-analyzer'
     const repoUrl = `https://github.com/${owner}/${repo}.git`
     
-    console.log('🚀 Calling Lambda with batching support:', lambdaUrl)
-    console.log('📦 Payload:', { repoUrl, analysisId, batchPath })
+    console.log('🚀 Calling Lambda:', lambdaUrl)
+    console.log('📦 Payload:', { repoUrl, analysisId })
     
     try {
       const response = await fetch(lambdaUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repoUrl, analysisId, batchPath })
+        body: JSON.stringify({ repoUrl, analysisId })
       })
       
       console.log(`📡 Lambda response status: ${response.status}`)
@@ -61,10 +61,7 @@ export async function POST(request: NextRequest) {
       if (data.success && data.results) {
         console.log(`🎉 SUCCESS! Lambda returned ${data.results.length} files with issues`)
         
-        // DEBUG: Log sample issues to see what's being found
-        if (data.debugSample) {
-          console.log('🔍 DEBUG SAMPLE ISSUES:', JSON.stringify(data.debugSample, null, 2))
-        }
+
         
         // Transform Lambda results to frontend format
         const transformedResults: any[] = []
