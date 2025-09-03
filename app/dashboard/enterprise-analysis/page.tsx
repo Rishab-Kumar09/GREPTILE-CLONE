@@ -42,6 +42,7 @@ export default function EnterpriseAnalysisPage() {
     results: []
   })
   const [expandedFiles, setExpandedFiles] = useState<{[key: string]: boolean}>({})
+  const [resultsExpanded, setResultsExpanded] = useState(true) // New: overall results collapse/expand
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
@@ -531,10 +532,38 @@ export default function EnterpriseAnalysisPage() {
           </div>
         )}
 
-        {/* Results Section - EXACT Reviews Page Format */}
+        {/* Results Section - EXACT Reviews Page Format with Overall Collapse */}
         {status.results.length > 0 && (
-          <div className="space-y-4">
-            {groupResultsByFile(status.results).map((fileResult, fileIndex) => (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            {/* Overall Results Header with Collapse/Expand */}
+            <div 
+              className="p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50"
+              onClick={() => setResultsExpanded(!resultsExpanded)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <svg 
+                    className={`w-5 h-5 transform transition-transform ${resultsExpanded ? 'rotate-90' : ''}`} 
+                    fill="currentColor" 
+                    viewBox="0 0 20 20"
+                  >
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <h2 className="text-xl font-bold text-gray-900">Analysis Results</h2>
+                  <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                    {status.results.length} issues found
+                  </span>
+                </div>
+                <span className="text-sm text-gray-500">
+                  {resultsExpanded ? 'Click to collapse' : 'Click to expand'}
+                </span>
+              </div>
+            </div>
+
+            {/* Collapsible Results Content */}
+            {resultsExpanded && (
+              <div className="p-4 space-y-4">
+                {groupResultsByFile(status.results).map((fileResult, fileIndex) => (
               <div key={fileIndex} className="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div className="p-4 border-b border-gray-200">
                   <div className="flex items-center space-x-3">
@@ -629,7 +658,9 @@ export default function EnterpriseAnalysisPage() {
                     )}
                 </div>
               </div>
-            ))}
+                ))}
+              </div>
+            )}
           </div>
         )}
 
