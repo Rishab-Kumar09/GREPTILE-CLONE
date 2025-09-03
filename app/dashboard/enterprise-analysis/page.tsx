@@ -57,16 +57,45 @@ export default function EnterpriseAnalysisPage() {
   const groupResultsByFile = (results: AnalysisResult[]) => {
     const grouped = results.reduce((acc, result) => {
       if (!acc[result.file]) {
-        acc[result.file] = []
+        acc[result.file] = {
+          file: result.file,
+          codeSmells: [],
+          bugs: [],
+          suggestions: []
+        }
       }
-      acc[result.file].push(result)
+      
+      // Categorize by type like Reviews page
+      if (result.type === 'smell' || result.type === 'bestpractice') {
+        acc[result.file].codeSmells.push({
+          line: result.line,
+          type: result.name,
+          description: result.description,
+          codeSnippet: result.code,
+          suggestion: getAISuggestion(result.type, result.name, result.description)
+        })
+      } else if (result.type === 'security' || result.description.includes('HIGH:')) {
+        acc[result.file].bugs.push({
+          line: result.line,
+          type: result.name,
+          description: result.description,
+          codeSnippet: result.code,
+          suggestion: getAISuggestion(result.type, result.name, result.description)
+        })
+      } else {
+        acc[result.file].suggestions.push({
+          line: result.line,
+          type: result.name,
+          description: result.description,
+          codeSnippet: result.code,
+          suggestion: getAISuggestion(result.type, result.name, result.description)
+        })
+      }
+      
       return acc
-    }, {} as {[key: string]: AnalysisResult[]})
+    }, {} as {[key: string]: any})
 
-    return Object.entries(grouped).map(([file, issues]) => ({
-      file,
-      issues: issues.sort((a, b) => a.line - b.line)
-    }))
+    return Object.values(grouped)
   }
 
   const getTypeIcon = (type: string) => {
@@ -203,7 +232,9 @@ export default function EnterpriseAnalysisPage() {
         body: JSON.stringify({
           message: message.trim(),
           repository: `${owner}/${repo}`,
-          analysisResults: status.results,
+          analysisResults: {
+            allResults: groupResultsByFile(status.results)
+          },
           chatHistory: chatMessages.slice(-25) // Last 25 messages for context
         })
       })
@@ -496,60 +527,111 @@ export default function EnterpriseAnalysisPage() {
           </div>
         )}
 
-        {/* Results Section */}
+        {/* Results Section - EXACT Reviews Page Format */}
         {status.results.length > 0 && (
           <div className="space-y-4">
-            {groupResultsByFile(status.results).map((fileGroup, fileIndex) => (
+            {groupResultsByFile(status.results).map((fileResult, fileIndex) => (
               <div key={fileIndex} className="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div 
                   className="p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50"
-                  onClick={() => toggleFileExpanded(fileGroup.file)}
+                  onClick={() => toggleFileExpanded(fileResult.file)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <svg className={`w-5 h-5 transform transition-transform ${expandedFiles[fileGroup.file] ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                      <svg className={`w-5 h-5 transform transition-transform ${expandedFiles[fileResult.file] ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                       </svg>
-                      <h3 className="text-lg font-semibold text-gray-900">{fileGroup.file}</h3>
+                      <span className="text-yellow-600 text-lg">📁</span>
+                      <h3 className="text-lg font-semibold text-gray-900">{fileResult.file}</h3>
                       <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
-                        {fileGroup.issues.length} issues
+                        {(fileResult.bugs?.length || 0) + (fileResult.codeSmells?.length || 0) + (fileResult.suggestions?.length || 0)} issues
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {expandedFiles[fileGroup.file] && (
-                  <div className="p-4 space-y-4">
-                    {fileGroup.issues.map((result, issueIndex) => (
-                      <div key={issueIndex} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-lg">{getTypeIcon(result.type)}</span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getSeverityColor(result.description)}`}>
-                              {getSeverityLevel(result.description)}
-                            </span>
-                            <span className="text-sm text-gray-500">Line {result.line}</span>
+                {expandedFiles[fileResult.file] && (
+                  <div className="p-6">
+                    {/* Bugs - High Priority Issues */}
+                    {fileResult.bugs?.length > 0 && (
+                      <div className="mb-6">
+                        <div className="flex items-center mb-3">
+                          <span className="text-red-600 text-lg mr-2">🔥</span>
+                          <h6 className="font-medium text-red-700">Bugs ({fileResult.bugs.length}):</h6>
+                        </div>
+                        {fileResult.bugs.map((bug, bugIndex) => (
+                          <div key={bugIndex} className="mb-4 last:mb-0">
+                            <h6 className="font-medium text-red-800 mb-2">Line {bug.line}: {bug.type}</h6>
+                            {bug.codeSnippet && (
+                              <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2 overflow-x-auto">
+                                <span className="text-gray-400">Line {bug.line}:</span> {bug.codeSnippet}
+                              </div>
+                            )}
+                            <p className="text-red-700 text-sm mb-2">{bug.description}</p>
+                            {bug.suggestion && (
+                              <p className="text-red-600 text-sm italic flex items-start">
+                                <span className="mr-1">💡</span>
+                                <span>{bug.suggestion}</span>
+                              </p>
+                            )}
                           </div>
-                        </div>
-                        
-                        <h4 className="font-medium text-gray-900 mb-2">{result.name}</h4>
-                        <p className="text-gray-700 mb-3">{result.description}</p>
-                        
-                        <div className="bg-gray-900 rounded-md p-3 mb-3">
-                          <pre className="text-sm text-gray-100 overflow-x-auto">
-                            <code>{result.code}</code>
-                          </pre>
-                        </div>
-
-                        {/* AI Suggestion - Reviews Page Style */}
-                        <div className="bg-green-50 border border-green-200 rounded-md p-3">
-                          <h5 className="text-sm font-medium text-green-800 mb-1">💡 Suggestion</h5>
-                          <p className="text-sm text-green-700">
-                            {getAISuggestion(result.type, result.name, result.description)}
-                          </p>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+
+                    {/* Code Smells - EXACT Reviews Page Format */}
+                    {fileResult.codeSmells?.length > 0 && (
+                      <div className="mb-6">
+                        <div className="flex items-center mb-3">
+                          <span className="text-yellow-600 text-lg mr-2">💡</span>
+                          <h6 className="font-medium text-yellow-700">Code Smells ({fileResult.codeSmells.length}):</h6>
+                        </div>
+                        {fileResult.codeSmells.map((smell, smellIndex) => (
+                          <div key={smellIndex} className="mb-4 last:mb-0">
+                            <h6 className="font-medium text-yellow-800 mb-2">Line {smell.line}: {smell.type}</h6>
+                            {smell.codeSnippet && (
+                              <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2 overflow-x-auto">
+                                <span className="text-gray-400">Line {smell.line}:</span> {smell.codeSnippet}
+                              </div>
+                            )}
+                            <p className="text-yellow-700 text-sm mb-2">{smell.description}</p>
+                            {smell.suggestion && (
+                              <p className="text-yellow-600 text-sm italic flex items-start">
+                                <span className="mr-1">💡</span>
+                                <span>{smell.suggestion}</span>
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Suggestions - Other Issues */}
+                    {fileResult.suggestions?.length > 0 && (
+                      <div className="mb-6">
+                        <div className="flex items-center mb-3">
+                          <span className="text-blue-600 text-lg mr-2">⚡</span>
+                          <h6 className="font-medium text-blue-700">Suggestions ({fileResult.suggestions.length}):</h6>
+                        </div>
+                        {fileResult.suggestions.map((suggestion, suggestionIndex) => (
+                          <div key={suggestionIndex} className="mb-4 last:mb-0">
+                            <h6 className="font-medium text-blue-800 mb-2">Line {suggestion.line}: {suggestion.type}</h6>
+                            {suggestion.codeSnippet && (
+                              <div className="bg-gray-900 text-gray-100 p-3 rounded text-sm font-mono mb-2 overflow-x-auto">
+                                <span className="text-gray-400">Line {suggestion.line}:</span> {suggestion.codeSnippet}
+                              </div>
+                            )}
+                            <p className="text-blue-700 text-sm mb-2">{suggestion.description}</p>
+                            {suggestion.suggestion && (
+                              <p className="text-blue-600 text-sm italic flex items-start">
+                                <span className="mr-1">💡</span>
+                                <span>{suggestion.suggestion}</span>
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
