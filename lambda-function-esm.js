@@ -52,8 +52,8 @@ export const handler = async (event) => {
     console.log(`Found ${files.length} files`);
     
     // Step 3: Analyze files
-    console.log('🔍 Analyzing files...');
-    for (let i = 0; i < Math.min(files.length, 50); i++) { // Limit for demo
+    console.log('🔍 Analyzing ALL files...');
+    for (let i = 0; i < files.length; i++) { // NO LIMITS - analyze everything
       const file = files[i];
       try {
         const content = await fs.readFile(file, 'utf-8');
@@ -118,9 +118,10 @@ async function findFiles(dir) {
       if (item.isDirectory()) {
         const subFiles = await findFiles(fullPath);
         files.push(...subFiles);
-      } else if (item.isFile()) {
+      } else       if (item.isFile()) {
         const ext = path.extname(item.name).toLowerCase();
-        if (['.js', '.ts', '.jsx', '.tsx', '.json', '.md'].includes(ext)) {
+        // Analyze ALL code files - no restrictions!
+        if (['.js', '.ts', '.jsx', '.tsx', '.json', '.md', '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h', '.css', '.scss', '.html', '.vue', '.php', '.rb', '.swift', '.kt', '.dart', '.sh', '.yml', '.yaml', '.xml', '.sql'].includes(ext)) {
           files.push(fullPath);
         }
       }
@@ -129,7 +130,7 @@ async function findFiles(dir) {
     console.warn(`Failed to read directory ${dir}:`, error.message);
   }
   
-  return files.slice(0, 100); // Limit for demo
+  return files; // NO LIMITS - return all files found
 }
 
 function analyzeFile(filePath, content) {
@@ -140,41 +141,99 @@ function analyzeFile(filePath, content) {
     const lineNum = index + 1;
     const trimmedLine = line.trim();
     
-    // Security patterns
-    if (trimmedLine.includes('password') && trimmedLine.includes('=')) {
+    // FUNCTIONS - React hooks, functions, methods
+    if (trimmedLine.match(/^(export\s+)?(const|function|async\s+function)\s+\w+/)) {
       issues.push({
-        type: 'security',
-        message: 'Potential hardcoded password detected',
+        type: 'function',
+        message: 'Function definition',
         line: lineNum,
         code: trimmedLine,
-        severity: 'high'
+        severity: 'info'
       });
     }
     
-    if (trimmedLine.includes('console.log')) {
+    // COMPONENTS - React components, classes
+    if (trimmedLine.match(/^(export\s+)?(class|const)\s+[A-Z]\w+/)) {
       issues.push({
-        type: 'smell',
-        message: 'Console statement found - remove before production',
+        type: 'component',
+        message: 'Component/Class definition',
         line: lineNum,
         code: trimmedLine,
-        severity: 'low'
+        severity: 'info'
       });
     }
     
-    if (trimmedLine.includes('TODO') || trimmedLine.includes('FIXME')) {
+    // IMPORTS - Dependencies and modules
+    if (trimmedLine.match(/^import\s+.*from/)) {
       issues.push({
-        type: 'smell',
-        message: 'TODO comment found',
+        type: 'import',
+        message: 'Import statement',
+        line: lineNum,
+        code: trimmedLine,
+        severity: 'info'
+      });
+    }
+    
+    // API CALLS - Network requests
+    if (trimmedLine.match(/(fetch\(|axios\.|\.get\(|\.post\(|\.put\(|\.delete\()/)) {
+      issues.push({
+        type: 'api',
+        message: 'API call detected',
         line: lineNum,
         code: trimmedLine,
         severity: 'medium'
       });
     }
     
-    if (trimmedLine.includes('fetch(') || trimmedLine.includes('axios')) {
+    // SECURITY - Potential security issues
+    if (trimmedLine.match(/(password|secret|token|apikey|auth)/i) && trimmedLine.includes('=')) {
       issues.push({
-        type: 'api',
-        message: 'API call detected - verify error handling',
+        type: 'security',
+        message: 'Potential sensitive data',
+        line: lineNum,
+        code: trimmedLine,
+        severity: 'high'
+      });
+    }
+    
+    // STATE MANAGEMENT - React hooks, state
+    if (trimmedLine.match(/(useState|useEffect|useContext|useReducer)\s*\(/)) {
+      issues.push({
+        type: 'state',
+        message: 'React hook usage',
+        line: lineNum,
+        code: trimmedLine,
+        severity: 'info'
+      });
+    }
+    
+    // PERFORMANCE - Potential performance issues
+    if (trimmedLine.match(/(for\s*\(.*in|while\s*\(.*true|\.map\(.*\.map\()/)) {
+      issues.push({
+        type: 'performance',
+        message: 'Potential performance concern',
+        line: lineNum,
+        code: trimmedLine,
+        severity: 'medium'
+      });
+    }
+    
+    // TYPES - TypeScript interfaces, types
+    if (trimmedLine.match(/^(export\s+)?(interface|type)\s+\w+/)) {
+      issues.push({
+        type: 'type',
+        message: 'Type definition',
+        line: lineNum,
+        code: trimmedLine,
+        severity: 'info'
+      });
+    }
+    
+    // CONFIGURATION - Config files, environment
+    if (trimmedLine.match(/(process\.env|config\.|\.env)/)) {
+      issues.push({
+        type: 'config',
+        message: 'Configuration usage',
         line: lineNum,
         code: trimmedLine,
         severity: 'medium'
