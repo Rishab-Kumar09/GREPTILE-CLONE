@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuid } from 'uuid'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
-  console.log('🎯 CLEAN ENTERPRISE ROUTE CALLED!')
+  console.log('🎯 ENTERPRISE ROUTE CALLED!')
   
   try {
     const body = await request.json()
@@ -20,42 +21,83 @@ export async function POST(request: NextRequest) {
     // Generate unique analysis ID
     const analysisId = uuid()
     
-    // For now, return immediate success with mock results
-    const mockResults = [
-      {
-        type: 'function',
-        name: 'useState',
-        file: 'src/components/App.tsx',
-        line: 15,
-        code: 'const [count, setCount] = useState(0)',
-        description: 'React state hook for counter'
-      },
-      {
-        type: 'component',
-        name: 'Button',
-        file: 'src/components/Button.tsx',
-        line: 8,
-        code: 'export const Button = ({ onClick, children }) => {',
-        description: 'Reusable button component'
-      },
-      {
-        type: 'api',
-        name: 'fetchData',
-        file: 'src/utils/api.ts',
-        line: 23,
-        code: 'export async function fetchData(url: string) {',
-        description: 'Generic data fetching utility'
-      }
-    ]
+    // Create database record for status tracking
+    try {
+      await prisma.analysisStatus.create({
+        data: {
+          id: analysisId,
+          status: 'initializing',
+          progress: 0,
+          currentFile: 'Starting Lambda analysis...',
+          results: [],
+          startTime: BigInt(Date.now()),
+          strategy: { name: 'Lambda Git Clone', description: 'Fast git clone analysis' }
+        }
+      })
+      console.log('💾 Database record created')
+    } catch (dbError) {
+      console.error('Database error:', dbError)
+      // Continue without database if it fails
+    }
     
-    console.log(`✅ Mock analysis completed with ${mockResults.length} results`)
+    // Call Lambda function
+    const lambdaUrl = 'https://zhs2iniuc3.execute-api.us-east-2.amazonaws.com/default/enterprise-code-analyzer'
+    const repoUrl = `https://github.com/${owner}/${repo}.git`
+    
+    console.log('🚀 Calling Lambda:', lambdaUrl)
+    
+    // Call Lambda in background
+    setTimeout(async () => {
+      try {
+        console.log('🔄 Making Lambda request...')
+        const response = await fetch(lambdaUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ repoUrl, analysisId })
+        })
+        
+        console.log(`📡 Lambda response status: ${response.status}`)
+        const responseText = await response.text()
+        console.log('📄 Lambda raw response:', responseText)
+        
+        let data
+        try {
+          data = JSON.parse(responseText)
+          console.log('✅ Lambda JSON response:', data)
+        } catch (parseError) {
+          console.error('❌ Failed to parse Lambda response:', parseError)
+          return
+        }
+        
+        // Update database with results if successful
+        if (data.success && data.results) {
+          try {
+            await prisma.analysisStatus.update({
+              where: { id: analysisId },
+              data: {
+                status: 'completed',
+                progress: 100,
+                results: data.results,
+                currentFile: `Analysis completed! Found ${data.results.length} results`
+              }
+            })
+            console.log('✅ Database updated successfully')
+          } catch (dbError) {
+            console.error('Database update error:', dbError)
+          }
+        } else {
+          console.log('⚠️ Lambda response missing success/results:', data)
+        }
+        
+      } catch (error) {
+        console.error('❌ Lambda call failed:', error)
+      }
+    }, 100)
     
     return NextResponse.json({
       success: true,
       analysisId,
-      results: mockResults,
-      message: `✅ Analysis completed for ${owner}/${repo}`,
-      status: 'completed'
+      message: `🚀 Analysis started for ${owner}/${repo}`
     })
     
   } catch (error) {
