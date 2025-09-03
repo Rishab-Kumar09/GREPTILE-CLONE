@@ -51,26 +51,41 @@ export const handler = async (event) => {
     const files = await findFiles(tempDir);
     console.log(`Found ${files.length} files`);
     
-    // Step 3: Analyze files (with reasonable limit for stability)
-    console.log('🔍 Analyzing files...');
-    const maxFiles = Math.min(files.length, 200); // Reasonable limit to prevent timeouts
-    for (let i = 0; i < maxFiles; i++) {
+    // Step 3: Analyze ALL files - we have 10GB Lambda!
+    console.log(`🔍 Analyzing ALL ${files.length} files...`);
+    let processedFiles = 0;
+    let filesWithIssues = 0;
+    
+    for (let i = 0; i < files.length; i++) {
       const file = files[i];
       try {
         const content = await fs.readFile(file, 'utf-8');
         const relativePath = path.relative(tempDir, file);
         const issues = analyzeFile(relativePath, content);
         
+        processedFiles++;
+        
         if (issues.length > 0) {
+          filesWithIssues++;
           results.push({
             file: relativePath,
             issues: issues
           });
         }
+        
+        // Progress logging every 100 files
+        if (processedFiles % 100 === 0) {
+          console.log(`📊 Progress: ${processedFiles}/${files.length} files processed, ${filesWithIssues} files with issues`);
+        }
+        
       } catch (err) {
         console.warn(`Failed to analyze ${file}:`, err.message);
+        processedFiles++;
       }
     }
+    
+    console.log(`📊 Final: ${processedFiles} files processed, ${filesWithIssues} files with issues, ${results.reduce((sum, r) => sum + r.issues.length, 0)} total issues found`);
+    
     
     console.log(`✅ Analysis complete: ${results.length} files with issues`);
     
@@ -121,8 +136,27 @@ async function findFiles(dir) {
         files.push(...subFiles);
       } else if (item.isFile()) {
         const ext = path.extname(item.name).toLowerCase();
-        // Analyze ALL code files - no restrictions!
-        if (['.js', '.ts', '.jsx', '.tsx', '.json', '.md', '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h', '.css', '.scss', '.html', '.vue', '.php', '.rb', '.swift', '.kt', '.dart', '.sh', '.yml', '.yaml', '.xml', '.sql'].includes(ext)) {
+        // Analyze ALL code files - comprehensive list!
+        const codeExtensions = [
+          // JavaScript/TypeScript
+          '.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs',
+          // Web
+          '.html', '.css', '.scss', '.sass', '.less', '.vue', '.svelte',
+          // Backend
+          '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h', '.hpp', '.cc',
+          '.php', '.rb', '.cs', '.fs', '.scala', '.clj', '.hs',
+          // Mobile
+          '.swift', '.kt', '.dart', '.m', '.mm',
+          // Data/Config
+          '.json', '.yaml', '.yml', '.xml', '.toml', '.ini', '.cfg',
+          '.sql', '.graphql', '.proto',
+          // Scripts/Shell
+          '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat',
+          // Documentation (selective)
+          '.md', '.rst', '.txt'
+        ];
+        
+        if (codeExtensions.includes(ext)) {
           files.push(fullPath);
         }
       }
@@ -131,7 +165,7 @@ async function findFiles(dir) {
     console.warn(`Failed to read directory ${dir}:`, error.message);
   }
   
-  return files.slice(0, 500); // Reasonable limit to prevent memory issues
+  return files; // NO LIMITS - we have 10GB memory!
 }
 
 function analyzeFile(filePath, content) {
