@@ -19,6 +19,18 @@ interface AnalysisStatus {
   results: AnalysisResult[]
 }
 
+interface ChatMessage {
+  id: number
+  type: 'user' | 'ai'
+  content: string
+  timestamp: Date
+  citations: Array<{
+    file: string
+    line?: number
+    snippet?: string
+  }>
+}
+
 export default function EnterpriseAnalysisPage() {
   const [repoUrl, setRepoUrl] = useState('https://github.com/facebook/react')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -30,6 +42,9 @@ export default function EnterpriseAnalysisPage() {
     results: []
   })
   const [expandedFiles, setExpandedFiles] = useState<{[key: string]: boolean}>({})
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const toggleFileExpanded = (fileName: string) => {
@@ -86,19 +101,139 @@ export default function EnterpriseAnalysisPage() {
   }
 
   const getAISuggestion = (type: string, name: string, description: string) => {
-    const suggestions: {[key: string]: string} = {
-      'function': 'Consider adding JSDoc comments to document this function\'s purpose, parameters, and return value. This improves code maintainability and helps other developers understand the function\'s behavior.',
-      'component': 'Ensure this component follows React best practices: use proper prop types, implement error boundaries if needed, and consider memoization for performance optimization.',
-      'import': 'Review this import to ensure it\'s necessary and consider using tree-shaking to reduce bundle size. Group related imports together for better organization.',
-      'api': 'Add proper error handling, loading states, and timeout configuration. Consider implementing retry logic and caching for better user experience.',
-      'security': 'This appears to contain sensitive information. Move secrets to environment variables, use proper encryption, and never commit sensitive data to version control.',
-      'database': 'Implement proper error handling, input validation, and consider using prepared statements to prevent SQL injection. Add appropriate indexes for performance.',
-      'config': 'Ensure configuration values are properly validated and have fallback defaults. Consider using a configuration management system for complex applications.',
-      'performance': 'This pattern might impact performance. Consider optimization techniques like memoization, lazy loading, or moving expensive operations to web workers.',
-      'type': 'Good TypeScript usage! Consider making types more specific and adding documentation comments for complex type definitions.'
+    // Generate SPECIFIC suggestions based on the actual issue message
+    if (name.includes('Hardcoded project name')) {
+      return 'Use a variable or configuration for the project name. Consider moving this to an environment variable or a config file that can be easily updated without code changes.'
     }
     
-    return suggestions[type] || 'Review this code pattern for potential improvements in readability, maintainability, and performance. Consider following established best practices for this technology stack.'
+    if (name.includes('Code block language identifier')) {
+      return 'Change \'```\' to \'```bash\' or \'```javascript\' to specify the correct language for the code block. This improves syntax highlighting and readability.'
+    }
+    
+    if (name.includes('Unclear instructions')) {
+      return 'Specify whether the user can perform left-click or right-click actions. Add more context about the expected user interaction to avoid confusion.'
+    }
+    
+    if (name.includes('security warning for entering IP')) {
+      return 'Add a note about the security implications of entering the PC\'s IP address. Consider warning users about network security risks.'
+    }
+    
+    if (name.includes('Hardcoded IP address')) {
+      return 'Move IP addresses to environment variables or configuration files. Hardcoded IPs make the application difficult to deploy across different environments.'
+    }
+    
+    if (name.includes('Debug statement should be removed')) {
+      return 'Remove console.log, print(), or similar debug statements before deploying to production. Consider using a proper logging library with log levels instead.'
+    }
+    
+    if (name.includes('Unresolved TODO/FIXME')) {
+      return 'Address this TODO/FIXME comment by either implementing the required changes or removing the comment if it\'s no longer relevant.'
+    }
+    
+    if (name.includes('Potential hardcoded credential')) {
+      return 'Never hardcode passwords, API keys, or tokens in source code. Move these to environment variables and use a secrets management system.'
+    }
+    
+    if (name.includes('SQL injection vulnerability')) {
+      return 'Use parameterized queries or prepared statements to prevent SQL injection attacks. Never concatenate user input directly into SQL queries.'
+    }
+    
+    if (name.includes('API call without error handling')) {
+      return 'Add proper error handling with try-catch blocks or .catch() methods. Consider implementing retry logic and user-friendly error messages.'
+    }
+    
+    if (name.includes('Using "any" type')) {
+      return 'Replace "any" with specific TypeScript types to improve type safety and catch potential errors at compile time. Define interfaces for complex objects.'
+    }
+    
+    if (name.includes('Environment variable without fallback')) {
+      return 'Provide fallback values for environment variables using || or ?? operators. This prevents runtime errors when environment variables are not set.'
+    }
+    
+    if (name.includes('Long function signature')) {
+      return 'Consider breaking this long function into smaller, more focused functions. Use parameter objects for functions with many parameters.'
+    }
+    
+    if (name.includes('Nested loop detected')) {
+      return 'Optimize nested loops by using more efficient algorithms, caching results, or breaking early when possible. Consider using array methods like map, filter, or reduce.'
+    }
+    
+    if (name.includes('Synchronous file operation')) {
+      return 'Replace synchronous file operations with asynchronous alternatives (fs.readFile instead of fs.readFileSync) to avoid blocking the event loop.'
+    }
+
+    // Fallback to generic suggestions by type
+    const genericSuggestions: {[key: string]: string} = {
+      'function': 'Consider adding JSDoc comments to document this function\'s purpose, parameters, and return value.',
+      'component': 'Ensure this component follows React best practices with proper prop types and error boundaries.',
+      'import': 'Review this import to ensure it\'s necessary and consider tree-shaking to reduce bundle size.',
+      'api': 'Add proper error handling, loading states, and timeout configuration for better user experience.',
+      'security': 'This appears to contain sensitive information. Move secrets to environment variables.',
+      'config': 'Ensure configuration values are properly validated and have fallback defaults.',
+      'performance': 'This pattern might impact performance. Consider optimization techniques like memoization.',
+      'type': 'Consider making types more specific and adding documentation comments.',
+      'smell': 'Review this code smell and consider refactoring for better maintainability.',
+      'bestpractice': 'Follow established best practices for this technology stack and coding standards.'
+    }
+    
+    return genericSuggestions[type] || 'Review this code pattern for potential improvements in readability, maintainability, and performance.'
+  }
+
+  const sendChatMessage = async (message: string) => {
+    if (!message.trim() || chatLoading) return
+
+    const userMessage: ChatMessage = {
+      id: Date.now(),
+      type: 'user',
+      content: message.trim(),
+      timestamp: new Date(),
+      citations: []
+    }
+
+    setChatMessages(prev => [...prev, userMessage])
+    setChatInput('')
+    setChatLoading(true)
+
+    try {
+      const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
+      
+      const response = await fetch('/api/chat/repository', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: message.trim(),
+          repository: `${owner}/${repo}`,
+          analysisResults: status.results,
+          chatHistory: chatMessages.slice(-25) // Last 25 messages for context
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        const aiMessage: ChatMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: data.response,
+          timestamp: new Date(),
+          citations: data.citations || []
+        }
+        setChatMessages(prev => [...prev, aiMessage])
+      } else {
+        throw new Error(data.error || 'Failed to get AI response')
+      }
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: Date.now() + 1,
+        type: 'ai',
+        content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date(),
+        citations: []
+      }
+      setChatMessages(prev => [...prev, errorMessage])
+    } finally {
+      setChatLoading(false)
+    }
   }
 
   const startAnalysis = async () => {
@@ -419,6 +554,108 @@ export default function EnterpriseAnalysisPage() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* AI Chat Section - Like Reviews Page */}
+        {status.results.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mt-8">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <span>🤖</span>
+                AI Assistant
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Get answers with file citations and line references
+              </p>
+            </div>
+            
+            {/* Chat Messages */}
+            <div className="max-h-80 overflow-y-auto p-4 space-y-4">
+              {chatMessages.length > 0 ? (
+                chatMessages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                      msg.type === 'user' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 text-gray-900'
+                    }`}>
+                      <p className="text-sm">{msg.content}</p>
+                      
+                      {/* Citations */}
+                      {msg.citations && msg.citations.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <p className="text-xs text-gray-600 mb-1">📎 Sources:</p>
+                          {msg.citations.map((citation, idx) => (
+                            <div key={idx} className="text-xs bg-gray-50 rounded p-2 mb-1">
+                              <div className="font-mono text-blue-600">
+                                {citation.file}
+                                {citation.line && `:${citation.line}`}
+                              </div>
+                              {citation.snippet && (
+                                <div className="mt-1 bg-gray-900 text-gray-100 p-1 rounded text-xs font-mono">
+                                  {citation.snippet}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <p className="text-xs opacity-75 mt-1">
+                        {msg.timestamp.toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">Start a conversation about this repository</p>
+                  <p className="text-xs mt-1">Ask about specific files, functions, or code patterns</p>
+                </div>
+              )}
+              
+              {/* Loading indicator */}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 rounded-lg px-4 py-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span className="text-sm text-gray-600">AI is thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Chat Input */}
+            <div className="p-4 border-t border-gray-200">
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !chatLoading) {
+                      sendChatMessage(chatInput)
+                    }
+                  }}
+                  placeholder="Ask about this code... (e.g., 'How does authentication work?')"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  disabled={chatLoading}
+                />
+                <button
+                  onClick={() => sendChatMessage(chatInput)}
+                  disabled={!chatInput.trim() || chatLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  Send
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                💡 Try: "Fix the bug at line 1" or "How to resolve the security issue?" or "Show me exact code replacement"
+              </p>
+            </div>
           </div>
         )}
       </div>
