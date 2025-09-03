@@ -69,47 +69,65 @@ export async function POST(request: NextRequest) {
     
     if (analysisResults && analysisResults.allResults) {
       console.log('✅ Found analysisResults.allResults with', analysisResults.allResults.length, 'files')
-      codeContext = 'Available code analysis:\n\n'
+      codeContext = 'Available code analysis summary:\n\n'
       
-      analysisResults.allResults.forEach((result: AnalysisResult) => {
+      // LIMIT TO FIRST 20 FILES to avoid token limit
+      const limitedResults = analysisResults.allResults.slice(0, 20)
+      console.log('📊 Limited to', limitedResults.length, 'files to avoid token limit')
+      
+      limitedResults.forEach((result: AnalysisResult) => {
         availableFiles.push(result.file)
         codeContext += `File: ${result.file}\n`
         
-        // Add bugs with code snippets
+        // Add only HIGH PRIORITY bugs (limit to 3 per file)
         if (result.bugs && result.bugs.length > 0) {
-          codeContext += `Bugs found:\n`
-          result.bugs.forEach(bug => {
+          codeContext += `Bugs (${result.bugs.length} total):\n`
+          result.bugs.slice(0, 3).forEach(bug => {
             codeContext += `- Line ${bug.line}: ${bug.type} - ${bug.description}\n`
-            if (bug.codeSnippet) {
-              codeContext += `  Code: ${bug.codeSnippet}\n`
-            }
+            // Skip code snippets to save tokens
           })
+          if (result.bugs.length > 3) {
+            codeContext += `... and ${result.bugs.length - 3} more bugs\n`
+          }
         }
         
-        // Add suggestions with code snippets
+        // Add only top suggestions (limit to 2 per file)
         if (result.suggestions && result.suggestions.length > 0) {
-          codeContext += `Suggestions:\n`
-          result.suggestions.forEach(suggestion => {
-            codeContext += `- Line ${suggestion.line}: ${suggestion.type} - ${suggestion.description}\n`
-            if (suggestion.codeSnippet) {
-              codeContext += `  Code: ${suggestion.codeSnippet}\n`
-            }
+          codeContext += `Suggestions (${result.suggestions.length} total):\n`
+          result.suggestions.slice(0, 2).forEach(suggestion => {
+            codeContext += `- Line ${suggestion.line}: ${suggestion.type}\n`
           })
+          if (result.suggestions.length > 2) {
+            codeContext += `... and ${result.suggestions.length - 2} more suggestions\n`
+          }
         }
         
-        // Add code smells with code snippets
+        // Add only top code smells (limit to 2 per file)
         if (result.codeSmells && result.codeSmells.length > 0) {
-          codeContext += `Code Smells:\n`
-          result.codeSmells.forEach(smell => {
-            codeContext += `- Line ${smell.line}: ${smell.type} - ${smell.description}\n`
-            if (smell.codeSnippet) {
-              codeContext += `  Code: ${smell.codeSnippet}\n`
-            }
+          codeContext += `Code Smells (${result.codeSmells.length} total):\n`
+          result.codeSmells.slice(0, 2).forEach(smell => {
+            codeContext += `- Line ${smell.line}: ${smell.type}\n`
           })
+          if (result.codeSmells.length > 2) {
+            codeContext += `... and ${result.codeSmells.length - 2} more code smells\n`
+          }
         }
         
         codeContext += '\n'
       })
+      
+      // Add summary stats
+      const totalFiles = analysisResults.allResults.length
+      const totalBugs = analysisResults.allResults.reduce((sum: number, r: any) => sum + (r.bugs?.length || 0), 0)
+      const totalSuggestions = analysisResults.allResults.reduce((sum: number, r: any) => sum + (r.suggestions?.length || 0), 0)
+      const totalSmells = analysisResults.allResults.reduce((sum: number, r: any) => sum + (r.codeSmells?.length || 0), 0)
+      
+      codeContext += `\nOVERALL SUMMARY:\n`
+      codeContext += `- Total files analyzed: ${totalFiles}\n`
+      codeContext += `- Total bugs found: ${totalBugs}\n`
+      codeContext += `- Total suggestions: ${totalSuggestions}\n`
+      codeContext += `- Total code smells: ${totalSmells}\n`
+      codeContext += `(Showing details for first ${limitedResults.length} files due to length constraints)\n\n`
     } else {
       console.log('❌ No analysisResults.allResults found')
       codeContext = `No analysis results available for ${repository}. Please run analysis first.`
