@@ -306,6 +306,9 @@ function analyzeFileForSpecificIssues(filePath, content) {
   const issues = [];
   const lines = content.split('\n');
   const fileExt = path.extname(filePath).toLowerCase();
+  
+  // DEBUG: Track what issues are found
+  let issueTypes = {};
 
   lines.forEach((line, index) => {
     const lineNum = index + 1;
@@ -431,9 +434,9 @@ function analyzeFileForSpecificIssues(filePath, content) {
       });
     }
 
-    // FUNCTIONS - Only flag problematic ones
+    // FUNCTIONS - Only flag actually problematic ones
     if (trimmedLine.match(/^(export\s+)?(const|function|async\s+function)\s+\w+/) &&
-        trimmedLine.length > 80) {
+        (trimmedLine.length > 120 || trimmedLine.split(',').length > 5)) {
       issues.push({
         type: 'function',
         message: 'Long function signature may need refactoring',
@@ -485,6 +488,19 @@ function analyzeFileForSpecificIssues(filePath, content) {
       });
     }
   });
+
+  // DEBUG: Log issue distribution for first few files
+  if (issues.length > 0) {
+    issues.forEach(issue => {
+      issueTypes[issue.type] = (issueTypes[issue.type] || 0) + 1;
+    });
+    
+    // Log for first 5 files to see pattern
+    const fileName = path.basename(filePath);
+    if (Math.random() < 0.01) { // Log 1% of files randomly
+      console.log(`🔍 DEBUG - ${fileName}: ${issues.length} issues`, issueTypes);
+    }
+  }
 
   return issues;
 }
