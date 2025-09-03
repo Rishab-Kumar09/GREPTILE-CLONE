@@ -280,22 +280,208 @@ export default function EnterpriseAnalysisPage() {
     try {
       const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
       
-      console.log('🔄 Making API request...')
-      const response = await fetch('/api/enterprise-analysis/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner, repo })
+      // Check if this is a massive repo that needs batching
+      const massiveRepos = ['kubernetes/kubernetes', 'microsoft/vscode', 'tensorflow/tensorflow', 'facebook/react-native']
+      const repoFullName = `${owner}/${repo}`
+      const needsBatching = massiveRepos.includes(repoFullName) || repoFullName.includes('kubernetes')
+
+      if (needsBatching) {
+        console.log('🔄 MASSIVE REPO DETECTED - Using batching strategy')
+        await startBatchedAnalysis(owner, repo)
+      } else {
+        console.log('🔄 NORMAL REPO - Using full analysis')
+        await startFullAnalysis(owner, repo)
+      }
+      
+    } catch (error) {
+      console.error('❌ Analysis failed:', error)
+      setStatus({
+        status: 'failed',
+        progress: 0,
+        currentFile: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        results: []
       })
+      setIsAnalyzing(false)
+    }
+  }
 
-      const data = await response.json()
-      console.log('📡 API response:', data)
+  const startFullAnalysis = async (owner: string, repo: string) => {
+    setStatus(prev => ({
+      ...prev,
+      progress: 30,
+      currentFile: 'Analyzing full repository...'
+    }))
 
-      if (data.success) {
-        setAnalysisId(data.analysisId)
+    console.log('🔄 Making full analysis API request...')
+    const response = await fetch('/api/enterprise-analysis/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ owner, repo })
+    })
+
+    const data = await response.json()
+    console.log('📡 Full analysis response:', data)
+
+    if (data.success) {
+      setAnalysisId(data.analysisId)
+      
+      // Handle direct results (no polling needed)
+      if (data.results && data.results.length > 0) {
+        console.log(`🎉 Got ${data.results.length} results directly from Lambda!`)
         
-        // Handle direct results (no polling needed)
-                     if (data.results && data.results.length > 0) {
-               console.log(`🎉 Got ${data.results.length} results directly from Lambda!`)
+        // Auto-expand all files like Reviews page
+        const fileGroups = groupResultsByFile(data.results)
+        const autoExpandedFiles: {[key: string]: boolean} = {}
+        fileGroups.forEach(fileGroup => {
+          autoExpandedFiles[fileGroup.file] = true
+        })
+        setExpandedFiles(autoExpandedFiles)
+        
+        setStatus({
+          status: 'completed',
+          progress: 100,
+          currentFile: data.message || 'Analysis completed!',
+          results: data.results
+        })
+      } else if (data.status === 'completed') {
+        // Lambda completed but no results
+        setStatus({
+          status: 'completed',
+          progress: 100,
+          currentFile: 'Analysis completed - no code patterns found',
+          results: []
+        })
+      } else {
+        // No results - show error
+        setStatus({
+          status: 'failed',
+          progress: 0,
+          currentFile: data.error || 'No results returned',
+          results: []
+        })
+      }
+      
+    } else {
+      setStatus({
+        status: 'failed',
+        progress: 0,
+        currentFile: `Error: ${data.error}`,
+        results: []
+      })
+    }
+    
+    setIsAnalyzing(false)
+  }
+
+  const startBatchedAnalysis = async (owner: string, repo: string) => {
+    console.log('🚀 Starting BATCHED analysis for massive repo')
+    
+    // Define batches for different repo types
+    const getBatchesForRepo = (repoName: string) => {
+      if (repoName.includes('kubernetes')) {
+        return [
+          { path: 'cmd/', name: 'Command Line Tools' },
+          { path: 'pkg/', name: 'Core Packages' },
+          { path: 'staging/', name: 'Staging APIs' },
+          { path: 'test/', name: 'Test Files' },
+          { path: '', name: 'Root Files' } // Empty string for root files
+        ]
+      } else if (repoName.includes('vscode')) {
+        return [
+          { path: 'src/', name: 'Source Code' },
+          { path: 'extensions/', name: 'Extensions' },
+          { path: 'test/', name: 'Tests' },
+          { path: '', name: 'Root Files' }
+        ]
+      } else {
+        // Default batching strategy
+        return [
+          { path: 'src/', name: 'Source Code' },
+          { path: 'lib/', name: 'Libraries' },
+          { path: 'test/', name: 'Tests' },
+          { path: '', name: 'Root Files' }
+        ]
+      }
+    }
+
+    const batches = getBatchesForRepo(`${owner}/${repo}`)
+    const allResults: AnalysisResult[] = []
+    let totalIssues = 0
+    
+    setAnalysisId(uuid())
+
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i]
+      const batchProgress = Math.round(((i + 1) / batches.length) * 100)
+      
+      setStatus(prev => ({
+        ...prev,
+        progress: batchProgress,
+        currentFile: `Batch ${i + 1}/${batches.length}: Analyzing ${batch.name}...`
+      }))
+
+      console.log(`🔄 Processing batch ${i + 1}/${batches.length}: ${batch.name} (${batch.path})`)
+
+      try {
+        const response = await fetch('/api/enterprise-analysis/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            owner, 
+            repo, 
+            batchPath: batch.path 
+          })
+        })
+
+        const data = await response.json()
+        console.log(`📡 Batch ${i + 1} response:`, data)
+
+        if (data.success && data.results) {
+          allResults.push(...data.results)
+          totalIssues += data.results.length
+          console.log(`✅ Batch ${i + 1} complete: ${data.results.length} issues found`)
+          
+          // Update progress with current results
+          setStatus(prev => ({
+            ...prev,
+            progress: batchProgress,
+            currentFile: `Batch ${i + 1}/${batches.length} complete: ${totalIssues} total issues found`,
+            results: allResults
+          }))
+        } else {
+          console.warn(`⚠️ Batch ${i + 1} failed:`, data.error)
+        }
+
+        // Small delay between batches to avoid overwhelming Lambda
+        await new Promise(resolve => setTimeout(resolve, 1000))
+
+      } catch (error) {
+        console.error(`❌ Batch ${i + 1} error:`, error)
+      }
+    }
+
+    // Final results
+    console.log(`🎉 BATCHED ANALYSIS COMPLETE: ${totalIssues} total issues across ${batches.length} batches`)
+    
+    // Auto-expand all files
+    const fileGroups = groupResultsByFile(allResults)
+    const autoExpandedFiles: {[key: string]: boolean} = {}
+    fileGroups.forEach(fileGroup => {
+      autoExpandedFiles[fileGroup.file] = true
+    })
+    setExpandedFiles(autoExpandedFiles)
+    
+    setStatus({
+      status: 'completed',
+      progress: 100,
+      currentFile: `BATCHED ANALYSIS COMPLETE: ${totalIssues} issues found across ${allResults.length} files`,
+      results: allResults
+    })
+    
+    setIsAnalyzing(false)
+  }
+
+
                
                // Auto-expand all files like Reviews page
                const fileGroups = groupResultsByFile(data.results)

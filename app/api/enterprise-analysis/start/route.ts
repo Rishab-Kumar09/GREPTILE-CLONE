@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json()
-    const { owner, repo } = body
+    const { owner, repo, batchPath } = body
     
     if (!owner || !repo) {
       return NextResponse.json(
@@ -15,23 +15,23 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    console.log(`📋 Starting REAL analysis for ${owner}/${repo}`)
+    console.log(`📋 Starting ${batchPath ? `BATCHED [${batchPath}]` : 'FULL'} analysis for ${owner}/${repo}`)
     
     // Generate unique analysis ID
     const analysisId = uuid()
     
-    // Call Lambda function DIRECTLY - no database, no setTimeout
+    // Call Lambda function with batching support
     const lambdaUrl = 'https://zhs2iniuc3.execute-api.us-east-2.amazonaws.com/default/enterprise-code-analyzer'
     const repoUrl = `https://github.com/${owner}/${repo}.git`
     
-    console.log('🚀 Calling Lambda SYNCHRONOUSLY:', lambdaUrl)
-    console.log('📦 Payload:', { repoUrl, analysisId })
+    console.log('🚀 Calling Lambda with batching support:', lambdaUrl)
+    console.log('📦 Payload:', { repoUrl, analysisId, batchPath })
     
     try {
       const response = await fetch(lambdaUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repoUrl, analysisId })
+        body: JSON.stringify({ repoUrl, analysisId, batchPath })
       })
       
       console.log(`📡 Lambda response status: ${response.status}`)
