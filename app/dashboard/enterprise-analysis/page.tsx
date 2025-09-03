@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { v4 as uuid } from 'uuid'
 import DashboardHeader from '@/components/DashboardHeader'
 
 interface AnalysisResult {
@@ -482,61 +483,6 @@ export default function EnterpriseAnalysisPage() {
   }
 
 
-               
-               // Auto-expand all files like Reviews page
-               const fileGroups = groupResultsByFile(data.results)
-               const autoExpandedFiles: {[key: string]: boolean} = {}
-               fileGroups.forEach(fileGroup => {
-                 autoExpandedFiles[fileGroup.file] = true
-               })
-               setExpandedFiles(autoExpandedFiles)
-               
-               setStatus({
-                 status: 'completed',
-                 progress: 100,
-                 currentFile: data.message || 'Analysis completed!',
-                 results: data.results
-               })
-             } else if (data.status === 'completed') {
-          // Lambda completed but no results
-          setStatus({
-            status: 'completed',
-            progress: 100,
-            currentFile: 'Analysis completed - no code patterns found',
-            results: []
-          })
-        } else {
-          // No results - show error
-          setStatus({
-            status: 'failed',
-            progress: 0,
-            currentFile: data.error || 'No results returned',
-            results: []
-          })
-        }
-        
-      } else {
-        setStatus({
-          status: 'failed',
-          progress: 0,
-          currentFile: `Error: ${data.error}`,
-          results: []
-        })
-      }
-      
-      setIsAnalyzing(false)
-    } catch (error) {
-      console.error('❌ Request failed:', error)
-      setStatus({
-        status: 'failed',
-        progress: 0,
-        currentFile: `Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        results: []
-      })
-      setIsAnalyzing(false)
-    }
-  }
-
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
@@ -548,7 +494,7 @@ export default function EnterpriseAnalysisPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader currentPage="Enterprise Analysis" />
+      <DashboardHeader currentPage="enterprise-analysis" />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
