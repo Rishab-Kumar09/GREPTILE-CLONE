@@ -17,9 +17,8 @@ interface AnalysisResult {
     suggestion: string
     codeSnippet?: string
   }>
-  securityIssues: Array<{
+  suggestions: Array<{
     line: number
-    severity: string
     type: string
     description: string
     suggestion: string
@@ -78,13 +77,13 @@ export async function POST(request: NextRequest) {
           })
         }
         
-        // Add security issues with code snippets
-        if (result.securityIssues && result.securityIssues.length > 0) {
-          codeContext += `Security Issues:\n`
-          result.securityIssues.forEach(issue => {
-            codeContext += `- Line ${issue.line}: ${issue.type} - ${issue.description}\n`
-            if (issue.codeSnippet) {
-              codeContext += `  Code: ${issue.codeSnippet}\n`
+        // Add suggestions with code snippets
+        if (result.suggestions && result.suggestions.length > 0) {
+          codeContext += `Suggestions:\n`
+          result.suggestions.forEach(suggestion => {
+            codeContext += `- Line ${suggestion.line}: ${suggestion.type} - ${suggestion.description}\n`
+            if (suggestion.codeSnippet) {
+              codeContext += `  Code: ${suggestion.codeSnippet}\n`
             }
           })
         }
@@ -198,7 +197,7 @@ Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS foun
           // Look for the snippet in bugs, security issues, or code smells
           const allIssues = [
             ...(fileResult.bugs || []),
-            ...(fileResult.securityIssues || []),
+            ...(fileResult.suggestions || []),
             ...(fileResult.codeSmells || [])
           ]
           const issueWithSnippet = allIssues.find(issue => issue.line === line && issue.codeSnippet)
