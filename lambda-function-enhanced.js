@@ -36,7 +36,7 @@ const getFilePriority = (ext) => {
 export const handler = async (event) => {
   console.log('🚀 Enhanced Lambda analyzer started:', JSON.stringify(event));
 
-  const { repoUrl, analysisId } = JSON.parse(event.body || '{}');
+  const { repoUrl, analysisId, batchPath = null } = JSON.parse(event.body || '{}');
 
   if (!repoUrl || !analysisId) {
     return {
@@ -44,6 +44,9 @@ export const handler = async (event) => {
       body: JSON.stringify({ error: 'repoUrl and analysisId required' })
     };
   }
+
+  console.log(`📦 Batch path: ${batchPath || 'FULL REPO'}`);
+  const isBatchedAnalysis = !!batchPath;
 
   const tempDir = path.join('/tmp', `analysis-${Date.now()}`);
   const results = [];
@@ -60,12 +63,29 @@ export const handler = async (event) => {
 
     const gitPath = '/opt/bin/git'; // From our git layer
     
-    // SIMPLE SHALLOW CLONE that works reliably
-    const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
-    console.log('Shallow clone command:', cloneCmd);
-
-    execSync(cloneCmd, { stdio: 'pipe' });
-    console.log('✅ Shallow clone successful');
+    if (isBatchedAnalysis) {
+      // SPARSE CHECKOUT - clone only specific directory
+      console.log(`🎯 BATCHED CLONE: Only analyzing ${batchPath}`);
+      
+      const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags --filter=blob:none --sparse-checkout "${repoUrl}" "${tempDir}"`;
+      console.log('Sparse clone command:', cloneCmd);
+      execSync(cloneCmd, { stdio: 'pipe' });
+      
+      // Configure sparse checkout for specific path
+      execSync(`cd "${tempDir}" && ${gitPath} sparse-checkout init --cone`, { stdio: 'pipe' });
+      execSync(`cd "${tempDir}" && ${gitPath} sparse-checkout set "${batchPath}"`, { stdio: 'pipe' });
+      
+      // Fetch the actual files for this path
+      execSync(`cd "${tempDir}" && ${gitPath} checkout HEAD -- "${batchPath}"`, { stdio: 'pipe' });
+      
+      console.log(`✅ Sparse clone successful for ${batchPath}`);
+    } else {
+      // FULL REPO CLONE (for smaller repos)
+      const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
+      console.log('Full shallow clone command:', cloneCmd);
+      execSync(cloneCmd, { stdio: 'pipe' });
+      console.log('✅ Full shallow clone successful');
+    }
 
     // Step 2: Find files
     console.log('📁 Finding files...');
@@ -130,13 +150,25 @@ export const handler = async (event) => {
     console.log(`📊 Final: ${processedFilesCount} files processed, ${filesWithIssuesCount} files with issues, ${results.reduce((sum, r) => sum + r.issues.length, 0)} total issues found`);
     console.log(`✅ SUPER SHALLOW Analysis complete: ${results.length} files with issues`);
 
+    // Check response size to prevent API Gateway 6MB limit
+    const responseSize = JSON.stringify(results).length;
+    console.log(`📏 Response size: ${Math.round(responseSize / 1024 / 1024 * 100) / 100}MB`);
+    
+    if (responseSize > 5 * 1024 * 1024) { // 5MB safety limit
+      console.log(`⚠️ Response too large, truncating to first 1000 files with issues`);
+      results.splice(1000); // Keep only first 1000 files with issues
+    }
+
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
         analysisId,
         results,
-        message: `SUPER SHALLOW Analysis complete: ${results.reduce((sum, r) => sum + r.issues.length, 0)} issues found in ${filesWithIssuesCount} files (${processedFilesCount} total files processed)`
+        message: `${isBatchedAnalysis ? `BATCH [${batchPath}]` : 'FULL'} Analysis complete: ${results.reduce((sum, r) => sum + r.issues.length, 0)} issues found in ${filesWithIssuesCount} files (${processedFilesCount} total files processed)`,
+        isBatch: isBatchedAnalysis,
+        batchPath: batchPath,
+        needsMoreBatches: false // Frontend can determine this
       })
     };
 
