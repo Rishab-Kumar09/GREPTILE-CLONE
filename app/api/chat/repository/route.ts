@@ -35,8 +35,17 @@ interface AnalysisResult {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, repository, analysisResults, chatHistory } = await request.json()
+    console.log('🚀 Chat API called')
+    const body = await request.json()
+    console.log('📋 Request body keys:', Object.keys(body))
+    
+    const { message, repository, analysisResults, chatHistory } = body
     const history = chatHistory || []
+    
+    console.log('📝 Message:', message)
+    console.log('📂 Repository:', repository)
+    console.log('📊 Has analysisResults:', !!analysisResults)
+    console.log('💬 Chat history length:', history.length)
     
     if (!openai) {
       return NextResponse.json({
@@ -169,6 +178,8 @@ Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS foun
     })
 
     console.log('💬 Conversation with', conversationMessages.length, 'messages (including', history.length, 'history messages)')
+    console.log('🔍 Code context length:', codeContext.length, 'characters')
+    console.log('🔍 Available files:', availableFiles.length, 'files')
 
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
@@ -176,6 +187,8 @@ Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS foun
       temperature: 0.3,
       max_tokens: 1000,
     })
+    
+    console.log('✅ OpenAI response received')
 
     const aiResponse = completion.choices[0].message.content || 'Sorry, I could not generate a response.'
 
@@ -223,10 +236,12 @@ Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS foun
     })
 
   } catch (error) {
-    console.error('Chat API error:', error)
+    console.error('❌ Chat API error:', error)
+    console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error')
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
     return NextResponse.json({
       success: false,
-      error: 'Failed to process chat message'
+      error: `Failed to process chat message: ${error instanceof Error ? error.message : 'Unknown error'}`
     }, { status: 500 })
   }
 } 
