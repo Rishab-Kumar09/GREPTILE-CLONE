@@ -1,6 +1,6 @@
-import { execSync } from 'child_process';
-import { promises as fs } from 'fs';
-import path from 'path';
+const { execSync } = require('child_process');
+const fs = require('fs').promises;
+const path = require('path');
 
 // Helper function to get file priority for analysis
 const getFilePriority = (ext) => {
@@ -33,7 +33,7 @@ const getFilePriority = (ext) => {
   }
 };
 
-export const handler = async (event) => {
+exports.handler = async (event) => {
   console.log('🚀 Enhanced Lambda analyzer started:', JSON.stringify(event));
 
   const { repoUrl, analysisId, batchPath = null } = JSON.parse(event.body || '{}');
@@ -214,6 +214,17 @@ export const handler = async (event) => {
       results.splice(1000); // Keep only first 1000 files with issues
     }
 
+    // DEBUG: Sample of issues for debugging
+    const sampleIssues = results.slice(0, 10).map(r => ({
+      file: r.file,
+      issueCount: r.issues.length,
+      firstIssue: r.issues[0] ? {
+        type: r.issues[0].type,
+        message: r.issues[0].message,
+        line: r.issues[0].line
+      } : null
+    }));
+
     return {
       statusCode: 200,
       body: JSON.stringify({
@@ -223,7 +234,8 @@ export const handler = async (event) => {
         message: `${isBatchedAnalysis ? `BATCH [${batchPath}]` : 'FULL'} Analysis complete: ${results.reduce((sum, r) => sum + r.issues.length, 0)} issues found in ${filesWithIssuesCount} files (${processedFilesCount} total files processed)`,
         isBatch: isBatchedAnalysis,
         batchPath: batchPath,
-        needsMoreBatches: false // Frontend can determine this
+        needsMoreBatches: false, // Frontend can determine this
+        debugSample: sampleIssues // DEBUG: Show sample of issues
       })
     };
 
@@ -489,17 +501,21 @@ function analyzeFileForSpecificIssues(filePath, content) {
     }
   });
 
-  // DEBUG: Log issue distribution for first few files
+  // DEBUG: Log issue distribution
   if (issues.length > 0) {
     issues.forEach(issue => {
       issueTypes[issue.type] = (issueTypes[issue.type] || 0) + 1;
     });
-    
-    // Log for first 5 files to see pattern
-    const fileName = path.basename(filePath);
-    if (Math.random() < 0.01) { // Log 1% of files randomly
-      console.log(`🔍 DEBUG - ${fileName}: ${issues.length} issues`, issueTypes);
-    }
+  }
+  
+  // CRITICAL DEBUG: Log files with exactly 1 issue to find the pattern
+  const fileName = path.basename(filePath);
+  if (issues.length === 1) {
+    console.log(`🚨 SINGLE ISSUE FILE - ${fileName}: "${issues[0].message}" (${issues[0].type})`);
+  } else if (issues.length === 0) {
+    console.log(`✅ NO ISSUES - ${fileName}`);
+  } else {
+    console.log(`📊 MULTIPLE ISSUES - ${fileName}: ${issues.length} issues`, issueTypes);
   }
 
   return issues;

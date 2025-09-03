@@ -61,6 +61,11 @@ export async function POST(request: NextRequest) {
       if (data.success && data.results) {
         console.log(`🎉 SUCCESS! Lambda returned ${data.results.length} files with issues`)
         
+        // DEBUG: Log sample issues to see what's being found
+        if (data.debugSample) {
+          console.log('🔍 DEBUG SAMPLE ISSUES:', JSON.stringify(data.debugSample, null, 2))
+        }
+        
         // Transform Lambda results to frontend format
         const transformedResults: any[] = []
         data.results.forEach((fileResult: any) => {
