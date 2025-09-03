@@ -47,12 +47,7 @@ export default function EnterpriseAnalysisPage() {
   const [chatLoading, setChatLoading] = useState(false)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const toggleFileExpanded = (fileName: string) => {
-    setExpandedFiles(prev => ({
-      ...prev,
-      [fileName]: !prev[fileName]
-    }))
-  }
+
 
   const groupResultsByFile = (results: AnalysisResult[]) => {
     const grouped = results.reduce((acc, result) => {
@@ -298,15 +293,24 @@ export default function EnterpriseAnalysisPage() {
         setAnalysisId(data.analysisId)
         
         // Handle direct results (no polling needed)
-        if (data.results && data.results.length > 0) {
-          console.log(`🎉 Got ${data.results.length} results directly from Lambda!`)
-          setStatus({
-            status: 'completed',
-            progress: 100,
-            currentFile: data.message || 'Analysis completed!',
-            results: data.results
-          })
-        } else if (data.status === 'completed') {
+                     if (data.results && data.results.length > 0) {
+               console.log(`🎉 Got ${data.results.length} results directly from Lambda!`)
+               
+               // Auto-expand all files like Reviews page
+               const fileGroups = groupResultsByFile(data.results)
+               const autoExpandedFiles: {[key: string]: boolean} = {}
+               fileGroups.forEach(fileGroup => {
+                 autoExpandedFiles[fileGroup.file] = true
+               })
+               setExpandedFiles(autoExpandedFiles)
+               
+               setStatus({
+                 status: 'completed',
+                 progress: 100,
+                 currentFile: data.message || 'Analysis completed!',
+                 results: data.results
+               })
+             } else if (data.status === 'completed') {
           // Lambda completed but no results
           setStatus({
             status: 'completed',
@@ -532,26 +536,17 @@ export default function EnterpriseAnalysisPage() {
           <div className="space-y-4">
             {groupResultsByFile(status.results).map((fileResult, fileIndex) => (
               <div key={fileIndex} className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div 
-                  className="p-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50"
-                  onClick={() => toggleFileExpanded(fileResult.file)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <svg className={`w-5 h-5 transform transition-transform ${expandedFiles[fileResult.file] ? 'rotate-90' : ''}`} fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-yellow-600 text-lg">📁</span>
-                      <h3 className="text-lg font-semibold text-gray-900">{fileResult.file}</h3>
-                      <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
-                        {(fileResult.bugs?.length || 0) + (fileResult.codeSmells?.length || 0) + (fileResult.suggestions?.length || 0)} issues
-                      </span>
-                    </div>
+                <div className="p-4 border-b border-gray-200">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-yellow-600 text-lg">📁</span>
+                    <h3 className="text-lg font-semibold text-gray-900">{fileResult.file}</h3>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
+                      {(fileResult.bugs?.length || 0) + (fileResult.codeSmells?.length || 0) + (fileResult.suggestions?.length || 0)} issues
+                    </span>
                   </div>
                 </div>
 
-                {expandedFiles[fileResult.file] && (
-                  <div className="p-6">
+                <div className="p-6">
                     {/* Bugs - High Priority Issues */}
                     {fileResult.bugs?.length > 0 && (
                       <div className="mb-6">
@@ -632,8 +627,7 @@ export default function EnterpriseAnalysisPage() {
                         ))}
                       </div>
                     )}
-                  </div>
-                )}
+                </div>
               </div>
             ))}
           </div>
