@@ -63,22 +63,62 @@ export const handler = async (event) => {
 
     const gitPath = '/opt/bin/git'; // From our git layer
     
-    if (isBatchedAnalysis) {
+    if (isBatchedAnalysis && batchPath !== null) {
       // SPARSE CHECKOUT - clone only specific directory
-      console.log(`🎯 BATCHED CLONE: Only analyzing ${batchPath}`);
+      console.log(`🎯 BATCHED CLONE: Only analyzing "${batchPath}" (empty = root files)`);
       
-      const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags --filter=blob:none --sparse-checkout "${repoUrl}" "${tempDir}"`;
-      console.log('Sparse clone command:', cloneCmd);
-      execSync(cloneCmd, { stdio: 'pipe' });
-      
-      // Configure sparse checkout for specific path
-      execSync(`cd "${tempDir}" && ${gitPath} sparse-checkout init --cone`, { stdio: 'pipe' });
-      execSync(`cd "${tempDir}" && ${gitPath} sparse-checkout set "${batchPath}"`, { stdio: 'pipe' });
-      
-      // Fetch the actual files for this path
-      execSync(`cd "${tempDir}" && ${gitPath} checkout HEAD -- "${batchPath}"`, { stdio: 'pipe' });
-      
-      console.log(`✅ Sparse clone successful for ${batchPath}`);
+      try {
+        // DEBUGGING: Log exact batch path and type
+        console.log(`📋 DEBUG - batchPath: "${batchPath}", type: ${typeof batchPath}, length: ${batchPath.length}`);
+        
+        // Step 1: Clone with sparse checkout support
+        execSync(`${gitPath} clone --filter=blob:none --no-checkout --depth=1 "${repoUrl}" "${tempDir}"`, { stdio: 'pipe' });
+        console.log('✅ Initial clone successful');
+        
+        // Step 2: Configure sparse checkout
+        execSync(`cd "${tempDir}" && ${gitPath} sparse-checkout init --cone`, { stdio: 'pipe' });
+        console.log('✅ Sparse checkout initialized');
+        
+        // Step 3: Set sparse checkout patterns
+        let sparsePattern;
+        if (batchPath === '' || batchPath === '/') {
+          // Root files only - exclude all directories
+          sparsePattern = '/*\n!/*/';
+          console.log('📁 Configuring for ROOT FILES ONLY');
+        } else {
+          // Specific directory
+          sparsePattern = batchPath.endsWith('/') ? batchPath : batchPath + '/';
+          console.log(`📁 Configuring for DIRECTORY: ${sparsePattern}`);
+        }
+        
+        execSync(`cd "${tempDir}" && echo "${sparsePattern}" | ${gitPath} sparse-checkout set --stdin`, { stdio: 'pipe' });
+        console.log(`✅ Sparse checkout pattern set: ${sparsePattern}`);
+        
+        // Step 4: Checkout files
+        execSync(`cd "${tempDir}" && ${gitPath} checkout`, { stdio: 'pipe' });
+        console.log('✅ Files checked out');
+        
+        // DEBUGGING: List what we actually got
+        try {
+          const lsResult = execSync(`find "${tempDir}" -type f -name "*.js" -o -name "*.ts" -o -name "*.go" -o -name "*.py" | head -10`, { encoding: 'utf8' });
+          console.log(`🔍 DEBUG - Sample files found:\n${lsResult}`);
+        } catch (lsError) {
+          console.log('🔍 DEBUG - No sample files found or ls failed');
+        }
+        
+        console.log(`✅ Sparse clone successful for "${batchPath}"`);
+      } catch (sparseError) {
+        console.error(`❌ Sparse checkout failed:`, sparseError.message);
+        console.error(`❌ Error details:`, sparseError);
+        
+        // Fallback to full clone if sparse fails
+        console.log('🔄 Falling back to full clone...');
+        execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
+        await fs.mkdir(tempDir, { recursive: true });
+        const fallbackCmd = `${gitPath} clone --depth 1 "${repoUrl}" "${tempDir}"`;
+        execSync(fallbackCmd, { stdio: 'pipe' });
+        console.log('✅ Fallback full clone successful');
+      }
     } else {
       // FULL REPO CLONE (for smaller repos)
       const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
@@ -91,6 +131,21 @@ export const handler = async (event) => {
     console.log('📁 Finding files...');
     let files = await findFiles(tempDir, 0); // Start depth at 0
     console.log(`Found ${files.length} files`);
+    
+    // DEBUGGING: Show sample file paths to verify sparse checkout worked
+    if (files.length > 0) {
+      const sampleFiles = files.slice(0, 10).map(f => f.replace(tempDir, ''));
+      console.log(`🔍 DEBUG - Sample file paths:\n${sampleFiles.join('\n')}`);
+      
+      // Show directory distribution
+      const dirCounts = {};
+      files.forEach(f => {
+        const relativePath = f.replace(tempDir, '');
+        const topDir = relativePath.split('/')[1] || 'root';
+        dirCounts[topDir] = (dirCounts[topDir] || 0) + 1;
+      });
+      console.log(`📊 DEBUG - Files by directory:`, dirCounts);
+    }
 
     // Sort files by priority to analyze more relevant files first
     files.sort((a, b) => {
