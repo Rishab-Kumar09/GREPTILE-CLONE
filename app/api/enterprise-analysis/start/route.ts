@@ -59,12 +59,30 @@ export async function POST(request: NextRequest) {
       
       // Return Lambda results DIRECTLY
       if (data.success && data.results) {
-        console.log(`🎉 SUCCESS! Lambda returned ${data.results.length} results`)
+        console.log(`🎉 SUCCESS! Lambda returned ${data.results.length} files with issues`)
+        
+        // Transform Lambda results to frontend format
+        const transformedResults = []
+        data.results.forEach(fileResult => {
+          fileResult.issues.forEach(issue => {
+            transformedResults.push({
+              type: issue.type,
+              name: issue.message,
+              file: fileResult.file,
+              line: issue.line,
+              code: issue.code,
+              description: `${issue.severity.toUpperCase()}: ${issue.message}`
+            })
+          })
+        })
+        
+        console.log(`🔄 Transformed to ${transformedResults.length} individual results`)
+        
         return NextResponse.json({
           success: true,
           analysisId,
-          results: data.results,
-          message: `✅ Real analysis completed for ${owner}/${repo}`,
+          results: transformedResults,
+          message: `✅ Real Lambda analysis: ${transformedResults.length} issues found in ${data.results.length} files`,
           status: 'completed'
         })
       } else {
