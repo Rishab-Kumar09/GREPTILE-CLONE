@@ -1,8 +1,8 @@
-import { execSync } from 'child_process';
-import { promises as fs } from 'fs';
-import path from 'path';
+const { execSync } = require('child_process');
+const fs = require('fs').promises;
+const path = require('path');
 
-export const handler = async (event) => {
+exports.handler = async (event) => {
   console.log('🚀 Lambda analyzer started:', JSON.stringify(event));
   
   const { repoUrl, analysisId } = JSON.parse(event.body || '{}');
