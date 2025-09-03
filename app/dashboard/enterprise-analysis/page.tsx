@@ -55,27 +55,27 @@ export default function EnterpriseAnalysisPage() {
   }
 
   const getTypeIcon = (type: string) => {
-    const icons: {[key: string]: string} = {
-      'function': '⚡',
-      'component': '🧩', 
-      'import': '📦',
-      'api': '🌐',
-      'security': '🔒',
-      'database': '🗄️',
-      'config': '⚙️',
-      'performance': '🚀',
-      'type': '📝'
+    switch (type.toLowerCase()) {
+      case 'security': return '🔒'
+      case 'function': return '⚡'
+      case 'component': return '🧩'
+      case 'import': return '📦'
+      case 'api': return '🌐'
+      case 'database': return '🗄️'
+      case 'config': return '⚙️'
+      case 'performance': return '🚀'
+      case 'type': return '📝'
+      default: return '💡'
     }
-    return icons[type] || '📄'
   }
 
   const getSeverityColor = (description: string) => {
     if (description.includes('HIGH:')) {
-      return 'bg-red-100 text-red-800'
+      return 'text-red-600 bg-red-100'
     } else if (description.includes('MEDIUM:')) {
-      return 'bg-orange-100 text-orange-800'
+      return 'text-yellow-600 bg-yellow-100'  
     } else {
-      return 'bg-blue-100 text-blue-800'
+      return 'text-blue-600 bg-blue-100'
     }
   }
 
@@ -400,23 +400,18 @@ export default function EnterpriseAnalysisPage() {
                         <h4 className="font-medium text-gray-900 mb-2">{result.name}</h4>
                         <p className="text-gray-700 mb-3">{result.description}</p>
                         
-                        <div className="bg-gray-900 rounded p-3 border mb-3">
-                          <code className="text-green-400 text-sm font-mono">
-                            {result.code}
-                          </code>
+                        <div className="bg-gray-900 rounded-md p-3 mb-3">
+                          <pre className="text-sm text-gray-100 overflow-x-auto">
+                            <code>{result.code}</code>
+                          </pre>
                         </div>
 
-                        {/* AI Suggestion */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <div className="flex items-start space-x-2">
-                            <span className="text-blue-600 mt-0.5">🤖</span>
-                            <div>
-                              <h5 className="font-medium text-blue-900 mb-1">AI Suggestion:</h5>
-                              <p className="text-blue-800 text-sm">
-                                {getAISuggestion(result.type, result.name, result.description)}
-                              </p>
-                            </div>
-                          </div>
+                        {/* AI Suggestion - Reviews Page Style */}
+                        <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                          <h5 className="text-sm font-medium text-green-800 mb-1">💡 Suggestion</h5>
+                          <p className="text-sm text-green-700">
+                            {getAISuggestion(result.type, result.name, result.description)}
+                          </p>
                         </div>
                       </div>
                     ))}
