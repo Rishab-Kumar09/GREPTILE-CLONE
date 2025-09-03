@@ -39,9 +39,9 @@ export default function EnterpriseAnalysisPage() {
 
     setIsAnalyzing(true)
     setStatus({
-      status: 'starting',
-      progress: 0,
-      currentFile: 'Initializing...',
+      status: 'analyzing',
+      progress: 50,
+      currentFile: 'Calling Lambda function...',
       results: []
     })
 
@@ -70,7 +70,14 @@ export default function EnterpriseAnalysisPage() {
             currentFile: data.message || 'Analysis completed!',
             results: data.results
           })
-          setIsAnalyzing(false)
+        } else if (data.status === 'completed') {
+          // Lambda completed but no results
+          setStatus({
+            status: 'completed',
+            progress: 100,
+            currentFile: 'Analysis completed - no code patterns found',
+            results: []
+          })
         } else {
           // No results - show error
           setStatus({
@@ -79,7 +86,6 @@ export default function EnterpriseAnalysisPage() {
             currentFile: data.error || 'No results returned',
             results: []
           })
-          setIsAnalyzing(false)
         }
         
       } else {
@@ -89,8 +95,9 @@ export default function EnterpriseAnalysisPage() {
           currentFile: `Error: ${data.error}`,
           results: []
         })
-        setIsAnalyzing(false)
       }
+      
+      setIsAnalyzing(false)
     } catch (error) {
       console.error('❌ Request failed:', error)
       setStatus({
