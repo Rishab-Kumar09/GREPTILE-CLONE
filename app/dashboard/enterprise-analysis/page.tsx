@@ -58,35 +58,29 @@ export default function EnterpriseAnalysisPage() {
       const data = await response.json()
       console.log('📡 API response:', data)
 
-      if (data.success && data.analysisId) {
+      if (data.success) {
         setAnalysisId(data.analysisId)
         
-        // Start polling for status updates
-        pollingIntervalRef.current = setInterval(async () => {
-          try {
-            const statusResponse = await fetch(`/api/enterprise-analysis/status/${data.analysisId}`)
-            const statusData = await statusResponse.json()
-            
-            if (statusData.status) {
-              setStatus({
-                status: statusData.status,
-                progress: statusData.progress || 0,
-                currentFile: statusData.currentFile || '',
-                results: statusData.results || []
-              })
-              
-              if (statusData.status === 'completed' || statusData.status === 'failed') {
-                setIsAnalyzing(false)
-                if (pollingIntervalRef.current) {
-                  clearInterval(pollingIntervalRef.current)
-                  pollingIntervalRef.current = null
-                }
-              }
-            }
-          } catch (error) {
-            console.error('Status polling error:', error)
-          }
-        }, 2000)
+        // Handle direct results (no polling needed)
+        if (data.results && data.results.length > 0) {
+          console.log(`🎉 Got ${data.results.length} results directly from Lambda!`)
+          setStatus({
+            status: 'completed',
+            progress: 100,
+            currentFile: data.message || 'Analysis completed!',
+            results: data.results
+          })
+          setIsAnalyzing(false)
+        } else {
+          // No results - show error
+          setStatus({
+            status: 'failed',
+            progress: 0,
+            currentFile: data.error || 'No results returned',
+            results: []
+          })
+          setIsAnalyzing(false)
+        }
         
       } else {
         setStatus({

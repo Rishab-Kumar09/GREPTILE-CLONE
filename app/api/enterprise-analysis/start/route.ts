@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuid } from 'uuid'
-import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   console.log('🎯 ENTERPRISE ROUTE CALLED!')
@@ -16,104 +15,77 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    console.log(`📋 Starting analysis for ${owner}/${repo}`)
+    console.log(`📋 Starting REAL analysis for ${owner}/${repo}`)
     
     // Generate unique analysis ID
     const analysisId = uuid()
     
-    // Create database record for status tracking
-    try {
-      await prisma.analysisStatus.create({
-        data: {
-          id: analysisId,
-          status: 'initializing',
-          progress: 0,
-          currentFile: 'Starting Lambda analysis...',
-          results: [],
-          startTime: BigInt(Date.now()),
-          strategy: { name: 'Lambda Git Clone', description: 'Fast git clone analysis' }
-        }
-      })
-      console.log('💾 Database record created')
-    } catch (dbError) {
-      console.error('Database error:', dbError)
-      // Continue without database if it fails
-    }
-    
-    // Call Lambda function
+    // Call Lambda function DIRECTLY - no database, no setTimeout
     const lambdaUrl = 'https://zhs2iniuc3.execute-api.us-east-2.amazonaws.com/default/enterprise-code-analyzer'
     const repoUrl = `https://github.com/${owner}/${repo}.git`
     
-    console.log('🚀 Calling Lambda:', lambdaUrl)
+    console.log('🚀 Calling Lambda SYNCHRONOUSLY:', lambdaUrl)
+    console.log('📦 Payload:', { repoUrl, analysisId })
     
-    // Call Lambda in background
-    setTimeout(async () => {
-      try {
-        console.log('🔄 Making Lambda request...')
-        const response = await fetch(lambdaUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ repoUrl, analysisId })
-        })
-        
-        console.log(`📡 Lambda response status: ${response.status}`)
-        const responseText = await response.text()
-        console.log('📄 Lambda raw response:', responseText)
-        
-        let data
-        try {
-          data = JSON.parse(responseText)
-          console.log('✅ Lambda JSON response:', data)
-        } catch (parseError) {
-          console.error('❌ Failed to parse Lambda response:', parseError)
-          return
-        }
-        
-        // Update database with results if successful
-        if (data.success && data.results) {
-          try {
-            console.log(`💾 Updating database with ${data.results.length} results...`)
-            await prisma.analysisStatus.update({
-              where: { id: analysisId },
-              data: {
-                status: 'completed',
-                progress: 100,
-                results: data.results,
-                currentFile: `Analysis completed! Found ${data.results.length} results`
-              }
-            })
-            console.log('✅ Database updated successfully with real Lambda results!')
-          } catch (dbError) {
-            console.error('❌ Database update error:', dbError)
-          }
-        } else {
-          console.log('⚠️ Lambda response missing success/results:', data)
-          console.log('🔍 Full Lambda response structure:', JSON.stringify(data, null, 2))
-          
-          // Update status as failed if no results
-          try {
-            await prisma.analysisStatus.update({
-              where: { id: analysisId },
-              data: {
-                status: 'failed',
-                currentFile: 'Lambda returned no results'
-              }
-            })
-          } catch (dbError) {
-            console.error('Database error setting failed status:', dbError)
-          }
-        }
-        
-      } catch (error) {
-        console.error('❌ Lambda call failed:', error)
+    try {
+      const response = await fetch(lambdaUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repoUrl, analysisId }),
+        timeout: 30000 // 30 second timeout
+      })
+      
+      console.log(`📡 Lambda response status: ${response.status}`)
+      
+      if (!response.ok) {
+        throw new Error(`Lambda returned ${response.status}: ${response.statusText}`)
       }
-    }, 100)
-    
-    return NextResponse.json({
-      success: true,
-      analysisId,
-      message: `🚀 Analysis started for ${owner}/${repo}`
-    })
+      
+      const responseText = await response.text()
+      console.log('📄 Lambda raw response:', responseText.substring(0, 500) + '...')
+      
+      let data
+      try {
+        data = JSON.parse(responseText)
+        console.log('✅ Lambda JSON response:', data)
+      } catch (parseError) {
+        console.error('❌ Failed to parse Lambda response:', parseError)
+        return NextResponse.json({
+          success: false,
+          error: 'Lambda returned invalid JSON',
+          analysisId,
+          rawResponse: responseText.substring(0, 200)
+        })
+      }
+      
+      // Return Lambda results DIRECTLY
+      if (data.success && data.results) {
+        console.log(`🎉 SUCCESS! Lambda returned ${data.results.length} results`)
+        return NextResponse.json({
+          success: true,
+          analysisId,
+          results: data.results,
+          message: `✅ Real analysis completed for ${owner}/${repo}`,
+          status: 'completed'
+        })
+      } else {
+        console.log('⚠️ Lambda response missing success/results:', data)
+        return NextResponse.json({
+          success: false,
+          error: 'Lambda returned no results',
+          analysisId,
+          lambdaResponse: data
+        })
+      }
+      
+    } catch (lambdaError) {
+      console.error('❌ Lambda call failed:', lambdaError)
+      return NextResponse.json({
+        success: false,
+        error: `Lambda error: ${lambdaError instanceof Error ? lambdaError.message : 'Unknown error'}`,
+        analysisId
+      })
+    }
     
   } catch (error) {
     console.error('❌ Analysis error:', error)
