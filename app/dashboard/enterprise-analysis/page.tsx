@@ -559,7 +559,7 @@ export default function EnterpriseAnalysisPage() {
                           <span className="text-red-600 text-lg mr-2">🔥</span>
                           <h6 className="font-medium text-red-700">Bugs ({fileResult.bugs.length}):</h6>
                         </div>
-                        {fileResult.bugs.map((bug, bugIndex) => (
+                        {fileResult.bugs.map((bug: any, bugIndex: number) => (
                           <div key={bugIndex} className="mb-4 last:mb-0">
                             <h6 className="font-medium text-red-800 mb-2">Line {bug.line}: {bug.type}</h6>
                             {bug.codeSnippet && (
@@ -586,7 +586,7 @@ export default function EnterpriseAnalysisPage() {
                           <span className="text-yellow-600 text-lg mr-2">💡</span>
                           <h6 className="font-medium text-yellow-700">Code Smells ({fileResult.codeSmells.length}):</h6>
                         </div>
-                        {fileResult.codeSmells.map((smell, smellIndex) => (
+                        {fileResult.codeSmells.map((smell: any, smellIndex: number) => (
                           <div key={smellIndex} className="mb-4 last:mb-0">
                             <h6 className="font-medium text-yellow-800 mb-2">Line {smell.line}: {smell.type}</h6>
                             {smell.codeSnippet && (
@@ -613,7 +613,7 @@ export default function EnterpriseAnalysisPage() {
                           <span className="text-blue-600 text-lg mr-2">⚡</span>
                           <h6 className="font-medium text-blue-700">Suggestions ({fileResult.suggestions.length}):</h6>
                         </div>
-                        {fileResult.suggestions.map((suggestion, suggestionIndex) => (
+                        {fileResult.suggestions.map((suggestion: any, suggestionIndex: number) => (
                           <div key={suggestionIndex} className="mb-4 last:mb-0">
                             <h6 className="font-medium text-blue-800 mb-2">Line {suggestion.line}: {suggestion.type}</h6>
                             {suggestion.codeSnippet && (
