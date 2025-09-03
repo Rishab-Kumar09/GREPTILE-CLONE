@@ -51,9 +51,10 @@ export const handler = async (event) => {
     const files = await findFiles(tempDir);
     console.log(`Found ${files.length} files`);
     
-    // Step 3: Analyze files
-    console.log('🔍 Analyzing ALL files...');
-    for (let i = 0; i < files.length; i++) { // NO LIMITS - analyze everything
+    // Step 3: Analyze files (with reasonable limit for stability)
+    console.log('🔍 Analyzing files...');
+    const maxFiles = Math.min(files.length, 200); // Reasonable limit to prevent timeouts
+    for (let i = 0; i < maxFiles; i++) {
       const file = files[i];
       try {
         const content = await fs.readFile(file, 'utf-8');
@@ -118,7 +119,7 @@ async function findFiles(dir) {
       if (item.isDirectory()) {
         const subFiles = await findFiles(fullPath);
         files.push(...subFiles);
-      } else       if (item.isFile()) {
+      } else if (item.isFile()) {
         const ext = path.extname(item.name).toLowerCase();
         // Analyze ALL code files - no restrictions!
         if (['.js', '.ts', '.jsx', '.tsx', '.json', '.md', '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h', '.css', '.scss', '.html', '.vue', '.php', '.rb', '.swift', '.kt', '.dart', '.sh', '.yml', '.yaml', '.xml', '.sql'].includes(ext)) {
@@ -130,7 +131,7 @@ async function findFiles(dir) {
     console.warn(`Failed to read directory ${dir}:`, error.message);
   }
   
-  return files; // NO LIMITS - return all files found
+  return files.slice(0, 500); // Reasonable limit to prevent memory issues
 }
 
 function analyzeFile(filePath, content) {
