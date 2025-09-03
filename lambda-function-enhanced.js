@@ -49,8 +49,9 @@ export const handler = async (event) => {
   const results = [];
   let processedFilesCount = 0;
   let filesWithIssuesCount = 0;
-  const MAX_FILES_TO_ANALYZE = 800; // Limit for stability
-  const MAX_FILE_SIZE_LINES = 5000; // Skip very large files
+  // REMOVE ALL LIMITS - analyze everything!
+  // const MAX_FILES_TO_ANALYZE = 800; // REMOVED
+  // const MAX_FILE_SIZE_LINES = 5000; // REMOVED
 
   try {
     // Step 1: Clone repository
@@ -58,11 +59,31 @@ export const handler = async (event) => {
     await fs.mkdir(tempDir, { recursive: true });
 
     const gitPath = '/opt/bin/git'; // From our git layer
-    const cloneCmd = `${gitPath} clone --depth 1 "${repoUrl}" "${tempDir}"`;
-    console.log('Clone command:', cloneCmd);
-
+    
+    // SUPER AGGRESSIVE CLONE - minimal data transfer
+    const cloneCmd = [
+      gitPath,
+      'clone',
+      '--depth 1',              // Only latest commit
+      '--single-branch',        // Only main branch
+      '--no-tags',             // Skip all tags
+      '--filter=blob:none',    // Skip file contents initially (partial clone)
+      '--sparse-checkout',     // Enable sparse checkout
+      `"${repoUrl}"`,
+      `"${tempDir}"`
+    ].join(' ');
+    
+    console.log('SUPER SHALLOW Clone command:', cloneCmd);
     execSync(cloneCmd, { stdio: 'pipe' });
-    console.log('✅ Clone successful');
+    
+    // Configure sparse checkout to exclude heavy directories
+    execSync(`cd "${tempDir}" && ${gitPath} sparse-checkout init --cone`, { stdio: 'pipe' });
+    execSync(`cd "${tempDir}" && ${gitPath} sparse-checkout set '/*' '!node_modules' '!.git' '!dist' '!build' '!out' '!coverage' '!.next' '!vendor' '!target' '!__pycache__'`, { stdio: 'pipe' });
+    
+    // Now fetch the actual file contents we need
+    execSync(`cd "${tempDir}" && ${gitPath} checkout HEAD -- .`, { stdio: 'pipe' });
+    
+    console.log('✅ SUPER SHALLOW Clone successful');
 
     // Step 2: Find files
     console.log('📁 Finding files...');
@@ -76,16 +97,26 @@ export const handler = async (event) => {
       return getFilePriority(extA) - getFilePriority(extB);
     });
 
-    // Step 3: Analyze files (with reasonable limit for stability)
-    console.log(`🔍 Analyzing up to ${MAX_FILES_TO_ANALYZE} files...`);
-    for (let i = 0; i < Math.min(files.length, MAX_FILES_TO_ANALYZE); i++) {
+    // Step 3: Analyze ALL files (NO LIMITS!)
+    console.log(`🔍 Analyzing ALL ${files.length} files...`);
+    for (let i = 0; i < files.length; i++) {
       const file = files[i];
       try {
+        const stats = await fs.stat(file);
+        
+        // Skip files larger than 5MB to save memory
+        if (stats.size > 5 * 1024 * 1024) {
+          console.log(`⚠️ Skipping large file ${path.relative(tempDir, file)} (${Math.round(stats.size / 1024 / 1024)}MB)`);
+          processedFilesCount++;
+          continue;
+        }
+
         const content = await fs.readFile(file, 'utf-8');
         const lines = content.split('\n');
 
-        if (lines.length > MAX_FILE_SIZE_LINES) {
-          console.log(`⚠️ Skipping large file ${path.relative(tempDir, file)} (${lines.length} lines)`);
+        // Skip files with too many lines (likely generated/minified)
+        if (lines.length > 15000) {
+          console.log(`⚠️ Skipping file with many lines ${path.relative(tempDir, file)} (${lines.length} lines)`);
           processedFilesCount++;
           continue;
         }
@@ -103,9 +134,9 @@ export const handler = async (event) => {
           });
         }
 
-        // Progress logging every 200 files
-        if (processedFilesCount % 200 === 0) {
-          console.log(`📊 Progress: ${processedFilesCount}/${Math.min(files.length, MAX_FILES_TO_ANALYZE)} files processed, ${filesWithIssuesCount} files with issues`);
+        // Progress logging every 1000 files
+        if (processedFilesCount % 1000 === 0) {
+          console.log(`📊 Progress: ${processedFilesCount}/${files.length} files processed, ${filesWithIssuesCount} files with issues, ${results.reduce((sum, r) => sum + r.issues.length, 0)} total issues`);
         }
 
       } catch (err) {
@@ -115,7 +146,7 @@ export const handler = async (event) => {
     }
 
     console.log(`📊 Final: ${processedFilesCount} files processed, ${filesWithIssuesCount} files with issues, ${results.reduce((sum, r) => sum + r.issues.length, 0)} total issues found`);
-    console.log(`✅ Analysis complete: ${results.length} files with issues`);
+    console.log(`✅ SUPER SHALLOW Analysis complete: ${results.length} files with issues`);
 
     return {
       statusCode: 200,
@@ -123,7 +154,7 @@ export const handler = async (event) => {
         success: true,
         analysisId,
         results,
-        message: `Analysis complete: ${results.reduce((sum, r) => sum + r.issues.length, 0)} issues found in ${filesWithIssuesCount} files`
+        message: `SUPER SHALLOW Analysis complete: ${results.reduce((sum, r) => sum + r.issues.length, 0)} issues found in ${filesWithIssuesCount} files (${processedFilesCount} total files processed)`
       })
     };
 
