@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         console.log(`🎉 SUCCESS! Lambda returned ${data.results.length} files with issues`)
         
         // Transform Lambda results to frontend format
-        const transformedResults = []
+        const transformedResults: any[] = []
         data.results.forEach(fileResult => {
           fileResult.issues.forEach(issue => {
             transformedResults.push({
