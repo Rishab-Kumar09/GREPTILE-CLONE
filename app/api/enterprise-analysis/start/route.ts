@@ -31,8 +31,7 @@ export async function POST(request: NextRequest) {
       const response = await fetch(lambdaUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repoUrl, analysisId }),
-        timeout: 30000 // 30 second timeout
+        body: JSON.stringify({ repoUrl, analysisId })
       })
       
       console.log(`📡 Lambda response status: ${response.status}`)
