@@ -60,30 +60,12 @@ export const handler = async (event) => {
 
     const gitPath = '/opt/bin/git'; // From our git layer
     
-    // SUPER AGGRESSIVE CLONE - minimal data transfer
-    const cloneCmd = [
-      gitPath,
-      'clone',
-      '--depth 1',              // Only latest commit
-      '--single-branch',        // Only main branch
-      '--no-tags',             // Skip all tags
-      '--filter=blob:none',    // Skip file contents initially (partial clone)
-      '--sparse-checkout',     // Enable sparse checkout
-      `"${repoUrl}"`,
-      `"${tempDir}"`
-    ].join(' ');
-    
-    console.log('SUPER SHALLOW Clone command:', cloneCmd);
+    // SIMPLE SHALLOW CLONE that works reliably
+    const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
+    console.log('Shallow clone command:', cloneCmd);
+
     execSync(cloneCmd, { stdio: 'pipe' });
-    
-    // Configure sparse checkout to exclude heavy directories
-    execSync(`cd "${tempDir}" && ${gitPath} sparse-checkout init --cone`, { stdio: 'pipe' });
-    execSync(`cd "${tempDir}" && ${gitPath} sparse-checkout set '/*' '!node_modules' '!.git' '!dist' '!build' '!out' '!coverage' '!.next' '!vendor' '!target' '!__pycache__'`, { stdio: 'pipe' });
-    
-    // Now fetch the actual file contents we need
-    execSync(`cd "${tempDir}" && ${gitPath} checkout HEAD -- .`, { stdio: 'pipe' });
-    
-    console.log('✅ SUPER SHALLOW Clone successful');
+    console.log('✅ Shallow clone successful');
 
     // Step 2: Find files
     console.log('📁 Finding files...');
@@ -182,8 +164,8 @@ export const handler = async (event) => {
 
 async function findFiles(dir, depth) {
   const files = [];
-  const MAX_DEPTH = 5; // Limit directory recursion depth
-  const EXCLUDE_DIRS = ['node_modules', '.git', 'dist', 'build', 'out', 'coverage', '.next', '.vscode'];
+  const MAX_DEPTH = 8; // Increased depth for more coverage
+  const EXCLUDE_DIRS = ['node_modules', '.git', 'dist', 'build', 'out', 'coverage', '.next', '.vscode', 'vendor', 'target', '__pycache__'];
 
   if (depth > MAX_DEPTH) {
     return [];
