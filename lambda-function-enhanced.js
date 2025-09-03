@@ -86,8 +86,8 @@ export const handler = async (event) => {
       try {
         const stats = await fs.stat(file);
         
-        // Skip files larger than 5MB to save memory
-        if (stats.size > 5 * 1024 * 1024) {
+        // Skip files larger than 10MB to save memory (increased from 5MB)
+        if (stats.size > 10 * 1024 * 1024) {
           console.log(`⚠️ Skipping large file ${path.relative(tempDir, file)} (${Math.round(stats.size / 1024 / 1024)}MB)`);
           processedFilesCount++;
           continue;
@@ -96,8 +96,8 @@ export const handler = async (event) => {
         const content = await fs.readFile(file, 'utf-8');
         const lines = content.split('\n');
 
-        // Skip files with too many lines (likely generated/minified)
-        if (lines.length > 15000) {
+        // Skip files with too many lines (likely generated/minified) - increased from 15k to 25k
+        if (lines.length > 25000) {
           console.log(`⚠️ Skipping file with many lines ${path.relative(tempDir, file)} (${lines.length} lines)`);
           processedFilesCount++;
           continue;
