@@ -85,7 +85,8 @@ export async function POST(request: NextRequest) {
           analysisId,
           results: transformedResults,
           message: `✅ Real Lambda analysis: ${transformedResults.length} issues found in ${data.results.length} files`,
-          status: 'completed'
+          status: 'completed',
+          isLastBatch: data.isLastBatch // CRITICAL: Pass isLastBatch from Lambda
         })
       } else {
         console.log('⚠️ Lambda response missing success/results:', data)
@@ -93,7 +94,8 @@ export async function POST(request: NextRequest) {
           success: false,
           error: 'Lambda returned no results',
           analysisId,
-          lambdaResponse: data
+          lambdaResponse: data,
+          isLastBatch: data.isLastBatch // Pass isLastBatch even on failure
         })
       }
       
@@ -102,7 +104,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         error: `Lambda error: ${lambdaError instanceof Error ? lambdaError.message : 'Unknown error'}`,
-        analysisId
+        analysisId,
+        isLastBatch: false // Assume not last batch on error
       })
     }
     
@@ -111,7 +114,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        isLastBatch: false
       },
       { status: 500 }
     )
