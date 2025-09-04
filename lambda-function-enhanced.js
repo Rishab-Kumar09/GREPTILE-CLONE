@@ -48,10 +48,33 @@ export const handler = async (event) => {
       const endIndex = startIndex + filesPerBatch;
       
       filesToProcess = allFiles.slice(startIndex, endIndex);
-      isLastBatch = endIndex >= allFiles.length;
+      isLastBatch = endIndex >= allFiles.length || filesToProcess.length === 0;
       
       console.log(`📦 File batch ${batchNumber}: Processing files ${startIndex + 1}-${Math.min(endIndex, allFiles.length)} of ${allFiles.length}`);
-      console.log(`🏁 Is last batch: ${isLastBatch}`);
+      console.log(`🏁 Is last batch: ${isLastBatch} (endIndex: ${endIndex}, totalFiles: ${allFiles.length}, batchFiles: ${filesToProcess.length})`);
+      
+      // Early return if no files in this batch
+      if (filesToProcess.length === 0) {
+        console.log(`🛑 No files in batch ${batchNumber}, marking as last batch`);
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            success: true,
+            analysisId,
+            results: [],
+            isFileBatched: true,
+            batchNumber: batchNumber,
+            isLastBatch: true, // Force last batch when no files
+            stats: {
+              filesProcessed: 0,
+              filesWithIssues: 0,
+              totalIssues: 0,
+              totalFilesInRepo: allFiles.length
+            },
+            message: `FILE BATCH ${batchNumber} - No more files to process`
+          })
+        };
+      }
     }
     
     console.log(`🔍 Processing ${filesToProcess.length} files in this batch`);
