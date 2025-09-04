@@ -326,15 +326,101 @@ export default function EnterpriseAnalysisPage() {
 
 
   const startBatchedAnalysis = async (owner: string, repo: string) => {
-    console.log('🚀 Starting BATCHED analysis')
+    console.log('🚀 Starting BATCHED analysis with REAL folder discovery')
     
-    // Simple batch strategy
-    const batches = [
-      { path: 'src', name: 'Source Code' },
-      { path: 'lib', name: 'Libraries' },
-      { path: 'packages', name: 'Packages' },
-      { path: '', name: 'Root Files' }
-    ]
+    // DISCOVER ACTUAL FOLDER STRUCTURE from GitHub API
+    let batches = []
+    
+    try {
+      console.log('📂 Discovering actual repository structure...')
+      
+      // Get root directory contents from GitHub API
+      const contentsResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`)
+      if (!contentsResponse.ok) {
+        throw new Error(`GitHub API failed: ${contentsResponse.status}`)
+      }
+      
+      const contents = await contentsResponse.json()
+      const directories = contents
+        .filter((item: any) => item.type === 'dir')
+        .map((item: any) => item.name)
+        .sort()
+      
+      console.log(`📁 Found ${directories.length} directories:`, directories)
+      
+      // Smart directory selection based on common patterns
+      const priorityDirs = []
+      const commonPatterns = [
+        'src', 'lib', 'pkg', 'cmd', 'internal', 'app', 'components', 
+        'modules', 'packages', 'core', 'api', 'server', 'client',
+        'frontend', 'backend', 'services', 'utils', 'common'
+      ]
+      
+      // Find directories that match common patterns (prioritized)
+      for (const pattern of commonPatterns) {
+        const found = directories.find(dir => 
+          dir.toLowerCase() === pattern || 
+          dir.toLowerCase().includes(pattern)
+        )
+        if (found && !priorityDirs.includes(found)) {
+          priorityDirs.push(found)
+        }
+      }
+      
+      // Add other significant directories (not too small, not common ignore patterns)
+      const otherDirs = directories.filter(dir => 
+        !priorityDirs.includes(dir) &&
+        !['node_modules', '.git', 'dist', 'build', 'coverage', 'docs', 'test', 'tests', '__pycache__', 'vendor'].includes(dir.toLowerCase()) &&
+        dir.length > 1 // Skip single letter dirs
+      ).slice(0, 2) // Max 2 additional
+      
+      // Combine priority + other dirs, limit to 4 batches max
+      const selectedDirs = [...priorityDirs, ...otherDirs].slice(0, 3)
+      
+      console.log(`🎯 Selected directories for batching:`, selectedDirs)
+      
+      // Create batches from discovered directories
+      batches = selectedDirs.map(dir => ({
+        path: dir,
+        name: `${dir.charAt(0).toUpperCase() + dir.slice(1)} Directory`
+      }))
+      
+      // Always add root files as final batch
+      batches.push({ path: '', name: 'Root Files' })
+      
+      console.log(`📋 Final batching strategy:`, batches)
+      
+    } catch (error) {
+      console.error('❌ Failed to discover repo structure, using smart fallback:', error)
+      
+      // Fallback: Try to guess based on repo name/language
+      const repoName = repo.toLowerCase()
+      if (repoName.includes('kubernetes') || repoName.includes('k8s')) {
+        batches = [
+          { path: 'cmd', name: 'Commands' },
+          { path: 'pkg', name: 'Packages' },
+          { path: 'staging', name: 'Staging' },
+          { path: '', name: 'Root Files' }
+        ]
+      } else if (repoName.includes('react') || repoName.includes('vue')) {
+        batches = [
+          { path: 'packages', name: 'Packages' },
+          { path: 'src', name: 'Source' },
+          { path: 'scripts', name: 'Scripts' },
+          { path: '', name: 'Root Files' }
+        ]
+      } else {
+        // Universal fallback
+        batches = [
+          { path: 'src', name: 'Source Code' },
+          { path: 'lib', name: 'Libraries' },
+          { path: 'pkg', name: 'Packages' },
+          { path: '', name: 'Root Files' }
+        ]
+      }
+      
+      console.log(`🔄 Using fallback batching:`, batches)
+    }
     
     const allResults: AnalysisResult[] = []
     let totalIssues = 0

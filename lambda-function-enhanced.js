@@ -25,14 +25,56 @@ export const handler = async (event) => {
     
     const gitPath = '/opt/bin/git'; // From git layer
     
-    if (isBatched) {
-      // BATCHED CLONE - only specific directory
-      console.log(`🎯 Batched clone for directory: ${batchPath}`);
-      const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
-      execSync(cloneCmd, { stdio: 'pipe' });
-      console.log('✅ Base clone successful');
+    if (isBatched && batchPath && batchPath !== '') {
+      // SPARSE CHECKOUT - Clone only specific directory to save bandwidth/time
+      console.log(`🎯 SPARSE CHECKOUT for directory: ${batchPath}`);
+      
+      try {
+        // Method 1: Try sparse checkout for massive repos
+        console.log('📦 Attempting sparse checkout...');
+        
+        // Initialize empty repo
+        execSync(`${gitPath} init`, { cwd: tempDir, stdio: 'pipe' });
+        
+        // Add remote
+        execSync(`${gitPath} remote add origin "${repoUrl}"`, { cwd: tempDir, stdio: 'pipe' });
+        
+        // Enable sparse checkout
+        execSync(`${gitPath} config core.sparseCheckout true`, { cwd: tempDir, stdio: 'pipe' });
+        
+        // Set sparse checkout pattern for the specific directory
+        const sparseCheckoutFile = path.join(tempDir, '.git', 'info', 'sparse-checkout');
+        await fs.mkdir(path.dirname(sparseCheckoutFile), { recursive: true });
+        await fs.writeFile(sparseCheckoutFile, `${batchPath}/\n`, 'utf8');
+        
+        console.log(`📝 Sparse checkout pattern: ${batchPath}/`);
+        
+        // Fetch only what we need
+        execSync(`${gitPath} fetch --depth 1 origin`, { cwd: tempDir, stdio: 'pipe' });
+        execSync(`${gitPath} checkout FETCH_HEAD`, { cwd: tempDir, stdio: 'pipe' });
+        
+        console.log(`✅ Sparse checkout successful for ${batchPath}`);
+        
+      } catch (sparseError) {
+        console.warn(`⚠️ Sparse checkout failed for ${batchPath}, using full clone:`, sparseError.message);
+        
+        // Cleanup failed sparse checkout attempt
+        try {
+          execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
+          await fs.mkdir(tempDir, { recursive: true });
+        } catch (cleanupErr) {
+          console.warn('Cleanup failed:', cleanupErr.message);
+        }
+        
+        // Fallback: Full clone (but still filter later)
+        console.log('🔄 Fallback to full clone with post-filtering');
+        const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
+        execSync(cloneCmd, { stdio: 'pipe' });
+        console.log('✅ Fallback clone successful');
+      }
+      
     } else {
-      // FULL CLONE - entire repository
+      // FULL CLONE - entire repository (for non-batched analysis)
       console.log('🌍 Full repository clone');
       const cloneCmd = `${gitPath} clone --depth 1 "${repoUrl}" "${tempDir}"`;
       execSync(cloneCmd, { stdio: 'pipe' });
@@ -41,6 +83,27 @@ export const handler = async (event) => {
     
     // Step 2: Find files (with batch filtering)
     console.log('📁 Finding code files...');
+    
+    // DEBUG: Log directory structure for batching
+    if (batchPath) {
+      console.log(`🔍 DEBUG: Looking for batch directory: ${batchPath}`);
+      try {
+        const rootContents = await fs.readdir(tempDir);
+        console.log(`📂 Root directory contents:`, rootContents.slice(0, 20));
+        
+        const batchDir = path.join(tempDir, batchPath);
+        try {
+          await fs.access(batchDir);
+          const batchContents = await fs.readdir(batchDir);
+          console.log(`📂 Batch directory ${batchPath} contents:`, batchContents.slice(0, 10));
+        } catch (err) {
+          console.log(`❌ Batch directory ${batchPath} does NOT exist!`);
+        }
+      } catch (err) {
+        console.log(`❌ Failed to read root directory:`, err.message);
+      }
+    }
+    
     const files = await findCodeFiles(tempDir, batchPath);
     console.log(`Found ${files.length} code files ${isBatched ? `in ${batchPath}` : 'total'}`);
     
