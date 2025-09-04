@@ -5,7 +5,7 @@ import path from 'path';
 export const handler = async (event) => {
   console.log('🚀 Enhanced Lambda analyzer started:', JSON.stringify(event));
   
-  const { repoUrl, analysisId, batchPath = null } = JSON.parse(event.body || '{}');
+  const { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false } = JSON.parse(event.body || '{}');
   
   if (!repoUrl || !analysisId) {
     return {
@@ -16,103 +16,52 @@ export const handler = async (event) => {
   
   const tempDir = path.join('/tmp', `analysis-${Date.now()}`);
   const results = [];
-  const isBatched = !!batchPath;
+  const isFileBatched = !!batchNumber;
   
   try {
-    // Step 1: Clone repository (with batching support)
-    console.log(`📥 Cloning repository ${isBatched ? `(batch: ${batchPath})` : '(full)'}...`);
+    // Step 1: ALWAYS SHALLOW CLONE FULL REPOSITORY
+    console.log(`📥 Shallow cloning full repository ${isFileBatched ? `(file batch ${batchNumber})` : '(single analysis)'}...`);
     await fs.mkdir(tempDir, { recursive: true });
     
     const gitPath = '/opt/bin/git'; // From git layer
     
-    if (isBatched && batchPath && batchPath !== '') {
-      // SPARSE CHECKOUT - Clone only specific directory to save bandwidth/time
-      console.log(`🎯 SPARSE CHECKOUT for directory: ${batchPath}`);
+    // ALWAYS do shallow clone of complete repository
+    console.log('🌊 Performing SHALLOW CLONE of full repository');
+    const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
+    execSync(cloneCmd, { stdio: 'pipe' });
+    console.log('✅ Shallow clone successful');
+    
+    // Step 2: Find ALL code files from full repository
+    console.log('📁 Finding ALL code files from full repository...');
+    
+    const allFiles = await findCodeFiles(tempDir, null); // No directory filtering - get ALL files
+    console.log(`📊 Found ${allFiles.length} total code files in repository`);
+    
+    // Step 3: Handle file-based batching
+    let filesToProcess = allFiles;
+    let isLastBatch = true;
+    
+    if (isFileBatched) {
+      // FILE-BASED BATCHING: Process files in chunks
+      const filesPerBatch = 200; // Process 200 files per batch
+      const startIndex = (batchNumber - 1) * filesPerBatch;
+      const endIndex = startIndex + filesPerBatch;
       
-      try {
-        // Method 1: Try sparse checkout for massive repos
-        console.log('📦 Attempting sparse checkout...');
-        
-        // Initialize empty repo
-        execSync(`${gitPath} init`, { cwd: tempDir, stdio: 'pipe' });
-        
-        // Add remote
-        execSync(`${gitPath} remote add origin "${repoUrl}"`, { cwd: tempDir, stdio: 'pipe' });
-        
-        // Enable sparse checkout
-        execSync(`${gitPath} config core.sparseCheckout true`, { cwd: tempDir, stdio: 'pipe' });
-        
-        // Set sparse checkout pattern for the specific directory
-        const sparseCheckoutFile = path.join(tempDir, '.git', 'info', 'sparse-checkout');
-        await fs.mkdir(path.dirname(sparseCheckoutFile), { recursive: true });
-        await fs.writeFile(sparseCheckoutFile, `${batchPath}/\n`, 'utf8');
-        
-        console.log(`📝 Sparse checkout pattern: ${batchPath}/`);
-        
-        // Fetch only what we need
-        execSync(`${gitPath} fetch --depth 1 origin`, { cwd: tempDir, stdio: 'pipe' });
-        execSync(`${gitPath} checkout FETCH_HEAD`, { cwd: tempDir, stdio: 'pipe' });
-        
-        console.log(`✅ Sparse checkout successful for ${batchPath}`);
-        
-      } catch (sparseError) {
-        console.warn(`⚠️ Sparse checkout failed for ${batchPath}, using full clone:`, sparseError.message);
-        
-        // Cleanup failed sparse checkout attempt
-        try {
-          execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
-          await fs.mkdir(tempDir, { recursive: true });
-        } catch (cleanupErr) {
-          console.warn('Cleanup failed:', cleanupErr.message);
-        }
-        
-        // Fallback: Full clone (but still filter later)
-        console.log('🔄 Fallback to full clone with post-filtering');
-        const cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
-        execSync(cloneCmd, { stdio: 'pipe' });
-        console.log('✅ Fallback clone successful');
-      }
+      filesToProcess = allFiles.slice(startIndex, endIndex);
+      isLastBatch = endIndex >= allFiles.length;
       
-    } else {
-      // FULL CLONE - entire repository (for non-batched analysis)
-      console.log('🌍 Full repository clone');
-      const cloneCmd = `${gitPath} clone --depth 1 "${repoUrl}" "${tempDir}"`;
-      execSync(cloneCmd, { stdio: 'pipe' });
-      console.log('✅ Full clone successful');
+      console.log(`📦 File batch ${batchNumber}: Processing files ${startIndex + 1}-${Math.min(endIndex, allFiles.length)} of ${allFiles.length}`);
+      console.log(`🏁 Is last batch: ${isLastBatch}`);
     }
     
-    // Step 2: Find files (with batch filtering)
-    console.log('📁 Finding code files...');
+    console.log(`🔍 Processing ${filesToProcess.length} files in this batch`);
     
-    // DEBUG: Log directory structure for batching
-    if (batchPath) {
-      console.log(`🔍 DEBUG: Looking for batch directory: ${batchPath}`);
-      try {
-        const rootContents = await fs.readdir(tempDir);
-        console.log(`📂 Root directory contents:`, rootContents.slice(0, 20));
-        
-        const batchDir = path.join(tempDir, batchPath);
-        try {
-          await fs.access(batchDir);
-          const batchContents = await fs.readdir(batchDir);
-          console.log(`📂 Batch directory ${batchPath} contents:`, batchContents.slice(0, 10));
-        } catch (err) {
-          console.log(`❌ Batch directory ${batchPath} does NOT exist!`);
-        }
-      } catch (err) {
-        console.log(`❌ Failed to read root directory:`, err.message);
-      }
-    }
-    
-    const files = await findCodeFiles(tempDir, batchPath);
-    console.log(`Found ${files.length} code files ${isBatched ? `in ${batchPath}` : 'total'}`);
-    
-    // Step 3: Analyze files (smart batching)
-    console.log(`🔍 Analyzing ${files.length} files...`);
+    // Step 4: Analyze files in this batch
+    console.log(`🔍 Analyzing ${filesToProcess.length} files in this batch...`);
     let processedFiles = 0;
     let totalIssues = 0;
     
-    for (const file of files) {
+    for (const file of filesToProcess) {
       try {
         const content = await fs.readFile(file, 'utf-8');
         const relativePath = path.relative(tempDir, file);
@@ -147,14 +96,16 @@ export const handler = async (event) => {
         success: true,
         analysisId,
         results,
-        isBatch: isBatched,
-        batchPath: batchPath,
+        isFileBatched: isFileBatched,
+        batchNumber: batchNumber,
+        isLastBatch: isLastBatch,
         stats: {
           filesProcessed: processedFiles,
           filesWithIssues: results.length,
-          totalIssues: totalIssues
+          totalIssues: totalIssues,
+          totalFilesInRepo: isFileBatched ? allFiles.length : processedFiles
         },
-        message: `${isBatched ? `BATCH [${batchPath}]` : 'FULL'} Analysis complete: ${totalIssues} issues found in ${results.length} files`
+        message: `${isFileBatched ? `FILE BATCH ${batchNumber}` : 'FULL'} Analysis complete: ${totalIssues} ACTUAL ERRORS found in ${results.length} files`
       })
     };
     

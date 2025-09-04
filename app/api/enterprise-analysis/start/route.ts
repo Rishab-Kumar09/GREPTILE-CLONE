@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json()
-    const { owner, repo, batchPath } = body
+    const { owner, repo, batchNumber, fullRepoAnalysis } = body
     
     if (!owner || !repo) {
       return NextResponse.json(
@@ -15,23 +15,23 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    console.log(`📋 Starting ${batchPath ? `BATCHED [${batchPath}]` : 'FULL'} analysis for ${owner}/${repo}`)
+    console.log(`📋 Starting ${batchNumber ? `FILE BATCH ${batchNumber}` : 'FULL'} analysis for ${owner}/${repo}`)
     
     // Generate unique analysis ID
     const analysisId = uuid()
     
-    // Call Lambda function with batching support
+    // Call Lambda function with file-based batching support
     const lambdaUrl = 'https://zhs2iniuc3.execute-api.us-east-2.amazonaws.com/default/enterprise-code-analyzer'
     const repoUrl = `https://github.com/${owner}/${repo}.git`
     
-    console.log('🚀 Calling Lambda with batching:', lambdaUrl)
-    console.log('📦 Payload:', { repoUrl, analysisId, batchPath })
+    console.log('🚀 Calling Lambda with file batching:', lambdaUrl)
+    console.log('📦 Payload:', { repoUrl, analysisId, batchNumber, fullRepoAnalysis })
     
     try {
       const response = await fetch(lambdaUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repoUrl, analysisId, batchPath })
+        body: JSON.stringify({ repoUrl, analysisId, batchNumber, fullRepoAnalysis })
       })
       
       console.log(`📡 Lambda response status: ${response.status}`)

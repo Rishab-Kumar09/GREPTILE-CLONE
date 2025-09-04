@@ -326,118 +326,26 @@ export default function EnterpriseAnalysisPage() {
 
 
   const startBatchedAnalysis = async (owner: string, repo: string) => {
-    console.log('🚀 Starting BATCHED analysis with REAL folder discovery')
+    console.log('🚀 Starting FILE-BASED BATCHED analysis (full repo, process in chunks)')
     
-    // DISCOVER ACTUAL FOLDER STRUCTURE from GitHub API
-    let batches = []
-    
-    try {
-      console.log('📂 Discovering actual repository structure...')
-      
-      // Get root directory contents from GitHub API
-      const contentsResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`)
-      if (!contentsResponse.ok) {
-        throw new Error(`GitHub API failed: ${contentsResponse.status}`)
-      }
-      
-      const contents = await contentsResponse.json()
-      const directories = contents
-        .filter((item: any) => item.type === 'dir')
-        .map((item: any) => item.name)
-        .sort()
-      
-      console.log(`📁 Found ${directories.length} directories:`, directories)
-      
-      // Smart directory selection based on common patterns
-      const priorityDirs = []
-      const commonPatterns = [
-        'src', 'lib', 'pkg', 'cmd', 'internal', 'app', 'components', 
-        'modules', 'packages', 'core', 'api', 'server', 'client',
-        'frontend', 'backend', 'services', 'utils', 'common'
-      ]
-      
-      // Find directories that match common patterns (prioritized)
-      for (const pattern of commonPatterns) {
-        const found = directories.find(dir => 
-          dir.toLowerCase() === pattern || 
-          dir.toLowerCase().includes(pattern)
-        )
-        if (found && !priorityDirs.includes(found)) {
-          priorityDirs.push(found)
-        }
-      }
-      
-      // Add other significant directories (not too small, not common ignore patterns)
-      const otherDirs = directories.filter(dir => 
-        !priorityDirs.includes(dir) &&
-        !['node_modules', '.git', 'dist', 'build', 'coverage', 'docs', 'test', 'tests', '__pycache__', 'vendor'].includes(dir.toLowerCase()) &&
-        dir.length > 1 // Skip single letter dirs
-      ).slice(0, 2) // Max 2 additional
-      
-      // Combine priority + other dirs, limit to 4 batches max
-      const selectedDirs = [...priorityDirs, ...otherDirs].slice(0, 3)
-      
-      console.log(`🎯 Selected directories for batching:`, selectedDirs)
-      
-      // Create batches from discovered directories
-      batches = selectedDirs.map(dir => ({
-        path: dir,
-        name: `${dir.charAt(0).toUpperCase() + dir.slice(1)} Directory`
-      }))
-      
-      // Always add root files as final batch
-      batches.push({ path: '', name: 'Root Files' })
-      
-      console.log(`📋 Final batching strategy:`, batches)
-      
-    } catch (error) {
-      console.error('❌ Failed to discover repo structure, using smart fallback:', error)
-      
-      // Fallback: Try to guess based on repo name/language
-      const repoName = repo.toLowerCase()
-      if (repoName.includes('kubernetes') || repoName.includes('k8s')) {
-        batches = [
-          { path: 'cmd', name: 'Commands' },
-          { path: 'pkg', name: 'Packages' },
-          { path: 'staging', name: 'Staging' },
-          { path: '', name: 'Root Files' }
-        ]
-      } else if (repoName.includes('react') || repoName.includes('vue')) {
-        batches = [
-          { path: 'packages', name: 'Packages' },
-          { path: 'src', name: 'Source' },
-          { path: 'scripts', name: 'Scripts' },
-          { path: '', name: 'Root Files' }
-        ]
-      } else {
-        // Universal fallback
-        batches = [
-          { path: 'src', name: 'Source Code' },
-          { path: 'lib', name: 'Libraries' },
-          { path: 'pkg', name: 'Packages' },
-          { path: '', name: 'Root Files' }
-        ]
-      }
-      
-      console.log(`🔄 Using fallback batching:`, batches)
-    }
-    
+    // FILE-BASED BATCHING: Clone full repo, process files in batches
     const allResults: AnalysisResult[] = []
     let totalIssues = 0
+    let batchNumber = 1
     
     setAnalysisId(uuid())
 
-    for (let i = 0; i < batches.length; i++) {
-      const batch = batches[i]
-      const batchProgress = Math.round(((i + 1) / batches.length) * 100)
+    // Process files in batches (no directory filtering - analyze ALL files)
+    while (true) {
+      const batchProgress = Math.min(batchNumber * 25, 100) // Rough progress estimate
       
       setStatus(prev => ({
         ...prev,
         progress: batchProgress,
-        currentFile: `Batch ${i + 1}/${batches.length}: ${batch.name}...`
+        currentFile: `Processing file batch ${batchNumber}...`
       }))
 
-      console.log(`🔄 Processing batch ${i + 1}/${batches.length}: ${batch.name}`)
+      console.log(`🔄 Processing file batch ${batchNumber}`)
 
       try {
         const response = await fetch('/api/enterprise-analysis/start', {
@@ -446,31 +354,49 @@ export default function EnterpriseAnalysisPage() {
           body: JSON.stringify({ 
             owner, 
             repo, 
-            batchPath: batch.path 
+            batchNumber, // Send batch number instead of directory path
+            fullRepoAnalysis: true // Flag to indicate full repo analysis
           })
         })
 
         const data = await response.json()
-        console.log(`📡 Batch ${i + 1} response:`, data)
+        console.log(`📡 File batch ${batchNumber} response:`, data)
 
         if (data.success && data.results) {
           allResults.push(...data.results)
           totalIssues += data.results.length
-          console.log(`✅ Batch ${i + 1} complete: ${data.results.length} issues found`)
+          console.log(`✅ File batch ${batchNumber} complete: ${data.results.length} issues found`)
+          
+          // Check if this was the final batch
+          if (data.isLastBatch) {
+            console.log(`🏁 Final batch reached - analysis complete`)
+            break
+          }
+          
+          batchNumber++
+          
+          // Small delay between batches
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          
         } else {
-          console.warn(`⚠️ Batch ${i + 1} failed:`, data.error)
+          console.warn(`⚠️ File batch ${batchNumber} failed:`, data.error)
+          break
         }
 
-        // Small delay between batches
-        await new Promise(resolve => setTimeout(resolve, 500))
-
       } catch (error) {
-        console.error(`❌ Batch ${i + 1} error:`, error)
+        console.error(`❌ File batch ${batchNumber} error:`, error)
+        break
+      }
+      
+      // Safety limit to prevent infinite loops
+      if (batchNumber > 20) {
+        console.warn('⚠️ Reached maximum batch limit (20), stopping')
+        break
       }
     }
 
     // Final results
-    console.log(`🎉 BATCHED ANALYSIS COMPLETE: ${totalIssues} total issues`)
+    console.log(`🎉 FILE-BASED BATCHED ANALYSIS COMPLETE: ${totalIssues} total issues from ${batchNumber} batches`)
     
     // Auto-expand all files
     const fileGroups = groupResultsByFile(allResults)
@@ -483,7 +409,7 @@ export default function EnterpriseAnalysisPage() {
     setStatus({
       status: 'completed',
       progress: 100,
-      currentFile: `BATCHED ANALYSIS COMPLETE: ${totalIssues} issues found`,
+      currentFile: `FILE-BASED ANALYSIS COMPLETE: ${totalIssues} issues found from full repository`,
       results: allResults
     })
     
