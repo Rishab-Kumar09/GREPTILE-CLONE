@@ -304,106 +304,84 @@ function findCryptoIssues(content, lines) {
   return issues;
 }
 
-// Fallback basic analysis (context-aware without AI)
+// Fallback basic analysis (HIGHLY SELECTIVE - only critical issues)
 function performBasicAnalysis(content, filePath) {
-  console.log(`🔧 Using fallback analysis for: ${filePath}`);
+  console.log(`🔧 Using selective fallback analysis for: ${filePath}`);
   
   const issues = [];
   const lines = content.split('\n');
   const ext = path.extname(filePath).toLowerCase();
   
-  // Context detection (like before)
-  const hasDatabase = /SELECT|INSERT|UPDATE|DELETE|query|sql|database/i.test(content);
-  const hasAuth = /auth|login|password|token|jwt|session/i.test(content);
-  const hasAPI = /fetch|axios|request|endpoint|api|http/i.test(content);
+  // Context detection
+  const hasAuth = /password|secret|token|jwt|auth|login/i.test(content);
+  const hasDatabase = /SELECT|INSERT|UPDATE|DELETE|query|sql/i.test(content);
+  const isReactFile = /react|jsx|usestate|useeffect|component/i.test(content) || ['.jsx', '.tsx'].includes(ext);
   
   lines.forEach((line, index) => {
     const lineNum = index + 1;
     const trimmedLine = line.trim();
     
-    // Skip empty lines and comments
-    if (!trimmedLine || trimmedLine.startsWith('//') || trimmedLine.startsWith('*')) return;
+    // Skip empty lines, comments, and imports
+    if (!trimmedLine || trimmedLine.startsWith('//') || trimmedLine.startsWith('*') || 
+        trimmedLine.startsWith('import') || trimmedLine.startsWith('export')) return;
     
-    // 1. Hardcoded secrets (context-aware)
-    if (hasAuth && trimmedLine.match(/(password|secret|token|apikey|api_key|auth_token|private_key)\s*[=:]\s*["'`][^"'`\s]{8,}["'`]/i)) {
+    // 1. CRITICAL: Hardcoded secrets (only if auth context detected)
+    if (hasAuth && trimmedLine.match(/(password|secret|token|key)\s*[=:]\s*["'`][a-zA-Z0-9]{12,}["'`]/i)) {
       issues.push({
         type: 'security',
-        message: 'Hardcoded secret detected - use environment variables',
+        message: 'Hardcoded secret detected',
         line: lineNum,
-        code: trimmedLine.substring(0, 100),
+        code: trimmedLine.substring(0, 80),
         severity: 'critical'
       });
     }
     
-    // 2. SQL Injection (context-aware)
+    // 2. CRITICAL: SQL injection (only if database context detected)
     if (hasDatabase && trimmedLine.match(/(SELECT|INSERT|UPDATE|DELETE).*\+.*["'`]/i)) {
       issues.push({
         type: 'security',
-        message: 'SQL injection risk - use parameterized queries',
+        message: 'SQL injection risk',
         line: lineNum,
-        code: trimmedLine.substring(0, 100),
+        code: trimmedLine.substring(0, 80),
         severity: 'critical'
       });
     }
     
-    // 3. XSS vulnerabilities (frontend files only)
-    if (['.jsx', '.tsx', '.js'].includes(ext) && 
-        trimmedLine.match(/innerHTML\s*=\s*.*\+|dangerouslySetInnerHTML.*\+/i)) {
-      issues.push({
-        type: 'security',
-        message: 'XSS vulnerability - sanitize user input',
-        line: lineNum,
-        code: trimmedLine.substring(0, 100),
-        severity: 'critical'
-      });
-    }
-    
-    // 4. Empty catch blocks
+    // 3. HIGH: Empty catch blocks (always critical)
     if (trimmedLine.match(/catch\s*\([^)]*\)\s*{\s*}$/)) {
       issues.push({
         type: 'error-handling',
-        message: 'Empty catch block - handle errors properly',
+        message: 'Empty catch block',
         line: lineNum,
-        code: trimmedLine.substring(0, 100),
+        code: trimmedLine.substring(0, 80),
         severity: 'high'
       });
     }
     
-    // 5. Console.log statements (development artifacts)
-    if (trimmedLine.match(/console\.log\s*\(/)) {
+    // 4. REACT-SPECIFIC: Dangerous innerHTML without sanitization
+    if (isReactFile && trimmedLine.match(/dangerouslySetInnerHTML.*__html:\s*[^}]*\+/)) {
       issues.push({
-        type: 'code-quality',
-        message: 'Console.log found - remove before production',
+        type: 'security',
+        message: 'XSS risk in dangerouslySetInnerHTML',
         line: lineNum,
-        code: trimmedLine.substring(0, 100),
-        severity: 'low'
+        code: trimmedLine.substring(0, 80),
+        severity: 'high'
       });
     }
     
-    // 6. TODO/FIXME comments
-    if (trimmedLine.match(/\/\/\s*(TODO|FIXME|HACK|BUG)/i)) {
+    // 5. HIGH: Memory leaks (event listeners not removed)
+    if (trimmedLine.match(/addEventListener/) && !content.includes('removeEventListener')) {
       issues.push({
-        type: 'maintainability',
-        message: 'TODO/FIXME comment found - needs attention',
+        type: 'performance',
+        message: 'Potential memory leak - missing removeEventListener',
         line: lineNum,
-        code: trimmedLine.substring(0, 100),
-        severity: 'low'
-      });
-    }
-    
-    // 7. Potential null pointer issues
-    if (trimmedLine.match(/\.\w+\s*\(\s*\)/) && trimmedLine.includes('null')) {
-      issues.push({
-        type: 'reliability',
-        message: 'Potential null pointer access',
-        line: lineNum,
-        code: trimmedLine.substring(0, 100),
-        severity: 'medium'
+        code: trimmedLine.substring(0, 80),
+        severity: 'high'
       });
     }
   });
   
-  console.log(`🔧 Fallback analysis found ${issues.length} issues`);
+  console.log(`🔧 Selective fallback found ${issues.length} critical issues (filtered out noise)`);
   return issues;
 }
 
@@ -857,6 +835,102 @@ async function buildRepositoryContext(filesToProcess, tempDir) {
   return repoContext;
 }
 
+// 🧠 REPOSITORY INTELLIGENCE: Analyze tech stack and architecture patterns
+function analyzeRepositoryTechStack(repoContext) {
+  var techStack = {
+    type: 'Unknown',
+    technologies: [],
+    architecture: 'Unknown',
+    patterns: []
+  };
+  
+  var allFiles = repoContext.structure.join(' ').toLowerCase();
+  var allContent = repoContext.fileContents.map(function(f) { return f.content; }).join(' ').toLowerCase();
+  
+  // Detect framework/library type
+  if (allFiles.includes('react') || allContent.includes('react') || allContent.includes('usestate') || allContent.includes('jsx')) {
+    techStack.type = 'React Library/Framework';
+    techStack.technologies.push('React', 'JavaScript', 'JSX');
+    techStack.architecture = 'Component-based UI Library';
+    techStack.patterns.push('Hooks', 'Components', 'Virtual DOM', 'JSX');
+  } else if (allFiles.includes('vue') || allContent.includes('vue')) {
+    techStack.type = 'Vue.js Application';
+    techStack.technologies.push('Vue.js', 'JavaScript');
+    techStack.architecture = 'Component-based SPA';
+    techStack.patterns.push('Single File Components', 'Reactivity');
+  } else if (allFiles.includes('angular') || allContent.includes('angular')) {
+    techStack.type = 'Angular Application';
+    techStack.technologies.push('Angular', 'TypeScript');
+    techStack.architecture = 'Component-based SPA';
+    techStack.patterns.push('Services', 'Dependency Injection', 'RxJS');
+  } else if (allFiles.includes('next') || allContent.includes('next')) {
+    techStack.type = 'Next.js Application';
+    techStack.technologies.push('Next.js', 'React', 'JavaScript');
+    techStack.architecture = 'Full-stack React Framework';
+    techStack.patterns.push('SSR', 'API Routes', 'File-based Routing');
+  } else if (allFiles.includes('express') || allContent.includes('express')) {
+    techStack.type = 'Express.js Backend';
+    techStack.technologies.push('Express.js', 'Node.js');
+    techStack.architecture = 'REST API Server';
+    techStack.patterns.push('Middleware', 'Routes', 'Controllers');
+  } else if (allFiles.includes('kubernetes') || allFiles.includes('k8s') || allContent.includes('kubernetes')) {
+    techStack.type = 'Kubernetes Infrastructure';
+    techStack.technologies.push('Kubernetes', 'Go', 'YAML');
+    techStack.architecture = 'Container Orchestration';
+    techStack.patterns.push('Pods', 'Services', 'Deployments', 'Controllers');
+  } else if (allFiles.includes('django') || allContent.includes('django')) {
+    techStack.type = 'Django Backend';
+    techStack.technologies.push('Django', 'Python');
+    techStack.architecture = 'MVC Web Framework';
+    techStack.patterns.push('Models', 'Views', 'Templates', 'ORM');
+  } else if (allFiles.includes('spring') || allContent.includes('springframework')) {
+    techStack.type = 'Spring Boot Backend';
+    techStack.technologies.push('Spring Boot', 'Java');
+    techStack.architecture = 'Enterprise Java Application';
+    techStack.patterns.push('Controllers', 'Services', 'Repositories', 'Beans');
+  }
+  
+  // Detect additional technologies
+  if (allContent.includes('typescript') || allFiles.includes('.ts')) {
+    techStack.technologies.push('TypeScript');
+  }
+  if (allContent.includes('graphql') || allFiles.includes('graphql')) {
+    techStack.technologies.push('GraphQL');
+  }
+  if (allContent.includes('mongodb') || allContent.includes('mongoose')) {
+    techStack.technologies.push('MongoDB');
+  }
+  if (allContent.includes('postgresql') || allContent.includes('postgres')) {
+    techStack.technologies.push('PostgreSQL');
+  }
+  if (allContent.includes('redis') || allContent.includes('cache')) {
+    techStack.technologies.push('Redis');
+  }
+  if (allContent.includes('docker') || allFiles.includes('dockerfile')) {
+    techStack.technologies.push('Docker');
+  }
+  
+  // Default fallback
+  if (techStack.type === 'Unknown') {
+    if (allFiles.includes('.js') || allFiles.includes('.ts')) {
+      techStack.type = 'JavaScript/Node.js Project';
+      techStack.technologies.push('JavaScript');
+      techStack.architecture = 'General Purpose Application';
+    } else if (allFiles.includes('.py')) {
+      techStack.type = 'Python Project';
+      techStack.technologies.push('Python');
+      techStack.architecture = 'General Purpose Application';
+    } else if (allFiles.includes('.java')) {
+      techStack.type = 'Java Project';
+      techStack.technologies.push('Java');
+      techStack.architecture = 'General Purpose Application';
+    }
+  }
+  
+  console.log('🔍 Repository Analysis:', techStack);
+  return techStack;
+}
+
 // 🧠 AI RULE GENERATOR: Creates minimal, focused rule set for each repo
 async function generateCustomRules(repoContext) {
   if (!OPENAI_API_KEY) {
@@ -865,56 +939,54 @@ async function generateCustomRules(repoContext) {
   }
 
   try {
-    const prompt = `You are a senior code reviewer. Analyze this repository structure and create a MINIMAL set of JavaScript functions to detect ONLY the most critical issues.
+    // Analyze the repository type and technology stack
+    const techStack = analyzeRepositoryTechStack(repoContext);
+    
+    const prompt = `You are a senior software architect and security expert. Analyze this ${techStack.type} repository and create HIGHLY SPECIFIC rules to detect CRITICAL issues that would actually impact users or developers.
 
-REPOSITORY ANALYSIS:
+🔍 REPOSITORY INTELLIGENCE:
+- Type: ${techStack.type}
+- Technologies: ${techStack.technologies.join(', ')}
+- Architecture: ${techStack.architecture}
 - Files: ${repoContext.fileContents.length}
-- Structure: ${repoContext.structure.slice(0, 20).join(', ')}...
+- Key patterns: ${techStack.patterns.join(', ')}
 
-SAMPLE FILES:
+📁 SAMPLE CODE ANALYSIS:
 ${repoContext.fileContents.slice(0, 3).map(file => `
 === ${file.path} ===
-${file.content.substring(0, 1000)}...
+${file.content.substring(0, 1500)}
 `).join('\n')}
 
-TASK: Generate 5-15 JavaScript functions (NO MORE!) that detect REAL issues for THIS specific repository type.
+🎯 MISSION: Create 3-8 LASER-FOCUSED rules that detect issues SPECIFIC to this ${techStack.type} codebase.
 
-Return EXECUTABLE JavaScript code using ONLY ES5 syntax (no const/let/arrow functions):
+❌ AVOID GENERIC PATTERNS:
+- console.log, TODO comments, basic null checks
+- Style/formatting issues
+- Generic security patterns that don't apply
+
+✅ FOCUS ON ${techStack.type.toUpperCase()}-SPECIFIC ISSUES:
+- Architecture violations specific to this framework
+- Performance bottlenecks in this technology
+- Security issues relevant to this stack
+- Breaking changes or deprecated API usage
+- Resource leaks or memory issues
+- Critical bugs that would crash/break functionality
+
+Return EXECUTABLE ES5 JavaScript:
 
 {
-  // Rule 1: Critical security issue specific to this repo type
-  findCriticalSecurity: function(content, lines, filePath) {
+  // Rule 1: Framework-specific performance issue
+  findPerformanceBottlenecks: function(content, lines, filePath) {
     var issues = [];
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      if (line.match(/hardcoded.*password|api.*key.*=|secret.*=.*["']/i)) {
-        issues.push({
-          type: "security",
-          message: "Hardcoded secret detected",
-          line: i + 1,
-          code: line.trim().substring(0, 80),
-          severity: "critical"
-        });
-      }
-    }
+    // Example: React-specific rules would look for useEffect without deps, 
+    // unnecessary re-renders, etc.
     return issues;
   },
 
-  // Rule 2: SQL injection patterns
-  findSQLInjection: function(content, lines, filePath) {
+  // Rule 2: Security issue specific to this tech stack
+  findSecurityVulnerabilities: function(content, lines, filePath) {
     var issues = [];
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      if (line.match(/(SELECT|INSERT|UPDATE|DELETE).*\+.*["']/i)) {
-        issues.push({
-          type: "security", 
-          message: "SQL injection vulnerability",
-          line: i + 1,
-          code: line.trim().substring(0, 80),
-          severity: "critical"
-        });
-      }
-    }
+    // Example: For React, look for dangerouslySetInnerHTML without sanitization
     return issues;
   },
 
@@ -922,23 +994,25 @@ Return EXECUTABLE JavaScript code using ONLY ES5 syntax (no const/let/arrow func
   executeRules: function(content, filePath) {
     var lines = content.split('\n');
     var allIssues = [];
+    var ext = filePath.split('.').pop();
     
-    // Apply security rules to all JavaScript files
-    if (filePath.match(/\.(js|jsx|ts|tsx)$/)) {
-      allIssues = allIssues.concat(this.findCriticalSecurity(content, lines, filePath));
-      allIssues = allIssues.concat(this.findSQLInjection(content, lines, filePath));
+    // Apply rules based on file type and content
+    if (filePath.match(/\\.(js|jsx|ts|tsx)$/)) {
+      allIssues = allIssues.concat(this.findPerformanceBottlenecks(content, lines, filePath));
+      allIssues = allIssues.concat(this.findSecurityVulnerabilities(content, lines, filePath));
     }
     
     return allIssues;
   }
 }
 
-REQUIREMENTS:
-- Maximum 15 rules total
-- Only detect REAL, actionable issues
-- No style/formatting rules
-- Focus on security, bugs, performance
-- Make rules specific to this repo's technology stack`;
+🔥 CRITICAL REQUIREMENTS:
+- Maximum 8 rules (quality over quantity)
+- Each rule must be ACTIONABLE and SPECIFIC to ${techStack.type}
+- Focus on issues that would cause real problems
+- Severity should be HIGH/CRITICAL for most issues
+- Rules must be fast (simple regex/string matching)
+- NO generic patterns that apply to any codebase`;
 
     console.log(`🧠 Asking AI to generate custom rules for repository...`);
 
@@ -964,15 +1038,21 @@ REQUIREMENTS:
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
     
-    // Extract JavaScript code from AI response
-    const jsMatch = aiResponse.match(/```javascript\n([\s\S]*?)\n```/);
+    // Extract JavaScript code from AI response (multiple patterns)
+    var jsMatch = aiResponse.match(/```javascript\n([\s\S]*?)\n```/) ||
+                  aiResponse.match(/```js\n([\s\S]*?)\n```/) ||
+                  aiResponse.match(/\{[\s\S]*\}/) ||
+                  aiResponse.match(/```\n([\s\S]*?)\n```/);
+    
     if (jsMatch) {
-      const generatedCode = jsMatch[1];
+      var generatedCode = jsMatch[1] || jsMatch[0];
       console.log(`✅ AI generated ${generatedCode.length} characters of custom rules`);
+      console.log(`🔍 Generated code preview:`, generatedCode.substring(0, 300) + '...');
       return generatedCode;
     }
     
     console.warn('⚠️ Could not extract JavaScript code from AI response');
+    console.log('🔍 Full AI response:', aiResponse);
     return null;
 
   } catch (error) {
