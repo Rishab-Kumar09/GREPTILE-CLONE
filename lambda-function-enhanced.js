@@ -49,12 +49,9 @@ export const handler = async (event) => {
     
     if (isFileBatched) {
       // FILE-BASED BATCHING: Process files in chunks
-      // ADAPTIVE BATCH SIZE: Reduce for massive repos to prevent Lambda crashes
-      let filesPerBatch = 1000;
-      if (allFiles.length > 10000) {
-        filesPerBatch = 500; // Smaller batches for huge repos like Kubernetes
-        console.log(`🔧 Large repo detected (${allFiles.length} files) - reducing batch size to ${filesPerBatch}`);
-      }
+      // OPTIMIZED FOR AI ANALYSIS: 500 files per batch for best performance
+      const filesPerBatch = 500; // Perfect size for AI-enhanced analysis
+      console.log(`🤖 AI-optimized batch size: ${filesPerBatch} files per batch`);
       
       const startIndex = (batchNumber - 1) * filesPerBatch;
       const endIndex = startIndex + filesPerBatch;
