@@ -362,12 +362,17 @@ export default function EnterpriseAnalysisPage() {
         const data = await response.json()
         console.log(`📡 File batch ${batchNumber} response:`, data)
 
-        if (data.success && data.results) {
-          allResults.push(...data.results)
-          totalIssues += data.results.length
-          console.log(`✅ File batch ${batchNumber} complete: ${data.results.length} issues found`)
+        if (data.success) {
+          // Add results if any exist
+          if (data.results && data.results.length > 0) {
+            allResults.push(...data.results)
+            totalIssues += data.results.length
+            console.log(`✅ File batch ${batchNumber} complete: ${data.results.length} issues found`)
+          } else {
+            console.log(`✅ File batch ${batchNumber} complete: 0 issues found`)
+          }
           
-          // Check if this was the final batch
+          // Check if this was the final batch (ALWAYS CHECK, regardless of results)
           if (data.isLastBatch) {
             console.log(`🏁 Final batch reached - analysis complete`)
             break
