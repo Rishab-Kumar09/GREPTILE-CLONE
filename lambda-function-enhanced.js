@@ -204,101 +204,252 @@ function analyzeFile(filePath, content) {
   // Skip very large files to prevent timeouts
   if (lines.length > 5000) {
     return [{
-      type: 'info',
-      message: 'Large file - skipped detailed analysis',
+      type: 'performance',
+      message: 'Extremely large file may impact performance',
       line: 1,
-      code: `File has ${lines.length} lines`,
-      severity: 'info'
+      code: `File has ${lines.length} lines - consider splitting`,
+      severity: 'medium'
     }];
   }
+  
+  // Track context for smarter analysis
+  let inFunction = false;
+  let functionComplexity = 0;
+  let currentFunction = '';
   
   lines.forEach((line, index) => {
     const lineNum = index + 1;
     const trimmedLine = line.trim();
+    const originalLine = line;
     
     // Skip empty lines and very long lines
     if (!trimmedLine || trimmedLine.length > 500) return;
     
-    // FUNCTIONS - Universal patterns
-    if (trimmedLine.match(/^(export\s+)?(const|function|async\s+function|def\s+|func\s+|fn\s+)\s+\w+/)) {
-      issues.push({
-        type: 'function',
-        message: 'Function definition',
-        line: lineNum,
-        code: trimmedLine.substring(0, 100),
-        severity: 'info'
-      });
-    }
+    // === SECURITY VULNERABILITIES ===
     
-    // CLASSES/COMPONENTS
-    if (trimmedLine.match(/^(export\s+)?(class|interface|struct)\s+[A-Z]\w+/) ||
-        trimmedLine.match(/^(export\s+)?const\s+[A-Z]\w+\s*=.*=>/)) {
-      issues.push({
-        type: 'component',
-        message: 'Class/Component definition',
-        line: lineNum,
-        code: trimmedLine.substring(0, 100),
-        severity: 'info'
-      });
-    }
-    
-    // IMPORTS - Language specific
-    if (trimmedLine.match(/^(import|from|#include|require\(|use\s+)/) ||
-        trimmedLine.match(/^(using|package|namespace)/)) {
-      issues.push({
-        type: 'import',
-        message: 'Import/Include statement',
-        line: lineNum,
-        code: trimmedLine.substring(0, 100),
-        severity: 'info'
-      });
-    }
-    
-    // API CALLS
-    if (trimmedLine.match(/(fetch\(|axios\.|requests\.|http\.|curl|wget)/)) {
-      issues.push({
-        type: 'api',
-        message: 'API/Network call',
-        line: lineNum,
-        code: trimmedLine.substring(0, 100),
-        severity: 'medium'
-      });
-    }
-    
-    // SECURITY PATTERNS
-    if (trimmedLine.match(/(password|secret|token|apikey|auth)\s*[=:]/i)) {
+    // 1. Hardcoded secrets/passwords
+    if (trimmedLine.match(/(password|secret|token|apikey|api_key|auth_token|private_key)\s*[=:]\s*["'`][^"'`\s]+["'`]/i)) {
       issues.push({
         type: 'security',
-        message: 'Potential sensitive data',
+        message: 'Hardcoded secret detected - use environment variables',
         line: lineNum,
         code: trimmedLine.substring(0, 100),
         severity: 'high'
       });
     }
     
-    // DATABASE/STORAGE
-    if (trimmedLine.match(/(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE|DROP TABLE)/i) ||
-        trimmedLine.match(/(\.query\(|\.exec\(|\.find\(|\.save\()/)) {
+    // 2. SQL Injection risks
+    if (trimmedLine.match(/(SELECT|INSERT|UPDATE|DELETE).*\+.*["'`]/i) || 
+        trimmedLine.match(/query\s*\(\s*["'`][^"'`]*\+/i)) {
       issues.push({
-        type: 'database',
-        message: 'Database operation',
+        type: 'security',
+        message: 'Potential SQL injection - use parameterized queries',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'high'
+      });
+    }
+    
+    // 3. XSS vulnerabilities
+    if (trimmedLine.match(/innerHTML\s*=\s*.*\+|dangerouslySetInnerHTML.*\+/i)) {
+      issues.push({
+        type: 'security',
+        message: 'Potential XSS vulnerability - sanitize user input',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'high'
+      });
+    }
+    
+    // 4. Insecure HTTP requests
+    if (trimmedLine.match(/fetch\s*\(\s*["'`]http:\/\/|axios\.get\s*\(\s*["'`]http:\/\//i)) {
+      issues.push({
+        type: 'security',
+        message: 'Insecure HTTP request - use HTTPS',
         line: lineNum,
         code: trimmedLine.substring(0, 100),
         severity: 'medium'
       });
     }
     
-    // CONFIGURATION
-    if (trimmedLine.match(/(process\.env|config\.|\.env|settings\.|ENV\[)/)) {
+    // === PERFORMANCE ISSUES ===
+    
+    // 5. Inefficient loops
+    if (trimmedLine.match(/for\s*\([^)]*\.length\s*;\s*[^)]*\+\+/) && 
+        content.includes('.push(') && content.includes('.length')) {
       issues.push({
-        type: 'config',
-        message: 'Configuration usage',
+        type: 'performance',
+        message: 'Inefficient array operations - consider using map/filter',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'medium'
+      });
+    }
+    
+    // 6. Memory leaks - event listeners not removed
+    if (trimmedLine.match(/addEventListener\s*\(/i) && 
+        !content.includes('removeEventListener')) {
+      issues.push({
+        type: 'performance',
+        message: 'Potential memory leak - missing removeEventListener',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'medium'
+      });
+    }
+    
+    // 7. Synchronous operations in async context
+    if (trimmedLine.match(/await.*\.sync\(|await.*Sync\(/)) {
+      issues.push({
+        type: 'performance',
+        message: 'Synchronous operation in async context - blocks event loop',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'medium'
+      });
+    }
+    
+    // === CODE QUALITY ISSUES ===
+    
+    // 8. Overly complex functions (high cyclomatic complexity)
+    if (trimmedLine.match(/^(function|const\s+\w+\s*=|async\s+function)/)) {
+      inFunction = true;
+      functionComplexity = 0;
+      currentFunction = trimmedLine.substring(0, 50);
+    }
+    
+    if (inFunction) {
+      if (trimmedLine.match(/\b(if|else if|while|for|switch|catch|&&|\|\||\?)\b/)) {
+        functionComplexity++;
+      }
+      if (trimmedLine.match(/^}/)) {
+        if (functionComplexity > 10) {
+          issues.push({
+            type: 'maintainability',
+            message: `High complexity function (${functionComplexity}) - consider refactoring`,
+            line: lineNum - 20, // Approximate function start
+            code: currentFunction,
+            severity: 'medium'
+          });
+        }
+        inFunction = false;
+      }
+    }
+    
+    // 9. Magic numbers
+    if (trimmedLine.match(/\b\d{3,}\b/) && !trimmedLine.match(/^\s*(\/\/|\/\*|\*|console\.|return\s+\d+)/)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Magic number detected - use named constants',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'low'
+      });
+    }
+    
+    // 10. Dead code - unused variables/imports
+    if (trimmedLine.match(/^import.*from/) && !trimmedLine.includes('* as')) {
+      const importMatch = trimmedLine.match(/import\s+{([^}]+)}/);
+      if (importMatch) {
+        const imports = importMatch[1].split(',').map(s => s.trim());
+        imports.forEach(imp => {
+          if (!content.includes(imp.replace(/\s+as\s+\w+/, ''))) {
+            issues.push({
+              type: 'maintainability',
+              message: `Unused import: ${imp}`,
+              line: lineNum,
+              code: trimmedLine.substring(0, 100),
+              severity: 'low'
+            });
+          }
+        });
+      }
+    }
+    
+    // === BAD PRACTICES ===
+    
+    // 11. Console logs in production code
+    if (trimmedLine.match(/console\.(log|debug|info|warn)\s*\(/)) {
+      issues.push({
+        type: 'code-smell',
+        message: 'Console log in production code - remove or use proper logging',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'low'
+      });
+    }
+    
+    // 12. TODO/FIXME comments
+    if (trimmedLine.match(/\/\/\s*(TODO|FIXME|HACK|BUG)/i)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Unresolved TODO/FIXME comment',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'low'
+      });
+    }
+    
+    // 13. Empty catch blocks
+    if (trimmedLine.match(/catch\s*\([^)]*\)\s*{\s*}/) || 
+        (trimmedLine.includes('catch') && lines[index + 1]?.trim() === '}')) {
+      issues.push({
+        type: 'error-handling',
+        message: 'Empty catch block - handle errors properly',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'medium'
+      });
+    }
+    
+    // 14. Deeply nested code
+    const indentLevel = (originalLine.match(/^\s*/)?.[0]?.length || 0) / 2;
+    if (indentLevel > 6) {
+      issues.push({
+        type: 'maintainability',
+        message: `Deeply nested code (${indentLevel} levels) - consider refactoring`,
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'medium'
+      });
+    }
+    
+    // 15. Long parameter lists
+    const paramMatch = trimmedLine.match(/function\s+\w+\s*\(([^)]+)\)/);
+    if (paramMatch && paramMatch[1].split(',').length > 5) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Too many parameters - consider using object parameter',
         line: lineNum,
         code: trimmedLine.substring(0, 100),
         severity: 'medium'
       });
     }
   });
+  
+  // === FILE-LEVEL ANALYSIS ===
+  
+  // 16. Very long files
+  if (lines.length > 300) {
+    issues.push({
+      type: 'maintainability',
+      message: `Large file (${lines.length} lines) - consider splitting into smaller modules`,
+      line: 1,
+      code: `File: ${path.basename(filePath)}`,
+      severity: 'medium'
+    });
+  }
+  
+  // 17. Missing error handling for async operations
+  if (content.includes('await ') && !content.includes('try') && !content.includes('catch')) {
+    issues.push({
+      type: 'error-handling',
+      message: 'Async operations without error handling',
+      line: 1,
+      code: 'Add try-catch blocks for async operations',
+      severity: 'medium'
+    });
+  }
   
   return issues;
 }
