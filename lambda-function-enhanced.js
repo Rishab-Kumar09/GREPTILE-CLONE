@@ -35,7 +35,13 @@ export const handler = async (event) => {
     console.log('📁 Finding ALL code files from full repository...');
     
     const allFiles = await findCodeFiles(tempDir); // Get ALL files from entire repository
-    console.log(`📊 Found ${allFiles.length} total code files in repository`);
+    console.log(`📊 CRITICAL: Found ${allFiles.length} total code files in repository`);
+    
+    // DEBUG: Log first few files to verify
+    if (allFiles.length > 0) {
+      console.log(`📂 First 5 files:`, allFiles.slice(0, 5).map(f => path.relative(tempDir, f)));
+      console.log(`📂 Last 5 files:`, allFiles.slice(-5).map(f => path.relative(tempDir, f)));
+    }
     
     // Step 3: Handle file-based batching
     let filesToProcess = allFiles;
@@ -50,8 +56,12 @@ export const handler = async (event) => {
       filesToProcess = allFiles.slice(startIndex, endIndex);
       isLastBatch = endIndex >= allFiles.length || filesToProcess.length === 0;
       
-      console.log(`📦 File batch ${batchNumber}: Processing files ${startIndex + 1}-${Math.min(endIndex, allFiles.length)} of ${allFiles.length}`);
-      console.log(`🏁 Is last batch: ${isLastBatch} (endIndex: ${endIndex}, totalFiles: ${allFiles.length}, batchFiles: ${filesToProcess.length})`);
+      console.log(`📦 BATCH ${batchNumber} DETAILS:`);
+      console.log(`   📊 Total files in repo: ${allFiles.length}`);
+      console.log(`   📍 Processing range: ${startIndex + 1} to ${Math.min(endIndex, allFiles.length)}`);
+      console.log(`   📁 Files in this batch: ${filesToProcess.length}`);
+      console.log(`   🏁 Is last batch: ${isLastBatch}`);
+      console.log(`   🔢 Math check: endIndex(${endIndex}) >= totalFiles(${allFiles.length}) = ${endIndex >= allFiles.length}`);
       
       // Early return if no files in this batch
       if (filesToProcess.length === 0) {
@@ -119,26 +129,40 @@ export const handler = async (event) => {
       }
     }
     
-    console.log(`✅ Analysis complete: ${processedFiles} files processed, ${results.length} files with issues, ${totalIssues} total issues`);
-    console.log(`🔍 BATCH SUMMARY: Batch ${batchNumber || 'N/A'}, isLastBatch will be: ${isLastBatch}`);
+    console.log(`✅ ANALYSIS COMPLETE FOR BATCH ${batchNumber || 'N/A'}:`);
+    console.log(`   📊 Files processed: ${processedFiles}`);
+    console.log(`   📁 Files with issues: ${results.length}`);
+    console.log(`   🚨 Total issues found: ${totalIssues}`);
+    console.log(`   🏁 Will return isLastBatch: ${isLastBatch}`);
+    
+    // CRITICAL: Log what we're returning to frontend
+    const returnData = {
+      success: true,
+      analysisId,
+      results,
+      isFileBatched: isFileBatched,
+      batchNumber: batchNumber,
+      isLastBatch: isLastBatch,
+      stats: {
+        filesProcessed: processedFiles,
+        filesWithIssues: results.length,
+        totalIssues: totalIssues,
+        totalFilesInRepo: isFileBatched ? allFiles.length : processedFiles
+      },
+      message: `${isFileBatched ? `FILE BATCH ${batchNumber}` : 'FULL'} Analysis complete: ${totalIssues} ACTUAL ERRORS found in ${results.length} files`
+    };
+    
+    console.log(`📤 RETURNING TO FRONTEND:`, JSON.stringify({
+      success: returnData.success,
+      isLastBatch: returnData.isLastBatch,
+      batchNumber: returnData.batchNumber,
+      totalIssues: returnData.stats.totalIssues,
+      totalFilesInRepo: returnData.stats.totalFilesInRepo
+    }));
     
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        success: true,
-        analysisId,
-        results,
-        isFileBatched: isFileBatched,
-        batchNumber: batchNumber,
-        isLastBatch: isLastBatch,
-        stats: {
-          filesProcessed: processedFiles,
-          filesWithIssues: results.length,
-          totalIssues: totalIssues,
-          totalFilesInRepo: isFileBatched ? allFiles.length : processedFiles
-        },
-        message: `${isFileBatched ? `FILE BATCH ${batchNumber}` : 'FULL'} Analysis complete: ${totalIssues} ACTUAL ERRORS found in ${results.length} files`
-      })
+      body: JSON.stringify(returnData)
     };
     
   } catch (error) {
