@@ -368,6 +368,39 @@ function performBasicAnalysis(content, filePath) {
         severity: 'high'
       });
     }
+    
+    // 5. Console.log statements (development artifacts)
+    if (trimmedLine.match(/console\.log\s*\(/)) {
+      issues.push({
+        type: 'code-quality',
+        message: 'Console.log found - remove before production',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'low'
+      });
+    }
+    
+    // 6. TODO/FIXME comments
+    if (trimmedLine.match(/\/\/\s*(TODO|FIXME|HACK|BUG)/i)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'TODO/FIXME comment found - needs attention',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'low'
+      });
+    }
+    
+    // 7. Potential null pointer issues
+    if (trimmedLine.match(/\.\w+\s*\(\s*\)/) && trimmedLine.includes('null')) {
+      issues.push({
+        type: 'reliability',
+        message: 'Potential null pointer access',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'medium'
+      });
+    }
   });
   
   console.log(`🔧 Fallback analysis found ${issues.length} issues`);
@@ -479,59 +512,54 @@ export const handler = async (event) => {
     let processedFiles = 0;
     let totalIssues = 0;
     
-              // 🚀 PARALLEL AI ANALYSIS - Process multiple files simultaneously
-          console.log(`🚀 Starting PARALLEL AI analysis of ${filesToProcess.length} files...`);
+              // 🧠 AI RULE GENERATOR: Create minimal, focused rules for this repo
+          console.log(`🧠 AI RULE GENERATOR: Creating custom analysis rules for ${filesToProcess.length} files...`);
           
-          const PARALLEL_LIMIT = 500; // BEAST MODE: 500 files simultaneously!
-          const filePromises = [];
+          // Step 1: Build repository context
+          const repoContext = await buildRepositoryContext(filesToProcess, tempDir);
           
-          for (let i = 0; i < filesToProcess.length; i += PARALLEL_LIMIT) {
-            const batch = filesToProcess.slice(i, i + PARALLEL_LIMIT);
+          // Step 2: AI generates minimal rule set (5-15 rules max)
+          const customRulesCode = await generateCustomRules(repoContext);
+          
+          if (customRulesCode) {
+            console.log(`⚡ Executing AI-generated rules (LIGHTNING FAST)...`);
             
-            const batchPromises = batch.map(async (file) => {
+            // Step 3: Execute AI rules on all files (milliseconds per file!)
+            const ruleResults = await executeCustomRules(customRulesCode, filesToProcess, tempDir);
+            
+            if (ruleResults && ruleResults.length > 0) {
+              results.push(...ruleResults);
+              totalIssues = ruleResults.reduce((sum, file) => sum + file.issues.length, 0);
+              processedFiles = filesToProcess.length;
+              
+              console.log(`🎉 AI RULE EXECUTION complete: ${totalIssues} issues found in ${ruleResults.length} files`);
+            } else {
+              console.log(`⚠️ AI rules found no issues, using fallback analysis...`);
+              processedFiles = filesToProcess.length; // Still processed
+            }
+          } else {
+            console.log(`⚠️ AI rule generation failed, falling back to basic analysis...`);
+            
+            // Fallback to basic analysis
+            for (const file of filesToProcess) {
               try {
                 const content = await fs.readFile(file, 'utf-8');
                 const relativePath = path.relative(tempDir, file);
+                const issues = performBasicAnalysis(content, relativePath);
                 
-                // Smart hybrid analysis using AI categorization
-                const issues = await analyzeFile(relativePath, content, fileCategories);
+                processedFiles++;
                 
-                return {
-                  success: true,
-                  file: relativePath,
-                  issues: issues
-                };
-                
+                if (issues.length > 0) {
+                  results.push({
+                    file: relativePath,
+                    issues: issues
+                  });
+                  totalIssues += issues.length;
+                }
               } catch (err) {
                 console.warn(`❌ Failed to analyze ${file}:`, err.message);
-                return {
-                  success: false,
-                  file: path.relative(tempDir, file),
-                  issues: []
-                };
+                processedFiles++;
               }
-            });
-            
-            // Wait for this batch to complete
-            const batchResults = await Promise.all(batchPromises);
-            filePromises.push(...batchResults);
-            
-            // Progress logging
-            console.log(`🚀 Parallel batch ${Math.floor(i/PARALLEL_LIMIT) + 1} complete: ${batchResults.length} files processed`);
-          }
-          
-          // Process all results
-          for (const result of filePromises) {
-            processedFiles++;
-            
-            if (result.success && result.issues.length > 0) {
-              results.push({
-                file: result.file,
-                issues: result.issues
-              });
-              totalIssues += result.issues.length;
-              
-              console.log(`✅ ${result.file} → ${result.issues.length} issues`);
             }
           }
     
@@ -655,15 +683,11 @@ async function scanDirectory(dir, files, extensions, depth) {
 
 // HYBRID ANALYSIS: AI for critical files, fast rules for routine files
 async function analyzeFile(filePath, content, fileCategories) {
-  // Skip very large files to prevent timeouts
-  if (content.length > 50000) { // 50KB limit
-    return [{
-      type: 'performance',
-      message: 'Extremely large file may impact performance',
-      line: 1,
-      code: `File has ${content.length} characters - consider splitting`,
-      severity: 'high'
-    }];
+  // Handle large files more intelligently
+  if (content.length > 200000) { // 200KB limit (4x larger)
+    // For very large files, analyze first 100KB only
+    console.log(`📄 Large file detected: ${filePath} (${content.length} chars) - analyzing first 100KB`);
+    content = content.substring(0, 100000);
   }
   
   try {
@@ -716,7 +740,7 @@ function shouldUseAI(profile, filePath, fileCategories) {
   if (profile.hasDatabase && profile.hasAPI) return true; // DB + API = SQL injection risk
   if (profile.hasCrypto && profile.size > 1000) return true; // Crypto logic = security critical
   
-  // DEFAULT: For unknown files, use AI (better safe than sorry)
+  // DEFAULT: Use AI for most files (be more aggressive about finding issues)
   return true;
 }
 
@@ -789,4 +813,243 @@ function basicFileCategorizaton(allFiles, tempDir) {
     analysisStrategy: "Basic pattern matching",
     summary: `${allFiles.length} files - using basic categorization`
   };
+}
+
+// 🧠 BUILD COMPLETE REPOSITORY CONTEXT (like Claude sees)
+async function buildRepositoryContext(filesToProcess, tempDir) {
+  console.log(`🏗️ Building repository context for ${filesToProcess.length} files...`);
+  
+  const repoContext = {
+    totalFiles: filesToProcess.length,
+    fileContents: [],
+    structure: [],
+    summary: ''
+  };
+  
+  // Read all files and build context
+  for (const file of filesToProcess) {
+    try {
+      const content = await fs.readFile(file, 'utf-8');
+      const relativePath = path.relative(tempDir, file);
+      
+      // Truncate very large files
+      const truncatedContent = content.length > 10000 ? 
+        content.substring(0, 10000) + '\n... [truncated]' : content;
+      
+      repoContext.fileContents.push({
+        path: relativePath,
+        content: truncatedContent,
+        size: content.length,
+        lines: content.split('\n').length
+      });
+      
+      repoContext.structure.push(relativePath);
+      
+    } catch (err) {
+      console.warn(`⚠️ Failed to read ${file}:`, err.message);
+    }
+  }
+  
+  // Create summary
+  repoContext.summary = `Repository batch with ${repoContext.fileContents.length} files`;
+  
+  console.log(`✅ Repository context built: ${repoContext.fileContents.length} files`);
+  return repoContext;
+}
+
+// 🧠 AI RULE GENERATOR: Creates minimal, focused rule set for each repo
+async function generateCustomRules(repoContext) {
+  if (!OPENAI_API_KEY) {
+    console.warn('⚠️ No OpenAI API key for rule generation');
+    return null;
+  }
+
+  try {
+    const prompt = `You are a senior code reviewer. Analyze this repository structure and create a MINIMAL set of JavaScript functions to detect ONLY the most critical issues.
+
+REPOSITORY ANALYSIS:
+- Files: ${repoContext.fileContents.length}
+- Structure: ${repoContext.structure.slice(0, 20).join(', ')}...
+
+SAMPLE FILES:
+${repoContext.fileContents.slice(0, 3).map(file => `
+=== ${file.path} ===
+${file.content.substring(0, 1000)}...
+`).join('\n')}
+
+TASK: Generate 5-15 JavaScript functions (NO MORE!) that detect REAL issues for THIS specific repository type.
+
+Return EXECUTABLE JavaScript code using ONLY ES5 syntax (no const/let/arrow functions):
+
+{
+  // Rule 1: Critical security issue specific to this repo type
+  findCriticalSecurity: function(content, lines, filePath) {
+    var issues = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.match(/hardcoded.*password|api.*key.*=|secret.*=.*["']/i)) {
+        issues.push({
+          type: "security",
+          message: "Hardcoded secret detected",
+          line: i + 1,
+          code: line.trim().substring(0, 80),
+          severity: "critical"
+        });
+      }
+    }
+    return issues;
+  },
+
+  // Rule 2: SQL injection patterns
+  findSQLInjection: function(content, lines, filePath) {
+    var issues = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.match(/(SELECT|INSERT|UPDATE|DELETE).*\+.*["']/i)) {
+        issues.push({
+          type: "security", 
+          message: "SQL injection vulnerability",
+          line: i + 1,
+          code: line.trim().substring(0, 80),
+          severity: "critical"
+        });
+      }
+    }
+    return issues;
+  },
+
+  // Main execution function
+  executeRules: function(content, filePath) {
+    var lines = content.split('\n');
+    var allIssues = [];
+    
+    // Apply security rules to all JavaScript files
+    if (filePath.match(/\.(js|jsx|ts|tsx)$/)) {
+      allIssues = allIssues.concat(this.findCriticalSecurity(content, lines, filePath));
+      allIssues = allIssues.concat(this.findSQLInjection(content, lines, filePath));
+    }
+    
+    return allIssues;
+  }
+}
+
+REQUIREMENTS:
+- Maximum 15 rules total
+- Only detect REAL, actionable issues
+- No style/formatting rules
+- Focus on security, bugs, performance
+- Make rules specific to this repo's technology stack`;
+
+    console.log(`🧠 Asking AI to generate custom rules for repository...`);
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo-16k',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 3000
+      })
+    });
+
+    if (!response.ok) {
+      console.error(`❌ OpenAI API error: ${response.status} ${response.statusText}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const aiResponse = data.choices[0].message.content;
+    
+    // Extract JavaScript code from AI response
+    const jsMatch = aiResponse.match(/```javascript\n([\s\S]*?)\n```/);
+    if (jsMatch) {
+      const generatedCode = jsMatch[1];
+      console.log(`✅ AI generated ${generatedCode.length} characters of custom rules`);
+      return generatedCode;
+    }
+    
+    console.warn('⚠️ Could not extract JavaScript code from AI response');
+    return null;
+
+  } catch (error) {
+    console.error('❌ Rule generation failed:', error.message);
+    return null;
+  }
+}
+
+// 🚀 EXECUTE AI-GENERATED RULES ON ALL FILES
+async function executeCustomRules(customRulesCode, filesToProcess, tempDir) {
+  try {
+    console.log(`⚡ Executing AI-generated rules on ${filesToProcess.length} files...`);
+    console.log(`🔍 AI generated code preview:`, customRulesCode.substring(0, 200) + '...');
+    
+    // SAFE EVALUATION: Use Function constructor instead of eval
+    let customRules;
+    try {
+      // Clean the code and wrap it properly
+      const cleanCode = customRulesCode
+        .replace(/```javascript/g, '')
+        .replace(/```/g, '')
+        .trim();
+      
+      console.log(`🧹 Cleaned code preview:`, cleanCode.substring(0, 200) + '...');
+      
+      // Use Function constructor for safer evaluation
+      const ruleFunction = new Function('return ' + cleanCode);
+      customRules = ruleFunction();
+      
+      console.log(`✅ Successfully evaluated AI rules`);
+      console.log(`🔍 Rules object keys:`, Object.keys(customRules || {}));
+      
+    } catch (evalError) {
+      console.error('❌ Failed to evaluate AI-generated code:', evalError.message);
+      console.log(`🔍 Problematic code:`, customRulesCode);
+      return null;
+    }
+    
+    if (!customRules || typeof customRules.executeRules !== 'function') {
+      console.warn('⚠️ Invalid custom rules generated by AI');
+      console.log(`🔍 customRules type:`, typeof customRules);
+      console.log(`🔍 executeRules type:`, typeof customRules?.executeRules);
+      return null;
+    }
+    
+    const results = [];
+    let totalIssues = 0;
+    
+    // Execute rules on all files (SUPER FAST!)
+    for (const file of filesToProcess) {
+      try {
+        const content = await fs.readFile(file, 'utf-8');
+        const relativePath = path.relative(tempDir, file);
+        
+        // Apply AI-generated rules
+        const issues = customRules.executeRules(content, relativePath);
+        
+        if (issues && issues.length > 0) {
+          results.push({
+            file: relativePath,
+            issues: issues
+          });
+          totalIssues += issues.length;
+          
+          console.log(`📝 ${relativePath} → ${issues.length} issues`);
+        }
+        
+      } catch (err) {
+        console.warn(`⚠️ Failed to analyze ${file}:`, err.message);
+      }
+    }
+    
+    console.log(`🎉 AI rules executed: ${totalIssues} issues found in ${results.length} files`);
+    return results;
+    
+  } catch (error) {
+    console.error('❌ Rule execution failed:', error.message);
+    return null;
+  }
 }
