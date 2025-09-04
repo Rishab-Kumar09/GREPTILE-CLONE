@@ -184,8 +184,9 @@ async function findCodeFiles(dir, batchPath = null) {
     ...filteredFiles.filter(f => lowPriorityExts.includes(path.extname(f).toLowerCase()))
   ];
   
-  // Return up to 800 files (good balance)
-  return prioritizedFiles.slice(0, 800);
+  // Return ALL files - no limits for comprehensive analysis
+  console.log(`📊 Final file count: ${prioritizedFiles.length} files for analysis`);
+  return prioritizedFiles;
 }
 
 async function scanDirectory(dir, files, extensions, depth) {
