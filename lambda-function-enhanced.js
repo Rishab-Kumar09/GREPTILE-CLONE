@@ -43,7 +43,7 @@ export const handler = async (event) => {
     
     if (isFileBatched) {
       // FILE-BASED BATCHING: Process files in chunks
-      const filesPerBatch = 200; // Process 200 files per batch
+      const filesPerBatch = 1000; // Process 1000 files per batch
       const startIndex = (batchNumber - 1) * filesPerBatch;
       const endIndex = startIndex + filesPerBatch;
       
