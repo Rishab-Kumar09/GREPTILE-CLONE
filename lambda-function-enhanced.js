@@ -3,7 +3,8 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 // AI-powered analysis
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // Add to Lambda environment variables
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // Lambda environment variable
+console.log('🔑 OpenAI API Key status:', OPENAI_API_KEY ? 'FOUND' : 'MISSING');
 
 // Smart file profiling for AI analysis
 function createFileProfile(filePath, content) {
@@ -420,9 +421,9 @@ export const handler = async (event) => {
     
     if (isFileBatched) {
       // FILE-BASED BATCHING: Process files in chunks
-      // OPTIMIZED FOR AI ANALYSIS: 500 files per batch for best performance
-      const filesPerBatch = 500; // Perfect size for AI-enhanced analysis
-      console.log(`🤖 AI-optimized batch size: ${filesPerBatch} files per batch`);
+      // AI ANALYSIS: Much smaller batches due to GPT-4o processing time
+      const filesPerBatch = 50; // Small batches for AI analysis (2-3 sec per file)
+      console.log(`🤖 AI batch size: ${filesPerBatch} files per batch (optimized for GPT-4o speed)`);
       
       const startIndex = (batchNumber - 1) * filesPerBatch;
       const endIndex = startIndex + filesPerBatch;

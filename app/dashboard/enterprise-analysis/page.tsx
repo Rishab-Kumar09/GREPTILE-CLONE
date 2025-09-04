@@ -367,11 +367,11 @@ export default function EnterpriseAnalysisPage() {
         if (data.success) {
                            // Update estimated total batches based on Lambda stats
                  if (data.stats && data.stats.totalFilesInRepo) {
-                   const filesPerBatch = 500 // Updated to match Lambda batch size
+                   const filesPerBatch = 20 // AI analysis batch size (much smaller due to GPT-4o speed)
                    const actualTotalBatches = Math.ceil(data.stats.totalFilesInRepo / filesPerBatch)
                    if (actualTotalBatches !== estimatedTotalBatches) {
                      estimatedTotalBatches = actualTotalBatches
-                     console.log(`📊 Updated estimate: ${estimatedTotalBatches} total batches (500 files each) based on ${data.stats.totalFilesInRepo} files`)
+                     console.log(`📊 Updated estimate: ${estimatedTotalBatches} total batches (20 files each) based on ${data.stats.totalFilesInRepo} files`)
                    }
                  }
           
