@@ -55,7 +55,7 @@ export const handler = async (event) => {
       
       // Early return if no files in this batch
       if (filesToProcess.length === 0) {
-        console.log(`🛑 No files in batch ${batchNumber}, marking as last batch`);
+        console.log(`🛑 EARLY RETURN: No files in batch ${batchNumber}, marking as last batch`);
         return {
           statusCode: 200,
           body: JSON.stringify({
@@ -120,6 +120,7 @@ export const handler = async (event) => {
     }
     
     console.log(`✅ Analysis complete: ${processedFiles} files processed, ${results.length} files with issues, ${totalIssues} total issues`);
+    console.log(`🔍 BATCH SUMMARY: Batch ${batchNumber || 'N/A'}, isLastBatch will be: ${isLastBatch}`);
     
     return {
       statusCode: 200,
