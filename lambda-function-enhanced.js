@@ -69,6 +69,14 @@ export const handler = async (event) => {
         
         processedFiles++;
         
+        // DEBUG: Log every file analysis for debugging
+        if (processedFiles <= 5 || issues.length > 0) {
+          console.log(`🔍 File ${processedFiles}: ${relativePath} → ${issues.length} issues`);
+          if (issues.length > 0) {
+            console.log(`   Issues:`, issues.map(i => i.type).join(', '));
+          }
+        }
+        
         if (issues.length > 0) {
           results.push({
             file: relativePath,
@@ -79,11 +87,11 @@ export const handler = async (event) => {
         
         // Progress logging every 200 files
         if (processedFiles % 200 === 0) {
-          console.log(`📊 Progress: ${processedFiles}/${files.length} files, ${totalIssues} issues found`);
+          console.log(`📊 Progress: ${processedFiles}/${filesToProcess.length} files, ${totalIssues} issues found`);
         }
         
       } catch (err) {
-        console.warn(`Failed to analyze ${file}:`, err.message);
+        console.warn(`❌ Failed to analyze ${file}:`, err.message);
         processedFiles++;
       }
     }
