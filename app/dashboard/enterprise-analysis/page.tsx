@@ -229,10 +229,7 @@ export default function EnterpriseAnalysisPage() {
         body: JSON.stringify({
           message: message.trim(),
           repository: `${owner}/${repo}`,
-          analysisResults: {
-            allResults: groupResultsByFile(status.results)
-          },
-          chatHistory: chatMessages.slice(-25) // Last 25 messages for context
+          chatHistory: chatMessages.slice(-10) // Keep recent chat history for context
         })
       })
 
@@ -371,6 +368,24 @@ export default function EnterpriseAnalysisPage() {
             allResults.push(...data.results)
             totalIssues += data.results.length
             console.log(`✅ File batch ${batchNumber} complete: ${data.results.length} issues found`)
+            
+            // 🤖 SEND BATCH RESULTS TO CHAT API FOR CONTEXT BUILDING
+            try {
+              const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
+              await fetch('/api/chat/batch-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  repository: `${owner}/${repo}`,
+                  batchNumber: batchNumber,
+                  batchResults: data.results,
+                  isLastBatch: data.isLastBatch
+                })
+              })
+              console.log(`📤 Sent batch ${batchNumber} results to chat context`)
+            } catch (chatError) {
+              console.warn(`⚠️ Failed to update chat context for batch ${batchNumber}:`, chatError)
+            }
           } else {
             console.log(`✅ File batch ${batchNumber} complete: 0 issues found`)
           }

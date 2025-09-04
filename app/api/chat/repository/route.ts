@@ -39,12 +39,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log('📋 Request body keys:', Object.keys(body))
     
-    const { message, repository, analysisResults, chatHistory } = body
+    const { message, repository, chatHistory } = body
     const history = chatHistory || []
     
     console.log('📝 Message:', message)
     console.log('📂 Repository:', repository)
-    console.log('📊 Has analysisResults:', !!analysisResults)
     console.log('💬 Chat history length:', history.length)
     
     if (!openai) {
@@ -61,76 +60,25 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Build context from analysis results
+    // Get stored analysis context from batch updates
+    console.log('📤 Fetching stored analysis context...')
     let codeContext = ''
     let availableFiles: string[] = []
     
-    console.log('🔍 DEBUG: Received analysisResults:', JSON.stringify(analysisResults, null, 2))
-    
-    if (analysisResults && analysisResults.allResults) {
-      console.log('✅ Found analysisResults.allResults with', analysisResults.allResults.length, 'files')
-      codeContext = 'Available code analysis summary:\n\n'
+    try {
+      const contextResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/chat/batch-update?repository=${encodeURIComponent(repository)}`)
+      const contextData = await contextResponse.json()
       
-      // LIMIT TO FIRST 20 FILES to avoid token limit
-      const limitedResults = analysisResults.allResults.slice(0, 20)
-      console.log('📊 Limited to', limitedResults.length, 'files to avoid token limit')
-      
-      limitedResults.forEach((result: AnalysisResult) => {
-        availableFiles.push(result.file)
-        codeContext += `File: ${result.file}\n`
-        
-        // Add only HIGH PRIORITY bugs (limit to 3 per file)
-        if (result.bugs && result.bugs.length > 0) {
-          codeContext += `Bugs (${result.bugs.length} total):\n`
-          result.bugs.slice(0, 3).forEach(bug => {
-            codeContext += `- Line ${bug.line}: ${bug.type} - ${bug.description}\n`
-            // Skip code snippets to save tokens
-          })
-          if (result.bugs.length > 3) {
-            codeContext += `... and ${result.bugs.length - 3} more bugs\n`
-          }
-        }
-        
-        // Add only top suggestions (limit to 2 per file)
-        if (result.suggestions && result.suggestions.length > 0) {
-          codeContext += `Suggestions (${result.suggestions.length} total):\n`
-          result.suggestions.slice(0, 2).forEach(suggestion => {
-            codeContext += `- Line ${suggestion.line}: ${suggestion.type}\n`
-          })
-          if (result.suggestions.length > 2) {
-            codeContext += `... and ${result.suggestions.length - 2} more suggestions\n`
-          }
-        }
-        
-        // Add only top code smells (limit to 2 per file)
-        if (result.codeSmells && result.codeSmells.length > 0) {
-          codeContext += `Code Smells (${result.codeSmells.length} total):\n`
-          result.codeSmells.slice(0, 2).forEach(smell => {
-            codeContext += `- Line ${smell.line}: ${smell.type}\n`
-          })
-          if (result.codeSmells.length > 2) {
-            codeContext += `... and ${result.codeSmells.length - 2} more code smells\n`
-          }
-        }
-        
-        codeContext += '\n'
-      })
-      
-      // Add summary stats
-      const totalFiles = analysisResults.allResults.length
-      const totalBugs = analysisResults.allResults.reduce((sum: number, r: any) => sum + (r.bugs?.length || 0), 0)
-      const totalSuggestions = analysisResults.allResults.reduce((sum: number, r: any) => sum + (r.suggestions?.length || 0), 0)
-      const totalSmells = analysisResults.allResults.reduce((sum: number, r: any) => sum + (r.codeSmells?.length || 0), 0)
-      
-      codeContext += `\nOVERALL SUMMARY:\n`
-      codeContext += `- Total files analyzed: ${totalFiles}\n`
-      codeContext += `- Total bugs found: ${totalBugs}\n`
-      codeContext += `- Total suggestions: ${totalSuggestions}\n`
-      codeContext += `- Total code smells: ${totalSmells}\n`
-      codeContext += `(Showing details for first ${limitedResults.length} files due to length constraints)\n\n`
-    } else {
-      console.log('❌ No analysisResults.allResults found')
-      codeContext = `No analysis results available for ${repository}. Please run analysis first.`
+      if (contextData.success && contextData.summary) {
+        codeContext = contextData.summary
+        console.log('✅ Retrieved stored analysis context:', contextData.totalIssues, 'total issues')
+      } else {
+        console.log('⚠️ No stored context found, using fallback')
+        codeContext = `No analysis context available for ${repository}. Please run analysis first.`
+      }
+    } catch (contextError) {
+      console.warn('⚠️ Failed to fetch stored context:', contextError)
+      codeContext = `Analysis context temporarily unavailable for ${repository}.`
     }
 
     // Create AI prompt with context
@@ -166,8 +114,6 @@ DO:
 - Provide exact code replacements for the problematic lines
 - Explain how your solution fixes the specific issue found
 - Use the actual file names and line numbers from the analysis
-
-Available files with issues: ${availableFiles.join(', ')}
 
 Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS found in this repository's analysis.`
 
@@ -210,7 +156,7 @@ Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS foun
 
     const aiResponse = completion.choices[0].message.content || 'Sorry, I could not generate a response.'
 
-    // Extract citations from the response
+    // Extract citations from the response (simplified without code snippets for now)
     const citations: Array<{file: string, line?: number, snippet?: string}> = []
     
     const citationRegex = /\[([^\]]+\.[a-zA-Z]+)(?::(\d+))?\]/g
@@ -220,25 +166,7 @@ Be a SENIOR DEVELOPER who provides EXACT SOLUTIONS to the SPECIFIC PROBLEMS foun
       const file = match[1]
       const line = match[2] ? parseInt(match[2]) : undefined
       
-      // Try to find the code snippet for this citation
-      let snippet = undefined
-      if (line && analysisResults?.allResults) {
-        const fileResult = analysisResults.allResults.find((r: AnalysisResult) => r.file === file)
-        if (fileResult) {
-          // Look for the snippet in bugs, security issues, or code smells
-          const allIssues = [
-            ...(fileResult.bugs || []),
-            ...(fileResult.suggestions || []),
-            ...(fileResult.codeSmells || [])
-          ]
-          const issueWithSnippet = allIssues.find(issue => issue.line === line && issue.codeSnippet)
-          if (issueWithSnippet) {
-            snippet = issueWithSnippet.codeSnippet
-          }
-        }
-      }
-      
-      citations.push({ file, line, snippet })
+      citations.push({ file, line, snippet: undefined })
     }
 
     // Remove duplicate citations
