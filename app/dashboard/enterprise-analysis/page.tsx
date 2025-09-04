@@ -361,6 +361,9 @@ export default function EnterpriseAnalysisPage() {
 
         const data = await response.json()
         console.log(`📡 File batch ${batchNumber} response:`, data)
+        console.log(`🔍 FRONTEND DEBUG - isLastBatch value:`, data.isLastBatch, typeof data.isLastBatch)
+        console.log(`🔍 FRONTEND DEBUG - success value:`, data.success, typeof data.success)
+        console.log(`🔍 FRONTEND DEBUG - results:`, data.results?.length || 0)
 
         if (data.success) {
           // Add results if any exist
@@ -373,9 +376,13 @@ export default function EnterpriseAnalysisPage() {
           }
           
           // Check if this was the final batch (ALWAYS CHECK, regardless of results)
+          console.log(`🚨 CHECKING isLastBatch: ${data.isLastBatch} (type: ${typeof data.isLastBatch})`)
           if (data.isLastBatch) {
             console.log(`🏁 Final batch reached - analysis complete`)
+            console.log(`🛑 BREAKING OUT OF BATCH LOOP NOW!`)
             break
+          } else {
+            console.log(`➡️ isLastBatch is false, continuing to next batch...`)
           }
           
           batchNumber++
