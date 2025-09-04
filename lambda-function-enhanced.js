@@ -303,10 +303,74 @@ function findCryptoIssues(content, lines) {
   return issues;
 }
 
-// Fallback basic analysis (existing logic)
+// Fallback basic analysis (context-aware without AI)
 function performBasicAnalysis(content, filePath) {
-  // Use existing analyzeFile logic as fallback
-  return []; // Simplified for now
+  console.log(`🔧 Using fallback analysis for: ${filePath}`);
+  
+  const issues = [];
+  const lines = content.split('\n');
+  const ext = path.extname(filePath).toLowerCase();
+  
+  // Context detection (like before)
+  const hasDatabase = /SELECT|INSERT|UPDATE|DELETE|query|sql|database/i.test(content);
+  const hasAuth = /auth|login|password|token|jwt|session/i.test(content);
+  const hasAPI = /fetch|axios|request|endpoint|api|http/i.test(content);
+  
+  lines.forEach((line, index) => {
+    const lineNum = index + 1;
+    const trimmedLine = line.trim();
+    
+    // Skip empty lines and comments
+    if (!trimmedLine || trimmedLine.startsWith('//') || trimmedLine.startsWith('*')) return;
+    
+    // 1. Hardcoded secrets (context-aware)
+    if (hasAuth && trimmedLine.match(/(password|secret|token|apikey|api_key|auth_token|private_key)\s*[=:]\s*["'`][^"'`\s]{8,}["'`]/i)) {
+      issues.push({
+        type: 'security',
+        message: 'Hardcoded secret detected - use environment variables',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'critical'
+      });
+    }
+    
+    // 2. SQL Injection (context-aware)
+    if (hasDatabase && trimmedLine.match(/(SELECT|INSERT|UPDATE|DELETE).*\+.*["'`]/i)) {
+      issues.push({
+        type: 'security',
+        message: 'SQL injection risk - use parameterized queries',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'critical'
+      });
+    }
+    
+    // 3. XSS vulnerabilities (frontend files only)
+    if (['.jsx', '.tsx', '.js'].includes(ext) && 
+        trimmedLine.match(/innerHTML\s*=\s*.*\+|dangerouslySetInnerHTML.*\+/i)) {
+      issues.push({
+        type: 'security',
+        message: 'XSS vulnerability - sanitize user input',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'critical'
+      });
+    }
+    
+    // 4. Empty catch blocks
+    if (trimmedLine.match(/catch\s*\([^)]*\)\s*{\s*}$/)) {
+      issues.push({
+        type: 'error-handling',
+        message: 'Empty catch block - handle errors properly',
+        line: lineNum,
+        code: trimmedLine.substring(0, 100),
+        severity: 'high'
+      });
+    }
+  });
+  
+  console.log(`🔧 Fallback analysis found ${issues.length} issues`);
+  return issues;
 }
 
 export const handler = async (event) => {
