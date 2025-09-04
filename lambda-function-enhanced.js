@@ -49,7 +49,13 @@ export const handler = async (event) => {
     
     if (isFileBatched) {
       // FILE-BASED BATCHING: Process files in chunks
-      const filesPerBatch = 1000; // Process 1000 files per batch
+      // ADAPTIVE BATCH SIZE: Reduce for massive repos to prevent Lambda crashes
+      let filesPerBatch = 1000;
+      if (allFiles.length > 10000) {
+        filesPerBatch = 500; // Smaller batches for huge repos like Kubernetes
+        console.log(`🔧 Large repo detected (${allFiles.length} files) - reducing batch size to ${filesPerBatch}`);
+      }
+      
       const startIndex = (batchNumber - 1) * filesPerBatch;
       const endIndex = startIndex + filesPerBatch;
       
@@ -200,10 +206,10 @@ export const handler = async (event) => {
 async function findCodeFiles(dir) {
   const files = [];
   
-  // Priority file extensions - most important first
+  // Priority file extensions - most important first (REMOVED problematic types)
   const highPriorityExts = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.go', '.rs'];
   const mediumPriorityExts = ['.cpp', '.c', '.h', '.php', '.rb', '.swift', '.kt'];
-  const lowPriorityExts = ['.css', '.scss', '.html', '.json', '.yaml', '.yml', '.md'];
+  const lowPriorityExts = ['.css', '.scss']; // Removed .html, .json, .yaml, .yml, .md (too many false positives)
   
   const allExts = [...highPriorityExts, ...mediumPriorityExts, ...lowPriorityExts];
   
@@ -398,11 +404,11 @@ function analyzeFile(filePath, content) {
       }
     }
     
-    // 9. Magic numbers
-    if (trimmedLine.match(/\b\d{3,}\b/) && !trimmedLine.match(/^\s*(\/\/|\/\*|\*|console\.|return\s+\d+)/)) {
+    // 9. Magic numbers (more conservative - only large numbers)
+    if (trimmedLine.match(/\b\d{4,}\b/) && !trimmedLine.match(/^\s*(\/\/|\/\*|\*|console\.|return\s+\d+|import|export)/)) {
       issues.push({
         type: 'maintainability',
-        message: 'Magic number detected - use named constants',
+        message: 'Large magic number detected - use named constants',
         line: lineNum,
         code: trimmedLine.substring(0, 100),
         severity: 'low'
@@ -430,8 +436,12 @@ function analyzeFile(filePath, content) {
     
     // === BAD PRACTICES ===
     
-    // 11. Console logs in production code
-    if (trimmedLine.match(/console\.(log|debug|info|warn)\s*\(/)) {
+    // 11. Console logs in production code (skip test files and dev files)
+    if (trimmedLine.match(/console\.(log|debug|info)\s*\(/) && 
+        !filePath.includes('test') && 
+        !filePath.includes('spec') && 
+        !filePath.includes('dev') &&
+        !filePath.includes('debug')) {
       issues.push({
         type: 'code-smell',
         message: 'Console log in production code - remove or use proper logging',

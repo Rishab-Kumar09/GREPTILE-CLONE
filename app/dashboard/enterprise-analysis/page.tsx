@@ -329,17 +329,19 @@ export default function EnterpriseAnalysisPage() {
     const allResults: AnalysisResult[] = []
     let totalIssues = 0
     let batchNumber = 1
+    let estimatedTotalBatches = 8 // Start with reasonable estimate, will update dynamically
     
     setAnalysisId(uuid())
 
     // Process files in batches (no directory filtering - analyze ALL files)
     while (true) {
-      const batchProgress = Math.min(batchNumber * 25, 100) // Rough progress estimate
+      // Dynamic progress calculation based on estimated batches
+      const batchProgress = Math.min((batchNumber / estimatedTotalBatches) * 100, 95) // Never show 100% until complete
       
       setStatus(prev => ({
         ...prev,
-        progress: batchProgress,
-        currentFile: `Processing file batch ${batchNumber}...`
+        progress: Math.round(batchProgress),
+        currentFile: `Processing file batch ${batchNumber} of ~${estimatedTotalBatches}...`
       }))
 
       console.log(`🔄 Processing file batch ${batchNumber}`)
@@ -363,6 +365,16 @@ export default function EnterpriseAnalysisPage() {
         console.log(`🔍 FRONTEND DEBUG - results:`, data.results?.length || 0)
 
         if (data.success) {
+          // Update estimated total batches based on Lambda stats
+          if (data.stats && data.stats.totalFilesInRepo) {
+            const filesPerBatch = 1000
+            const actualTotalBatches = Math.ceil(data.stats.totalFilesInRepo / filesPerBatch)
+            if (actualTotalBatches !== estimatedTotalBatches) {
+              estimatedTotalBatches = actualTotalBatches
+              console.log(`📊 Updated estimate: ${estimatedTotalBatches} total batches based on ${data.stats.totalFilesInRepo} files`)
+            }
+          }
+          
           // Add results if any exist
           if (data.results && data.results.length > 0) {
             allResults.push(...data.results)
