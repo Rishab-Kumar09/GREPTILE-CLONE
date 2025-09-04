@@ -34,7 +34,7 @@ export const handler = async (event) => {
     // Step 2: Find ALL code files from full repository
     console.log('📁 Finding ALL code files from full repository...');
     
-    const allFiles = await findCodeFiles(tempDir, null); // No directory filtering - get ALL files
+    const allFiles = await findCodeFiles(tempDir); // Get ALL files from entire repository
     console.log(`📊 Found ${allFiles.length} total code files in repository`);
     
     // Step 3: Handle file-based batching
@@ -161,7 +161,7 @@ export const handler = async (event) => {
   }
 };
 
-async function findCodeFiles(dir, batchPath = null) {
+async function findCodeFiles(dir) {
   const files = [];
   
   // Priority file extensions - most important first
@@ -171,40 +171,20 @@ async function findCodeFiles(dir, batchPath = null) {
   
   const allExts = [...highPriorityExts, ...mediumPriorityExts, ...lowPriorityExts];
   
-  // Determine scan directory based on batch
-  let scanDir = dir;
-  if (batchPath && batchPath !== '') {
-    scanDir = path.join(dir, batchPath);
-    console.log(`🎯 Scanning batch directory: ${scanDir}`);
-    
-    // Check if batch directory exists
-    try {
-      await fs.access(scanDir);
-    } catch (error) {
-      console.warn(`⚠️ Batch directory ${batchPath} not found, scanning root`);
-      scanDir = dir;
-    }
-  }
+  // ALWAYS scan the entire repository (no directory filtering)
+  console.log('🌍 Scanning ENTIRE repository for all code files...');
   
   try {
-    await scanDirectory(scanDir, files, allExts, 0);
+    await scanDirectory(dir, files, allExts, 0);
   } catch (error) {
-    console.warn(`Failed to scan directory ${scanDir}:`, error.message);
+    console.warn(`Failed to scan directory ${dir}:`, error.message);
   }
   
-  // Filter files by batch path if specified
-  let filteredFiles = files;
-  if (batchPath && batchPath !== '') {
-    const batchPrefix = path.join(dir, batchPath);
-    filteredFiles = files.filter(f => f.startsWith(batchPrefix));
-    console.log(`🔍 Filtered to ${filteredFiles.length} files in ${batchPath} directory`);
-  }
-  
-  // Sort by priority and limit to reasonable number
+  // Sort by priority - NO LIMITS, return ALL files
   const prioritizedFiles = [
-    ...filteredFiles.filter(f => highPriorityExts.includes(path.extname(f).toLowerCase())),
-    ...filteredFiles.filter(f => mediumPriorityExts.includes(path.extname(f).toLowerCase())),
-    ...filteredFiles.filter(f => lowPriorityExts.includes(path.extname(f).toLowerCase()))
+    ...files.filter(f => highPriorityExts.includes(path.extname(f).toLowerCase())),
+    ...files.filter(f => mediumPriorityExts.includes(path.extname(f).toLowerCase())),
+    ...files.filter(f => lowPriorityExts.includes(path.extname(f).toLowerCase()))
   ];
   
   // Return ALL files - no limits for comprehensive analysis
