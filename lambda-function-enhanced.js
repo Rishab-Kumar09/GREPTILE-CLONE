@@ -66,23 +66,34 @@ export const handler = async (event) => {
       // Early return if no files in this batch
       if (filesToProcess.length === 0) {
         console.log(`🛑 EARLY RETURN: No files in batch ${batchNumber}, marking as last batch`);
+        
+        const earlyReturnData = {
+          success: true,
+          analysisId,
+          results: [],
+          isFileBatched: true,
+          batchNumber: batchNumber,
+          isLastBatch: true, // Force last batch when no files
+          stats: {
+            filesProcessed: 0,
+            filesWithIssues: 0,
+            totalIssues: 0,
+            totalFilesInRepo: allFiles.length
+          },
+          message: `FILE BATCH ${batchNumber} - No more files to process`
+        };
+        
+        console.log(`📤 EARLY RETURN TO FRONTEND:`, JSON.stringify({
+          success: earlyReturnData.success,
+          isLastBatch: earlyReturnData.isLastBatch,
+          batchNumber: earlyReturnData.batchNumber,
+          totalIssues: earlyReturnData.stats.totalIssues,
+          totalFilesInRepo: earlyReturnData.stats.totalFilesInRepo
+        }));
+        
         return {
           statusCode: 200,
-          body: JSON.stringify({
-            success: true,
-            analysisId,
-            results: [],
-            isFileBatched: true,
-            batchNumber: batchNumber,
-            isLastBatch: true, // Force last batch when no files
-            stats: {
-              filesProcessed: 0,
-              filesWithIssues: 0,
-              totalIssues: 0,
-              totalFilesInRepo: allFiles.length
-            },
-            message: `FILE BATCH ${batchNumber} - No more files to process`
-          })
+          body: JSON.stringify(earlyReturnData)
         };
       }
     }
