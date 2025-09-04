@@ -90,7 +90,7 @@ Focus ONLY on issues this specific file could realistically have. Skip irrelevan
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-3.5-turbo', // 5x faster than GPT-4o, still excellent for code analysis
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
         max_tokens: 800
@@ -407,13 +407,12 @@ export const handler = async (event) => {
     console.log('📁 Finding ALL code files from full repository...');
     
     const allFiles = await findCodeFiles(tempDir); // Get ALL files from entire repository
-    console.log(`📊 CRITICAL: Found ${allFiles.length} total code files in repository`);
-    
-    // DEBUG: Log first few files to verify
-    if (allFiles.length > 0) {
-      console.log(`📂 First 5 files:`, allFiles.slice(0, 5).map(f => path.relative(tempDir, f)));
-      console.log(`📂 Last 5 files:`, allFiles.slice(-5).map(f => path.relative(tempDir, f)));
-    }
+              console.log(`📊 CRITICAL: Found ${allFiles.length} total code files in repository`);
+          
+          // 🧠 STEP 1: AI REPOSITORY OVERVIEW & SMART CATEGORIZATION
+          console.log(`🧠 AI analyzing repository structure for smart categorization...`);
+          const fileCategories = await analyzeRepositoryStructure(allFiles, tempDir);
+          console.log(`📋 AI categorized files:`, fileCategories.summary);
     
     // Step 3: Handle file-based batching
     let filesToProcess = allFiles;
@@ -421,9 +420,9 @@ export const handler = async (event) => {
     
     if (isFileBatched) {
       // FILE-BASED BATCHING: Process files in chunks
-      // AI ANALYSIS: Much smaller batches due to GPT-4o processing time
-      const filesPerBatch = 50; // Small batches for AI analysis (2-3 sec per file)
-      console.log(`🤖 AI batch size: ${filesPerBatch} files per batch (optimized for GPT-4o speed)`);
+              // HYBRID ANALYSIS: Larger batches since most files use fast analysis
+        const filesPerBatch = 500; // Larger batches - only critical files use AI
+        console.log(`⚡ Hybrid batch size: ${filesPerBatch} files per batch (AI for critical files only)`);
       
       const startIndex = (batchNumber - 1) * filesPerBatch;
       const endIndex = startIndex + filesPerBatch;
@@ -480,41 +479,59 @@ export const handler = async (event) => {
     let processedFiles = 0;
     let totalIssues = 0;
     
-              // 🤖 AI-POWERED ANALYSIS LOOP
-          for (const file of filesToProcess) {
-            try {
-              const content = await fs.readFile(file, 'utf-8');
-              const relativePath = path.relative(tempDir, file);
-              
-              // AI-powered analysis (async)
-              const issues = await analyzeFile(relativePath, content);
-              
-              processedFiles++;
-              
-              // Enhanced logging with AI insights
-              if (processedFiles <= 5 || issues.length > 0) {
-                console.log(`🤖 AI Analysis ${processedFiles}: ${relativePath} → ${issues.length} issues`);
-                if (issues.length > 0) {
-                  console.log(`   Issues:`, issues.map(i => `${i.type}:${i.severity}`).join(', '));
-                }
-              }
-              
-              if (issues.length > 0) {
-                results.push({
+              // 🚀 PARALLEL AI ANALYSIS - Process multiple files simultaneously
+          console.log(`🚀 Starting PARALLEL AI analysis of ${filesToProcess.length} files...`);
+          
+          const PARALLEL_LIMIT = 500; // BEAST MODE: 500 files simultaneously!
+          const filePromises = [];
+          
+          for (let i = 0; i < filesToProcess.length; i += PARALLEL_LIMIT) {
+            const batch = filesToProcess.slice(i, i + PARALLEL_LIMIT);
+            
+            const batchPromises = batch.map(async (file) => {
+              try {
+                const content = await fs.readFile(file, 'utf-8');
+                const relativePath = path.relative(tempDir, file);
+                
+                // Smart hybrid analysis using AI categorization
+                const issues = await analyzeFile(relativePath, content, fileCategories);
+                
+                return {
+                  success: true,
                   file: relativePath,
                   issues: issues
-                });
-                totalIssues += issues.length;
+                };
+                
+              } catch (err) {
+                console.warn(`❌ Failed to analyze ${file}:`, err.message);
+                return {
+                  success: false,
+                  file: path.relative(tempDir, file),
+                  issues: []
+                };
               }
+            });
+            
+            // Wait for this batch to complete
+            const batchResults = await Promise.all(batchPromises);
+            filePromises.push(...batchResults);
+            
+            // Progress logging
+            console.log(`🚀 Parallel batch ${Math.floor(i/PARALLEL_LIMIT) + 1} complete: ${batchResults.length} files processed`);
+          }
+          
+          // Process all results
+          for (const result of filePromises) {
+            processedFiles++;
+            
+            if (result.success && result.issues.length > 0) {
+              results.push({
+                file: result.file,
+                issues: result.issues
+              });
+              totalIssues += result.issues.length;
               
-              // Progress logging every 100 files (more frequent for AI analysis)
-              if (processedFiles % 100 === 0) {
-                console.log(`🤖 AI Progress: ${processedFiles}/${filesToProcess.length} files, ${totalIssues} real issues found`);
-              }
-              
-            } catch (err) {
-              console.warn(`❌ Failed to analyze ${file}:`, err.message);
-              processedFiles++;
+              console.log(`✅ ${result.file} → ${result.issues.length} issues`);
             }
           }
     
@@ -636,10 +653,8 @@ async function scanDirectory(dir, files, extensions, depth) {
   }
 }
 
-// AI-POWERED ANALYSIS FUNCTION
-async function analyzeFile(filePath, content) {
-  console.log(`🔍 Starting AI analysis for: ${filePath}`);
-  
+// HYBRID ANALYSIS: AI for critical files, fast rules for routine files
+async function analyzeFile(filePath, content, fileCategories) {
   // Skip very large files to prevent timeouts
   if (content.length > 50000) { // 50KB limit
     return [{
@@ -652,22 +667,126 @@ async function analyzeFile(filePath, content) {
   }
   
   try {
-    // Step 1: Create intelligent file profile
+    // Step 1: Create file profile
     const profile = createFileProfile(filePath, content);
-    console.log(`📋 File profile: ${JSON.stringify(profile, null, 2)}`);
     
-    // Step 2: Get AI-powered analysis strategy
-    const aiStrategy = await getAIAnalysisStrategy(profile);
+    // Step 2: Smart decision based on AI categorization
+    const needsAI = shouldUseAI(profile, filePath, fileCategories);
     
-    // Step 3: Perform targeted analysis based on AI recommendations
-    const issues = performTargetedAnalysis(content, aiStrategy, filePath);
-    
-    console.log(`✅ AI analysis complete for ${filePath}: ${issues.length} issues found`);
-    return issues;
+    if (needsAI) {
+      console.log(`🤖 AI analyzing CRITICAL: ${filePath}`);
+      const aiStrategy = await getAIAnalysisStrategy(profile);
+      const issues = performTargetedAnalysis(content, aiStrategy, filePath);
+      console.log(`✅ AI complete: ${filePath} → ${issues.length} issues`);
+      return issues;
+    } else {
+      console.log(`⚡ Fast analyzing ROUTINE: ${filePath}`);
+      const issues = performBasicAnalysis(content, filePath);
+      console.log(`✅ Fast complete: ${filePath} → ${issues.length} issues`);
+      return issues;
+    }
     
   } catch (error) {
-    console.error(`❌ AI analysis failed for ${filePath}:`, error.message);
-    // Fallback to basic analysis
+    console.error(`❌ AI failed for ${filePath}:`, error.message);
+    // Fast fallback
     return performBasicAnalysis(content, filePath);
   }
+}
+
+// SMART AI DECISION: Use AI categorization from repository analysis
+function shouldUseAI(profile, filePath, fileCategories) {
+  if (!fileCategories) return true; // Default to AI if no categorization
+  
+  // Check if file matches CRITICAL patterns (needs AI)
+  for (const pattern of fileCategories.criticalPatterns || []) {
+    if (filePath.toLowerCase().includes(pattern.toLowerCase())) {
+      return true;
+    }
+  }
+  
+  // Check if file matches ROUTINE patterns (use fast analysis)
+  for (const pattern of fileCategories.routinePatterns || []) {
+    if (filePath.toLowerCase().includes(pattern.toLowerCase())) {
+      return false;
+    }
+  }
+  
+  // Additional smart checks
+  if (profile.hasAuth && profile.hasUserInput) return true; // Auth + user input = critical
+  if (profile.hasDatabase && profile.hasAPI) return true; // DB + API = SQL injection risk
+  if (profile.hasCrypto && profile.size > 1000) return true; // Crypto logic = security critical
+  
+  // DEFAULT: For unknown files, use AI (better safe than sorry)
+  return true;
+}
+
+// 🧠 AI REPOSITORY STRUCTURE ANALYZER
+async function analyzeRepositoryStructure(allFiles, tempDir) {
+  if (!OPENAI_API_KEY) {
+    console.warn('⚠️ No AI key - using basic categorization');
+    return basicFileCategorizaton(allFiles, tempDir);
+  }
+
+  try {
+    // Sample files for AI analysis
+    const sampleFiles = allFiles.slice(0, 50).map(f => path.relative(tempDir, f));
+    const fileStructure = sampleFiles.join('\n');
+    
+    const prompt = `You are analyzing a codebase structure. Based on these file paths, categorize ALL files in the repository for security analysis priority:
+
+SAMPLE FILE STRUCTURE:
+${fileStructure}
+
+TASK: Create a smart categorization strategy for ALL ${allFiles.length} files in this repository.
+
+Respond with JSON:
+{
+  "repoType": "react/node/python/etc",
+  "criticalPatterns": ["auth", "api", "security"],
+  "routinePatterns": ["test", "config", "style"],
+  "analysisStrategy": "description of approach",
+  "summary": "brief summary"
+}
+
+Focus on SECURITY and PERFORMANCE critical files vs routine files.`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        max_tokens: 500
+      })
+    });
+
+    const data = await response.json();
+    const aiResponse = data.choices[0].message.content;
+    
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    
+    return basicFileCategorizaton(allFiles, tempDir);
+
+  } catch (error) {
+    console.error('❌ AI repository analysis failed:', error.message);
+    return basicFileCategorizaton(allFiles, tempDir);
+  }
+}
+
+// Basic fallback categorization
+function basicFileCategorizaton(allFiles, tempDir) {
+  return {
+    repoType: "unknown",
+    criticalPatterns: ["auth", "api", "security", "login", "admin"],
+    routinePatterns: ["test", "spec", "config", "style", "css"],
+    analysisStrategy: "Basic pattern matching",
+    summary: `${allFiles.length} files - using basic categorization`
+  };
 }
