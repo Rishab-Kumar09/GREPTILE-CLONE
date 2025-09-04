@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 export const handler = async (event) => {
-  console.log('🚀 Enhanced Lambda analyzer started:', JSON.stringify(event));
+  console.log('🚀 Enhanced Lambda analyzer started (v2.1 with detailed early return logging):', JSON.stringify(event));
   
   const { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false } = JSON.parse(event.body || '{}');
   
