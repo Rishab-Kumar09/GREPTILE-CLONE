@@ -487,7 +487,7 @@ export const handler = async (event) => {
     if (isFileBatched) {
       // FILE-BASED BATCHING: Process files in chunks
               // HYBRID ANALYSIS: Larger batches since most files use fast analysis
-        const filesPerBatch = 500; // Larger batches - only critical files use AI
+        const filesPerBatch = 200; // Reduced batch size to prevent Lambda timeouts
         console.log(`⚡ Hybrid batch size: ${filesPerBatch} files per batch (AI for critical files only)`);
       
       const startIndex = (batchNumber - 1) * filesPerBatch;

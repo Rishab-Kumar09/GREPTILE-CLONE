@@ -346,19 +346,37 @@ export default function EnterpriseAnalysisPage() {
 
       console.log(`🔄 Processing file batch ${batchNumber}`)
 
-      try {
-        const response = await fetch('/api/enterprise-analysis/start', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            owner, 
-            repo, 
-            batchNumber, // Send batch number instead of directory path
-            fullRepoAnalysis: true // Flag to indicate full repo analysis
-          })
-        })
+                   try {
+               console.log(`🔄 Starting batch ${batchNumber} with timeout handling...`);
+               
+               const controller = new AbortController();
+               const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+               
+               const response = await fetch('/api/enterprise-analysis/start', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ 
+                   owner, 
+                   repo, 
+                   batchNumber, // Send batch number instead of directory path
+                   fullRepoAnalysis: true // Flag to indicate full repo analysis
+                 }),
+                 signal: controller.signal
+               });
 
-        const data = await response.json()
+               clearTimeout(timeoutId);
+
+               if (!response.ok) {
+                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+               }
+
+               let data;
+               try {
+                 data = await response.json();
+               } catch (jsonError) {
+                 console.error(`❌ JSON parsing failed for batch ${batchNumber}:`, jsonError);
+                 throw new Error(`Invalid JSON response from batch ${batchNumber}`);
+               }
         console.log(`📡 File batch ${batchNumber} response:`, data)
         console.log(`🔍 FRONTEND DEBUG - isLastBatch value:`, data.isLastBatch, typeof data.isLastBatch)
         console.log(`🔍 FRONTEND DEBUG - success value:`, data.success, typeof data.success)
@@ -367,11 +385,11 @@ export default function EnterpriseAnalysisPage() {
         if (data.success) {
                            // Update estimated total batches based on Lambda stats
                  if (data.stats && data.stats.totalFilesInRepo) {
-                   const filesPerBatch = 20 // AI analysis batch size (much smaller due to GPT-4o speed)
+                   const filesPerBatch = 200 // Updated to match Lambda batch size
                    const actualTotalBatches = Math.ceil(data.stats.totalFilesInRepo / filesPerBatch)
                    if (actualTotalBatches !== estimatedTotalBatches) {
                      estimatedTotalBatches = actualTotalBatches
-                     console.log(`📊 Updated estimate: ${estimatedTotalBatches} total batches (20 files each) based on ${data.stats.totalFilesInRepo} files`)
+                     console.log(`📊 Updated estimate: ${estimatedTotalBatches} total batches (200 files each) based on ${data.stats.totalFilesInRepo} files`)
                    }
                  }
           
@@ -422,10 +440,67 @@ export default function EnterpriseAnalysisPage() {
           break
         }
 
-      } catch (error) {
-        console.error(`❌ File batch ${batchNumber} error:`, error)
-        break
-      }
+                   } catch (error: any) {
+               console.error(`❌ File batch ${batchNumber} error:`, error);
+               
+               // Handle specific error types
+               if (error.name === 'AbortError') {
+                 console.warn(`⏰ Batch ${batchNumber} timed out after 5 minutes`);
+                 setStatus(prev => ({
+                   ...prev,
+                   currentFile: `Batch ${batchNumber} timed out - continuing with next batch...`
+                 }));
+                 // Continue to next batch instead of breaking
+                 batchNumber++;
+                 continue;
+               }
+               
+               if (error.message.includes('504') || error.message.includes('Gateway')) {
+                 console.warn(`🌐 Gateway timeout for batch ${batchNumber} - retrying once...`);
+                 
+                 // Single retry for gateway timeouts
+                 try {
+                   await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+                   
+                   const retryResponse = await fetch('/api/enterprise-analysis/start', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ 
+                       owner, 
+                       repo, 
+                       batchNumber,
+                       fullRepoAnalysis: true
+                     })
+                   });
+                   
+                   if (retryResponse.ok) {
+                     const retryData = await retryResponse.json();
+                     console.log(`✅ Retry successful for batch ${batchNumber}`);
+                     
+                     // Process the retry data (same logic as successful batch)
+                     if (retryData.success && retryData.results && retryData.results.length > 0) {
+                       allResults.push(...retryData.results);
+                       totalIssues += retryData.results.length;
+                     }
+                     
+                     if (retryData.isLastBatch) {
+                       console.log(`🏁 Retry batch ${batchNumber} was final batch`);
+                       break;
+                     }
+                     
+                     batchNumber++;
+                     continue;
+                   }
+                 } catch (retryError) {
+                   console.error(`❌ Retry failed for batch ${batchNumber}:`, retryError);
+                 }
+               }
+               
+               // For other errors, continue to next batch
+               console.warn(`⚠️ Skipping batch ${batchNumber} due to error, continuing...`);
+               batchNumber++;
+               continue;
+             }
       
       // Safety limit to prevent infinite loops
       if (batchNumber > 20) {
