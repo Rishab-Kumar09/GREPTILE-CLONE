@@ -685,6 +685,24 @@ export default function EnterpriseAnalysisPage() {
           currentFile: data.message || 'Analysis completed!',
           results: data.results
         })
+        
+        // 🤖 SEND NON-BATCHING RESULTS TO CHAT API FOR CONTEXT
+        try {
+          console.log(`📤 Sending ${data.results.length} non-batching results to chat context`)
+          await fetch('/api/chat/batch-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              repository: `${owner}/${repo}`,
+              batchNumber: 1, // Single batch for non-batching analysis
+              batchResults: data.results,
+              isLastBatch: true
+            })
+          })
+          console.log(`✅ Non-batching results sent to chat context successfully`)
+        } catch (chatError) {
+          console.warn(`⚠️ Failed to update chat context for non-batching analysis:`, chatError)
+        }
       } else if (data.status === 'completed') {
         // Lambda completed but no results
         setStatus({
@@ -693,6 +711,24 @@ export default function EnterpriseAnalysisPage() {
           currentFile: 'Analysis completed - no code patterns found',
           results: []
         })
+        
+        // 🤖 SEND EMPTY RESULTS TO CHAT API FOR CONTEXT (so AI knows analysis was done)
+        try {
+          console.log(`📤 Sending empty results to chat context (analysis completed with no issues)`)
+          await fetch('/api/chat/batch-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              repository: `${owner}/${repo}`,
+              batchNumber: 1,
+              batchResults: [], // Empty but analysis was done
+              isLastBatch: true
+            })
+          })
+          console.log(`✅ Empty results sent to chat context successfully`)
+        } catch (chatError) {
+          console.warn(`⚠️ Failed to update chat context for empty analysis:`, chatError)
+        }
       } else {
         // No results - show error
         setStatus({
