@@ -487,7 +487,7 @@ export const handler = async (event) => {
     if (isFileBatched) {
       // FILE-BASED BATCHING: Process files in chunks
               // HYBRID ANALYSIS: Larger batches since most files use fast analysis
-        const filesPerBatch = 200; // Reduced batch size to prevent Lambda timeouts
+        const filesPerBatch = 50; // Further reduced to prevent Gateway timeouts (AI takes 30+ seconds)
         console.log(`⚡ Hybrid batch size: ${filesPerBatch} files per batch (AI for critical files only)`);
       
       const startIndex = (batchNumber - 1) * filesPerBatch;
@@ -1517,74 +1517,58 @@ function generateAnalysisTemplates(techStack) {
   return templates;
 }
 
-// 🧠 AI RULE GENERATOR: Creates minimal, focused rule set for each repo
+// 🧠 SIMPLIFIED RULE GENERATOR: Fast and reliable
 async function generateCustomRules(repoContext) {
-  if (!OPENAI_API_KEY) {
-    console.warn('⚠️ No OpenAI API key for rule generation');
-    return null;
-  }
+  // Skip AI generation for now - use hardcoded reliable rules
+  console.log('⚡ Using fast hardcoded rules instead of AI generation');
+  
+  return `{
+    findSecurityIssues: function(content, lines, filePath) {
+      var issues = [];
+      if (content.indexOf('dangerouslySetInnerHTML') !== -1) {
+        issues.push({
+          type: 'security',
+          message: 'XSS risk with dangerouslySetInnerHTML',
+          line: 1,
+          code: 'dangerouslySetInnerHTML',
+          severity: 'high'
+        });
+      }
+      if (content.indexOf('eval(') !== -1) {
+        issues.push({
+          type: 'security',
+          message: 'Code injection risk with eval()',
+          line: 1,
+          code: 'eval(',
+          severity: 'critical'
+        });
+      }
+      return issues;
+    },
 
-  try {
-    // Analyze the repository type and technology stack
-    const techStack = analyzeRepositoryTechStack(repoContext);
-    
-    // Generate comprehensive analysis templates
-    const analysisTemplates = generateAnalysisTemplates(techStack);
-    
-    const prompt = `You are a senior software architect, security expert, and DevOps engineer. Analyze this ${techStack.type} repository and create COMPREHENSIVE rules covering MULTIPLE DIMENSIONS of software quality.
+    findPerformanceIssues: function(content, lines, filePath) {
+      var issues = [];
+      if (content.indexOf('useEffect') !== -1 && content.indexOf('[]') === -1 && content.indexOf('[') === -1) {
+        issues.push({
+          type: 'performance', 
+          message: 'useEffect without dependencies may cause infinite re-renders',
+          line: 1,
+          code: 'useEffect',
+          severity: 'medium'
+        });
+      }
+      return issues;
+    },
 
-🔍 REPOSITORY INTELLIGENCE:
-- Type: ${techStack.type}
-- Technologies: ${techStack.technologies.join(', ')}
-- Architecture: ${techStack.architecture}
-- Files: ${repoContext.fileContents.length}
-- Key patterns: ${techStack.patterns.join(', ')}
-
-🔗 CROSS-FILE ANALYSIS:
-- Import/Export relationships: ${repoContext.crossFileAnalysis.imports.length} imports, ${repoContext.crossFileAnalysis.exports.length} exports
-- Circular dependencies: ${repoContext.crossFileAnalysis.circularDeps.length} detected
-- Architectural issues: ${repoContext.crossFileAnalysis.architecturalIssues.length} found
-
-📁 SAMPLE CODE ANALYSIS:
-${repoContext.fileContents.slice(0, 3).map(file => `
-=== ${file.path} ===
-${file.content.substring(0, 1500)}
-`).join('\n')}
-
-🎯 COMPREHENSIVE ANALYSIS FRAMEWORK:
-Create rules covering these CRITICAL DIMENSIONS:
-
-${analysisTemplates.map(template => `
-🔹 ${template.category.toUpperCase()}:
-${template.checks.map(check => `   - ${check}`).join('\n')}
-`).join('')}
-
-🎯 MISSION: Create 10-20 LASER-FOCUSED rules that detect REAL DEVELOPER PAIN POINTS.
-
-🔥 CRITICAL FOCUS AREAS:
-- Issues that cause "AHA! That's what's breaking my code!" moments
-- Silent failures that waste hours of debugging time
-- Configuration problems that prevent deployment
-- Compatibility issues that break in production
-- Missing elements that cause runtime crashes
-- Database/API connectivity problems
-- Authentication and security bypasses
-- Performance bottlenecks under load
-- Cross-browser and mobile compatibility issues
-- Environment-specific deployment failures
-
-💡 DEVELOPER FRUSTRATION TARGETS:
-- "Why isn't my component re-rendering?"
-- "Why is my API call failing with CORS errors?"
-- "Why does this work locally but not in production?"
-- "Why is my database connection timing out?"
-- "Why are my environment variables not loading?"
-- "Why is my build failing on deployment?"
-- "Why is my app crashing under load?"
-
-Return EXECUTABLE ES5 JavaScript with COMPREHENSIVE coverage:
-
-CRITICAL: Use ONLY this exact format with proper ES5 syntax:
+    executeRules: function(content, filePath) {
+      var allIssues = [];
+      if (filePath.match(/\\.(js|jsx|ts|tsx)$/)) {
+        allIssues = allIssues.concat(this.findSecurityIssues(content, content.split('\\n'), filePath));
+        allIssues = allIssues.concat(this.findPerformanceIssues(content, content.split('\\n'), filePath));
+      }
+      return allIssues;
+    }
+  }`;
 
 {
   findPerformanceIssues: function(content, lines, filePath) {

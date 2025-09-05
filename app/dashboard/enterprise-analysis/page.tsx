@@ -402,7 +402,7 @@ export default function EnterpriseAnalysisPage() {
         if (data.success) {
                            // Update estimated total batches based on Lambda stats
                  if (data.stats && data.stats.totalFilesInRepo) {
-                   const filesPerBatch = 200 // Updated to match Lambda batch size
+                   const filesPerBatch = 50 // Match Lambda batch size to prevent Gateway timeouts
                    const actualTotalBatches = Math.ceil(data.stats.totalFilesInRepo / filesPerBatch)
                    if (actualTotalBatches !== estimatedTotalBatches) {
                      estimatedTotalBatches = actualTotalBatches
