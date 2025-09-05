@@ -345,9 +345,9 @@ async function performAIAnalysis(content, filePath) {
     var hasErrorKeywords = /try|catch|throw|error|exception|null|undefined/i.test(content);
     var isComplexFile = content.length > 1000;
     
-    // Skip simple files to save tokens and time
-    if (!hasSecurityKeywords && !hasPerformanceKeywords && !hasErrorKeywords && !isComplexFile) {
-      console.log(`⏭️ Skipping simple file: ${filePath} (no risk patterns)`);
+    // Skip only very simple files (but still analyze most files)
+    if (!hasSecurityKeywords && !hasPerformanceKeywords && !hasErrorKeywords && content.length < 300) {
+      console.log(`⏭️ Skipping very simple file: ${filePath} (< 300 chars, no risk patterns)`);
       return [];
     }
     
@@ -422,8 +422,10 @@ Rules:
         return [];
       }
     } else {
-      console.log(`ℹ️ AI found no issues in ${filePath}`);
-      return [];
+      console.log(`ℹ️ AI found no JSON issues in ${filePath}`);
+      // Fallback to basic analysis if AI doesn't find structured issues
+      console.log(`🔄 Running fallback pattern analysis for ${filePath}`);
+      return performBasicAnalysis(content, filePath);
     }
     
   } catch (error) {
