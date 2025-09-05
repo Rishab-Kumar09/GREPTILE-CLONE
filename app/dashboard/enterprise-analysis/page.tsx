@@ -7,10 +7,12 @@ import DashboardHeader from '@/components/DashboardHeader'
 interface AnalysisResult {
   type: string
   name: string
+  message?: string
   file: string
   line: number
   code: string
   description: string
+  severity?: string
 }
 
 interface AnalysisStatus {
@@ -62,27 +64,42 @@ export default function EnterpriseAnalysisPage() {
         }
       }
       
-      // Categorize by type like Reviews page
-      if (result.type === 'smell' || result.type === 'bestpractice') {
-        acc[result.file].codeSmells.push({
-          line: result.line,
-          type: result.name,
-          description: result.description,
-          codeSnippet: result.code,
-          suggestion: getAISuggestion(result.type, result.name, result.description)
-        })
-      } else if (result.type === 'security' || result.description.includes('HIGH:')) {
+      // Categorize by severity and type like Reviews page
+      const severity = result.severity?.toLowerCase() || '';
+      const type = result.type?.toLowerCase() || '';
+      const description = result.description || '';
+      
+      // HIGH/CRITICAL PRIORITY -> Bugs
+      if (severity === 'critical' || severity === 'high' || 
+          type === 'security' || type === 'error-handling' || type === 'connectivity' ||
+          description.includes('HIGH:') || description.includes('CRITICAL:') ||
+          description.includes('will crash') || description.includes('vulnerability')) {
         acc[result.file].bugs.push({
           line: result.line,
-          type: result.name,
+          type: result.name || result.message || 'Security Issue',
           description: result.description,
           codeSnippet: result.code,
           suggestion: getAISuggestion(result.type, result.name, result.description)
         })
-      } else {
+      } 
+      // MEDIUM PRIORITY -> Code Smells
+      else if (severity === 'medium' || 
+               type === 'performance' || type === 'maintainability' || type === 'architecture' ||
+               description.includes('MEDIUM:') ||
+               description.includes('optimization') || description.includes('refactor')) {
+        acc[result.file].codeSmells.push({
+          line: result.line,
+          type: result.name || result.message || 'Code Quality Issue',
+          description: result.description,
+          codeSnippet: result.code,
+          suggestion: getAISuggestion(result.type, result.name, result.description)
+        })
+      } 
+      // LOW/INFO PRIORITY -> Suggestions
+      else {
         acc[result.file].suggestions.push({
           line: result.line,
-          type: result.name,
+          type: result.name || result.message || 'Suggestion',
           description: result.description,
           codeSnippet: result.code,
           suggestion: getAISuggestion(result.type, result.name, result.description)
@@ -858,19 +875,29 @@ export default function EnterpriseAnalysisPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold text-red-600">
-                  {status.results.filter(r => r.description.includes('HIGH:')).length}
+                  {status.results.filter((r: any) => 
+                    r.severity === 'critical' || r.severity === 'high' || 
+                    (r.description && (r.description.includes('HIGH:') || r.description.includes('CRITICAL:')))
+                  ).length}
                 </div>
                 <div className="text-sm text-gray-500">High Priority</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">
-                  {status.results.filter(r => r.description.includes('MEDIUM:')).length}
+                  {status.results.filter((r: any) => 
+                    r.severity === 'medium' || 
+                    (r.description && r.description.includes('MEDIUM:'))
+                  ).length}
                 </div>
                 <div className="text-sm text-gray-500">Medium Priority</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
-                  {status.results.filter(r => r.description.includes('INFO:')).length}
+                  {status.results.filter((r: any) => 
+                    r.severity === 'low' || r.severity === 'info' || 
+                    (r.description && (r.description.includes('INFO:') || r.description.includes('LOW:'))) ||
+                    r.type === 'suggestion' || r.type === 'maintainability' || r.type === 'code-quality'
+                  ).length}
                 </div>
                 <div className="text-sm text-gray-500">Informational</div>
               </div>
