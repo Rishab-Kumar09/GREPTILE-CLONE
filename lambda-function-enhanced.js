@@ -329,6 +329,227 @@ function performBasicAnalysis(content, filePath) {
   return issues;
 }
 
+// 🎯 SEMANTIC BUG DETECTION: Like real Greptile - targeted, not generic
+async function performSemanticBugDetection(content, filePath, repoDir) {
+  console.log(`🎯 Semantic analysis: ${filePath}`);
+  
+  var issues = [];
+  var ext = path.extname(filePath).toLowerCase();
+  
+  // PHASE 1: TARGETED BUG PATTERN DETECTION (not generic "find bugs")
+  
+  // 🔒 SECURITY BUG PATTERNS
+  issues = issues.concat(detectSecurityVulnerabilities(content, filePath));
+  
+  // 🐛 LOGIC BUG PATTERNS  
+  issues = issues.concat(detectLogicBugs(content, filePath));
+  
+  // ⚡ PERFORMANCE BUG PATTERNS
+  issues = issues.concat(detectPerformanceBugs(content, filePath));
+  
+  // 🔗 CROSS-FILE RELATIONSHIP BUGS (when we have context)
+  if (repoDir) {
+    issues = issues.concat(await detectCrossFileIssues(content, filePath, repoDir));
+  }
+  
+  console.log(`🎯 Found ${issues.length} semantic issues in ${filePath}`);
+  return issues;
+}
+
+// 🔒 SECURITY VULNERABILITY DETECTION
+function detectSecurityVulnerabilities(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var lineNum = index + 1;
+    
+    // SQL Injection Detection
+    if (/\$\{.*\}.*query|query.*\$\{|\+.*query|query.*\+/i.test(line) && /sql|select|insert|update|delete/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Potential SQL injection: Query uses string concatenation instead of parameterized queries',
+        line: lineNum,
+        severity: 'critical',
+        code: line.trim(),
+        pattern: 'sql_injection'
+      });
+    }
+    
+    // XSS Detection
+    if (/innerHTML|outerHTML|document\.write/i.test(line) && !/sanitize|escape|encode/i.test(line)) {
+      issues.push({
+        type: 'security', 
+        message: 'Potential XSS: Dynamic HTML insertion without sanitization',
+        line: lineNum,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'xss_vulnerability'
+      });
+    }
+    
+    // Command Injection Detection
+    if (/exec|spawn|system/i.test(line) && /\$\{|\+|concat/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Potential command injection: System command uses unsanitized input',
+        line: lineNum,
+        severity: 'critical', 
+        code: line.trim(),
+        pattern: 'command_injection'
+      });
+    }
+    
+    // Hardcoded Secrets Detection
+    if (/(password|secret|key|token)\s*[:=]\s*["'][^"']{8,}/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Hardcoded secret detected: Sensitive data should be in environment variables',
+        line: lineNum,
+        severity: 'high',
+        code: line.replace(/["'][^"']*["']/, '"***REDACTED***"'),
+        pattern: 'hardcoded_secret'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 🐛 LOGIC BUG DETECTION  
+function detectLogicBugs(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var lineNum = index + 1;
+    
+    // Silent Exception Swallowing
+    if (/catch.*\{[\s]*\}|catch.*\{\s*\/\/|catch.*\{\s*console\.log/i.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Silent exception handling: Errors are caught but not properly handled',
+        line: lineNum,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'silent_exception'
+      });
+    }
+    
+    // Async Without Error Handling
+    if (/await\s+\w+\(/i.test(line) && !/try|catch/i.test(content.slice(content.indexOf(line) - 200, content.indexOf(line) + 200))) {
+      issues.push({
+        type: 'logic',
+        message: 'Unhandled async operation: await call without try-catch block',
+        line: lineNum,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'unhandled_async'
+      });
+    }
+    
+    // Null/Undefined Dereference
+    if (/\.length|\.push|\.map|\.filter/i.test(line) && !/if.*null|if.*undefined|\?\./i.test(line)) {
+      var prevLine = lines[index - 1] || '';
+      if (!/if.*null|if.*undefined/i.test(prevLine)) {
+        issues.push({
+          type: 'logic',
+          message: 'Potential null dereference: Object method called without null check',
+          line: lineNum,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'null_dereference'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+// ⚡ PERFORMANCE BUG DETECTION
+function detectPerformanceBugs(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var lineNum = index + 1;
+    
+    // Database Query in Loop
+    if (/for\s*\(|while\s*\(|\.forEach|\.map/i.test(line)) {
+      var nextFewLines = lines.slice(index, index + 10).join('\n');
+      if (/query|findOne|findMany|select|insert|update/i.test(nextFewLines)) {
+        issues.push({
+          type: 'performance',
+          message: 'N+1 Query Problem: Database query inside loop - consider batch operations',
+          line: lineNum,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'n_plus_one_query'
+        });
+      }
+    }
+    
+    // Inefficient Regex
+    if (/new RegExp|\/.*\*.*\/|\/.*\+.*\+/i.test(line)) {
+      issues.push({
+        type: 'performance',
+        message: 'Potentially inefficient regex: Complex pattern may cause performance issues',
+        line: lineNum,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'inefficient_regex'
+      });
+    }
+    
+    // Memory Leak Patterns
+    if (/addEventListener|setInterval|setTimeout/i.test(line) && !/removeEventListener|clearInterval|clearTimeout/i.test(content)) {
+      issues.push({
+        type: 'performance',
+        message: 'Potential memory leak: Event listener/timer added but never removed',
+        line: lineNum,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'memory_leak'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 🔗 CROSS-FILE RELATIONSHIP ANALYSIS (simplified for now)
+async function detectCrossFileIssues(content, filePath, repoDir) {
+  var issues = [];
+  
+  // This is where we'd do semantic indexing and cross-file analysis
+  // For now, just detect obvious import/export mismatches
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var lineNum = index + 1;
+    
+    // Import/Export Mismatch Detection (simplified)
+    if (/import.*from\s*["']\.\.?\//i.test(line)) {
+      var importPath = line.match(/from\s*["']([^"']+)["']/i);
+      if (importPath && !importPath[1].includes('node_modules')) {
+        // TODO: Check if imported file exists and exports match
+        // For now, just flag relative imports for review
+        issues.push({
+          type: 'logic',
+          message: 'Relative import detected - verify file exists and exports match',
+          line: lineNum,
+          severity: 'low',
+          code: line.trim(),
+          pattern: 'import_mismatch'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
 // 🧠 SMART AI ANALYSIS: Efficient and context-aware  
 async function performAIAnalysis(content, filePath) {
   console.log(`🧠 Running AI analysis for: ${filePath}`);
@@ -1324,8 +1545,8 @@ export const handler = async (event) => {
         var content = await fs.readFile(file, 'utf-8');
         var relativePath = path.relative(tempDir, file);
         
-        // ⚡ FAST ANALYSIS: Pattern-based for speed
-        var issues = performBasicAnalysis(content, relativePath);
+        // 🎯 SEMANTIC BUG DETECTION: Targeted analysis like real Greptile
+        var issues = await performSemanticBugDetection(content, relativePath, tempDir);
         
         processedFiles++;
         
