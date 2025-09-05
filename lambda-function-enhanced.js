@@ -329,30 +329,248 @@ function performBasicAnalysis(content, filePath) {
   return issues;
 }
 
-// 🎯 SEMANTIC BUG DETECTION: Like real Greptile - targeted, not generic
+// 🎯 COMPLETE STATIC ANALYSIS ENGINE - No AI, Pure Logic
 async function performSemanticBugDetection(content, filePath, repoDir) {
-  console.log(`🎯 Semantic analysis: ${filePath}`);
+  console.log(`🔍 Complete static analysis: ${filePath}`);
   
-  var issues = [];
-  var ext = path.extname(filePath).toLowerCase();
+  var allIssues = [];
   
-  // PHASE 1: TARGETED BUG PATTERN DETECTION (not generic "find bugs")
+  // 🔴 CRITICAL SECURITY CHECKS
+  allIssues = allIssues.concat(checkHardcodedSecrets(content, filePath));
+  allIssues = allIssues.concat(checkUnsafeAPIs(content, filePath));
+  allIssues = allIssues.concat(checkSQLInjection(content, filePath));
+  allIssues = allIssues.concat(checkCommandInjection(content, filePath));
+  allIssues = allIssues.concat(checkXSSVulnerabilities(content, filePath));
+  allIssues = allIssues.concat(checkInsecureOperations(content, filePath));
   
-  // 🔒 SECURITY BUG PATTERNS
-  issues = issues.concat(detectSecurityVulnerabilities(content, filePath));
+  // 🟠 HIGH PRIORITY LOGIC CHECKS  
+  allIssues = allIssues.concat(checkNullDereference(content, filePath));
+  allIssues = allIssues.concat(checkUnhandledPromises(content, filePath));
+  allIssues = allIssues.concat(checkResourceLeaks(content, filePath));
+  allIssues = allIssues.concat(checkRaceConditions(content, filePath));
+  allIssues = allIssues.concat(checkErrorHandling(content, filePath));
   
-  // 🐛 LOGIC BUG PATTERNS  
-  issues = issues.concat(detectLogicBugs(content, filePath));
+  // ⚡ PERFORMANCE CHECKS
+  allIssues = allIssues.concat(checkNPlusOneQueries(content, filePath));
+  allIssues = allIssues.concat(checkInefficiientRegex(content, filePath));
+  allIssues = allIssues.concat(checkMemoryLeaks(content, filePath));
+  allIssues = allIssues.concat(checkPerformanceAntipatterns(content, filePath));
   
-  // ⚡ PERFORMANCE BUG PATTERNS
-  issues = issues.concat(detectPerformanceBugs(content, filePath));
+  // 🔍 CODE QUALITY CHECKS
+  allIssues = allIssues.concat(checkComplexity(content, filePath));
+  allIssues = allIssues.concat(checkCodeSmells(content, filePath));
+  allIssues = allIssues.concat(checkBestPractices(content, filePath));
   
-  // 🔗 CROSS-FILE RELATIONSHIP BUGS (when we have context)
+  // 🔗 CROSS-FILE CHECKS (when repo context available)
   if (repoDir) {
-    issues = issues.concat(await detectCrossFileIssues(content, filePath, repoDir));
+    allIssues = allIssues.concat(checkUnusedImports(content, filePath));
+    allIssues = allIssues.concat(checkImportIssues(content, filePath, repoDir));
   }
   
-  console.log(`🎯 Found ${issues.length} semantic issues in ${filePath}`);
+  console.log(`🔍 Static analysis found ${allIssues.length} issues in ${filePath}`);
+  return allIssues;
+}
+
+// 🔴 CRITICAL SECURITY FUNCTIONS
+
+// 1. HARDCODED SECRETS DETECTION
+function checkHardcodedSecrets(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  var secretPatterns = [
+    { pattern: /(password|pwd|pass)\s*[:=]\s*["'][^"']{3,}["']/i, message: 'Hardcoded password detected' },
+    { pattern: /(api_?key|apikey)\s*[:=]\s*["'][^"']{10,}["']/i, message: 'Hardcoded API key detected' },
+    { pattern: /(secret|token)\s*[:=]\s*["'][^"']{8,}["']/i, message: 'Hardcoded secret/token detected' },
+    { pattern: /sk-[a-zA-Z0-9]{48}/i, message: 'OpenAI API key detected' },
+    { pattern: /ghp_[a-zA-Z0-9]{36}/i, message: 'GitHub token detected' },
+    { pattern: /AKIA[0-9A-Z]{16}/i, message: 'AWS access key detected' },
+    { pattern: /mongodb:\/\/[^:]+:[^@]+@/i, message: 'MongoDB connection string with credentials' },
+    { pattern: /postgres:\/\/[^:]+:[^@]+@/i, message: 'PostgreSQL connection string with credentials' }
+  ];
+  
+  lines.forEach((line, index) => {
+    secretPatterns.forEach(({ pattern, message }) => {
+      if (pattern.test(line)) {
+        issues.push({
+          type: 'security',
+          message: message + ' - use environment variables',
+          line: index + 1,
+          severity: 'critical',
+          code: line.replace(/["'][^"']*["']/, '"***REDACTED***"'),
+          pattern: 'hardcoded_secret'
+        });
+      }
+    });
+  });
+  
+  return issues;
+}
+
+// 2. UNSAFE APIS DETECTION  
+function checkUnsafeAPIs(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  var unsafeAPIs = [
+    { pattern: /eval\s*\(/i, message: 'eval() is dangerous - code injection vulnerability', severity: 'critical' },
+    { pattern: /Function\s*\(/i, message: 'Function() constructor allows code injection', severity: 'critical' },
+    { pattern: /setTimeout\s*\(\s*["']/i, message: 'setTimeout with string is unsafe - use function', severity: 'high' },
+    { pattern: /setInterval\s*\(\s*["']/i, message: 'setInterval with string is unsafe - use function', severity: 'high' },
+    { pattern: /document\.write\s*\(/i, message: 'document.write() can cause XSS vulnerabilities', severity: 'high' },
+    { pattern: /innerHTML\s*=(?!\s*["'][\s]*["'])/i, message: 'innerHTML assignment without sanitization - XSS risk', severity: 'high' },
+    { pattern: /outerHTML\s*=/i, message: 'outerHTML assignment - XSS risk', severity: 'high' },
+    { pattern: /dangerouslySetInnerHTML/i, message: 'React dangerouslySetInnerHTML - ensure content is sanitized', severity: 'medium' },
+    { pattern: /pickle\.loads?\s*\(/i, message: 'pickle.load() can execute arbitrary code', severity: 'critical' },
+    { pattern: /yaml\.load\s*\(/i, message: 'yaml.load() without safe_load is dangerous', severity: 'critical' },
+    { pattern: /os\.system\s*\(/i, message: 'os.system() vulnerable to command injection', severity: 'critical' },
+    { pattern: /shell\s*=\s*True/i, message: 'subprocess with shell=True enables command injection', severity: 'high' }
+  ];
+  
+  lines.forEach((line, index) => {
+    unsafeAPIs.forEach(({ pattern, message, severity }) => {
+      if (pattern.test(line)) {
+        issues.push({
+          type: 'security',
+          message: message,
+          line: index + 1,
+          severity: severity,
+          code: line.trim(),
+          pattern: 'unsafe_api'
+        });
+      }
+    });
+  });
+  
+  return issues;
+}
+
+// 3. SQL INJECTION DETECTION
+function checkSQLInjection(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // String concatenation in SQL queries
+    if ((/query|select|insert|update|delete|execute/i.test(line)) && 
+        (/\+.*["']|["'].*\+|\$\{|\`\$\{|format\(|f["']/i.test(line))) {
+      issues.push({
+        type: 'security',
+        message: 'SQL injection risk: Use parameterized queries instead of string concatenation',
+        line: index + 1,
+        severity: 'critical',
+        code: line.trim(),
+        pattern: 'sql_injection'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 4. COMMAND INJECTION DETECTION
+function checkCommandInjection(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  var commandAPIs = ['exec(', 'spawn(', 'system(', 'popen(', 'subprocess.'];
+  
+  lines.forEach((line, index) => {
+    commandAPIs.forEach(api => {
+      if (line.includes(api) && (/\+|\$\{|format\(|f["']|\%s|\%d/i.test(line))) {
+        issues.push({
+          type: 'security',
+          message: 'Command injection risk: User input in system commands - use parameterized execution',
+          line: index + 1,
+          severity: 'critical',
+          code: line.trim(),
+          pattern: 'command_injection'
+        });
+      }
+    });
+  });
+  
+  return issues;
+}
+
+// 5. XSS VULNERABILITIES
+function checkXSSVulnerabilities(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Unsafe HTML insertion
+    if (/innerHTML|outerHTML|insertAdjacentHTML/i.test(line) && 
+        !/sanitize|escape|encode|textContent/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'XSS vulnerability: HTML insertion without sanitization',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'xss_vulnerability'
+      });
+    }
+    
+    // Direct user input in HTML
+    if (/\$\{.*input.*\}|\+.*input.*\+/i.test(line) && /html|template/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'XSS risk: User input directly in HTML template',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'xss_vulnerability'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 6. INSECURE OPERATIONS
+function checkInsecureOperations(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Disabled SSL verification
+    if (/verify\s*=\s*False|VERIFY_NONE|rejectUnauthorized.*false/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'SSL verification disabled - man-in-the-middle attack risk',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'insecure_ssl'
+      });
+    }
+    
+    // Weak cryptographic algorithms
+    if (/MD5|SHA1|DES(?!C)|RC4/i.test(line) && !/SHA1[0-9]|HMAC/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Weak cryptographic algorithm - use SHA-256 or better',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'weak_crypto'
+      });
+    }
+    
+    // Insecure random number generation
+    if (/Math\.random\(\)|random\.random\(\)/i.test(line) && /token|password|key|secret/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Insecure random generation for security purposes - use crypto.randomBytes()',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'insecure_random'
+      });
+    }
+  });
+  
   return issues;
 }
 
