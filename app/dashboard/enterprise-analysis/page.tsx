@@ -406,7 +406,7 @@ export default function EnterpriseAnalysisPage() {
                    const actualTotalBatches = Math.ceil(data.stats.totalFilesInRepo / filesPerBatch)
                    if (actualTotalBatches !== estimatedTotalBatches) {
                      estimatedTotalBatches = actualTotalBatches
-                     console.log(`📊 Updated estimate: ${estimatedTotalBatches} total batches (200 files each) based on ${data.stats.totalFilesInRepo} files`)
+                     console.log(`📊 Updated estimate: ${estimatedTotalBatches} total batches (50 files each) based on ${data.stats.totalFilesInRepo} files`)
                    }
                  }
           
