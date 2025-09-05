@@ -5,6 +5,162 @@ import path from 'path';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 console.log('🔑 OpenAI API Key status:', OPENAI_API_KEY ? 'FOUND' : 'MISSING');
 
+// REAL STATIC ANALYSIS: Use industry-standard tools
+function performRealAnalysis(content, filePath, tempDir) {
+  console.log(`🎯 Running REAL static analysis for: ${filePath}`);
+  
+  var issues = [];
+  var ext = path.extname(filePath).toLowerCase();
+  var fileName = path.basename(filePath);
+  var fullPath = path.join(tempDir, filePath);
+  
+  try {
+    // Write file to disk for tool analysis
+    var fs = require('fs').promises;
+    var dirPath = path.dirname(fullPath);
+    execSync(`mkdir -p "${dirPath}"`, { stdio: 'ignore' });
+    require('fs').writeFileSync(fullPath, content);
+    
+    // Run appropriate static analysis tool based on file type
+    if (['.js', '.jsx', '.ts', '.tsx'].includes(ext)) {
+      issues = runESLintAnalysis(fullPath, content);
+    } else if (['.py', '.pyx'].includes(ext)) {
+      issues = runPylintAnalysis(fullPath, content);
+    } else if (['.cpp', '.cc', '.c', '.h', '.hpp'].includes(ext)) {
+      issues = runCppCheckAnalysis(fullPath, content);
+    } else if (['.java'].includes(ext)) {
+      issues = runSpotBugsAnalysis(fullPath, content);
+    } else {
+      // Fallback to basic analysis for unsupported types
+      issues = performBasicAnalysis(content, filePath);
+    }
+    
+  } catch (error) {
+    console.warn(`⚠️ Real analysis failed for ${filePath}, using fallback:`, error.message);
+    issues = performBasicAnalysis(content, filePath);
+  }
+  
+  return issues;
+}
+
+// ESLint integration for JavaScript/TypeScript
+function runESLintAnalysis(filePath, content) {
+  var issues = [];
+  
+  try {
+    // Run ESLint with strict rules
+    var eslintCmd = `npx eslint --format json --no-eslintrc --config '{
+      "parserOptions": { "ecmaVersion": 2022, "sourceType": "module", "ecmaFeatures": { "jsx": true } },
+      "env": { "browser": true, "node": true, "es6": true },
+      "rules": {
+        "no-eval": "error",
+        "no-implied-eval": "error", 
+        "no-new-func": "error",
+        "no-script-url": "error",
+        "no-unsafe-innerhtml/no-unsafe-innerhtml": "error",
+        "react-hooks/exhaustive-deps": "error",
+        "react-hooks/rules-of-hooks": "error",
+        "no-unused-vars": "error",
+        "no-undef": "error",
+        "prefer-const": "error",
+        "no-var": "error"
+      }
+    }' "${filePath}" 2>/dev/null || echo '[]'`;
+    
+    var result = execSync(eslintCmd, { encoding: 'utf8', stdio: 'pipe' });
+    var eslintResults = JSON.parse(result);
+    
+    if (eslintResults[0] && eslintResults[0].messages) {
+      eslintResults[0].messages.forEach(function(msg) {
+        issues.push({
+          type: msg.severity === 2 ? 'error' : 'warning',
+          message: msg.message,
+          line: msg.line,
+          code: content.split('\n')[msg.line - 1] || '',
+          severity: msg.severity === 2 ? 'high' : 'medium',
+          rule: msg.ruleId
+        });
+      });
+    }
+    
+  } catch (error) {
+    console.warn(`ESLint failed for ${filePath}:`, error.message);
+  }
+  
+  return issues;
+}
+
+// Pylint integration for Python
+function runPylintAnalysis(filePath, content) {
+  var issues = [];
+  
+  try {
+    var pylintCmd = `python3 -m pylint --output-format=json --disable=all --enable=unused-import,unused-variable,undefined-variable,dangerous-default-value,eval-used "${filePath}" 2>/dev/null || echo '[]'`;
+    
+    var result = execSync(pylintCmd, { encoding: 'utf8', stdio: 'pipe' });
+    var pylintResults = JSON.parse(result);
+    
+    pylintResults.forEach(function(issue) {
+      issues.push({
+        type: issue.type,
+        message: issue.message,
+        line: issue.line,
+        code: content.split('\n')[issue.line - 1] || '',
+        severity: issue.type === 'error' ? 'high' : 'medium',
+        rule: issue['message-id']
+      });
+    });
+    
+  } catch (error) {
+    console.warn(`Pylint failed for ${filePath}:`, error.message);
+  }
+  
+  return issues;
+}
+
+// CppCheck integration for C/C++
+function runCppCheckAnalysis(filePath, content) {
+  var issues = [];
+  
+  try {
+    var cppcheckCmd = `cppcheck --enable=all --xml --xml-version=2 "${filePath}" 2>&1 | grep -E '<error|<location' || echo '<results></results>'`;
+    
+    var result = execSync(cppcheckCmd, { encoding: 'utf8', stdio: 'pipe' });
+    
+    // Parse XML results (simplified)
+    var errorMatches = result.match(/<error[^>]*msg="([^"]*)"[^>]*line="([^"]*)"[^>]*severity="([^"]*)"/g);
+    
+    if (errorMatches) {
+      errorMatches.forEach(function(match) {
+        var msgMatch = match.match(/msg="([^"]*)"/);
+        var lineMatch = match.match(/line="([^"]*)"/);
+        var severityMatch = match.match(/severity="([^"]*)"/);
+        
+        if (msgMatch && lineMatch) {
+          issues.push({
+            type: 'cppcheck',
+            message: msgMatch[1],
+            line: parseInt(lineMatch[1]) || 1,
+            code: content.split('\n')[parseInt(lineMatch[1]) - 1] || '',
+            severity: severityMatch && severityMatch[1] === 'error' ? 'high' : 'medium'
+          });
+        }
+      });
+    }
+    
+  } catch (error) {
+    console.warn(`CppCheck failed for ${filePath}:`, error.message);
+  }
+  
+  return issues;
+}
+
+// SpotBugs integration for Java
+function runSpotBugsAnalysis(filePath, content) {
+  // For now, fallback to basic analysis for Java
+  return performBasicAnalysis(content, filePath);
+}
+
 // Fallback basic analysis (HIGHLY SELECTIVE - only critical issues)
 function performBasicAnalysis(content, filePath) {
   console.log(`🔧 Using selective fallback analysis for: ${filePath}`);
@@ -173,58 +329,253 @@ function performBasicAnalysis(content, filePath) {
   return issues;
 }
 
-// 🧠 SIMPLIFIED RULE GENERATOR: Fast and reliable
-async function generateCustomRules(repoContext) {
-  // Skip AI generation for now - use hardcoded reliable rules
-  console.log('⚡ Using fast hardcoded rules instead of AI generation');
+// 🧠 SMART AI ANALYSIS: Efficient and context-aware  
+async function performAIAnalysis(content, filePath) {
+  console.log(`🧠 Running AI analysis for: ${filePath}`);
   
-  return `{
-    findSecurityIssues: function(content, lines, filePath) {
-      var issues = [];
-      if (content.indexOf('dangerouslySetInnerHTML') !== -1) {
-        issues.push({
-          type: 'security',
-          message: 'XSS risk with dangerouslySetInnerHTML',
-          line: 1,
-          code: 'dangerouslySetInnerHTML',
-          severity: 'high'
-        });
-      }
-      if (content.indexOf('eval(') !== -1) {
-        issues.push({
-          type: 'security',
-          message: 'Code injection risk with eval()',
-          line: 1,
-          code: 'eval(',
-          severity: 'critical'
-        });
-      }
-      return issues;
-    },
-
-    findPerformanceIssues: function(content, lines, filePath) {
-      var issues = [];
-      if (content.indexOf('useEffect') !== -1 && content.indexOf('[]') === -1 && content.indexOf('[') === -1) {
-        issues.push({
-          type: 'performance', 
-          message: 'useEffect without dependencies may cause infinite re-renders',
-          line: 1,
-          code: 'useEffect',
-          severity: 'medium'
-        });
-      }
-      return issues;
-    },
-
-    executeRules: function(content, filePath) {
-      var allIssues = [];
-      if (filePath.match(/\\.(js|jsx|ts|tsx)$/)) {
-        allIssues = allIssues.concat(this.findSecurityIssues(content, content.split('\\n'), filePath));
-        allIssues = allIssues.concat(this.findPerformanceIssues(content, content.split('\\n'), filePath));
-      }
-      return allIssues;
+  if (!OPENAI_API_KEY) {
+    console.warn('⚠️ OpenAI API key missing, using fallback analysis');
+    return performBasicAnalysis(content, filePath);
+  }
+  
+  try {
+    // Smart filtering: Only analyze files with potential issues
+    var hasSecurityKeywords = /password|token|secret|eval|innerHTML|sql|query|auth|dangerous/i.test(content);
+    var hasPerformanceKeywords = /useEffect|useState|for.*in|while|setTimeout|setInterval/i.test(content);
+    var hasErrorKeywords = /try|catch|throw|error|exception|null|undefined/i.test(content);
+    var isComplexFile = content.length > 1000;
+    
+    // Skip simple files to save tokens and time
+    if (!hasSecurityKeywords && !hasPerformanceKeywords && !hasErrorKeywords && !isComplexFile) {
+      console.log(`⏭️ Skipping simple file: ${filePath} (no risk patterns)`);
+      return [];
     }
-  }`;
+    
+    // Truncate very large files to save tokens (keep most important parts)
+    var analysisContent = content;
+    if (content.length > 3000) {
+      var lines = content.split('\n');
+      var importSection = lines.slice(0, 20).join('\n');  // Keep imports
+      var mainSection = lines.slice(20, -20).join('\n').substring(0, 2000); // Middle part
+      var endSection = lines.slice(-20).join('\n');  // Keep end
+      analysisContent = importSection + '\n// ... (middle truncated) ...\n' + mainSection + '\n// ... (end part) ...\n' + endSection;
+    }
+    
+    var ext = path.extname(filePath).toLowerCase();
+    var language = ext === '.py' ? 'Python' : ext === '.js' || ext === '.jsx' ? 'JavaScript' : 
+                   ext === '.ts' || ext === '.tsx' ? 'TypeScript' : ext === '.cpp' || ext === '.cc' ? 'C++' : 
+                   ext === '.c' ? 'C' : ext === '.java' ? 'Java' : 'code';
+    
+    var prompt = `You are an expert ${language} security and performance analyst. Analyze this code for CRITICAL issues only.
+
+FOCUS ON:
+1. 🔒 Security: XSS, injection, secrets, unsafe operations
+2. ⚡ Performance: infinite loops, memory leaks, inefficient algorithms  
+3. 🐛 Logic: null pointers, race conditions, error handling
+
+File: ${filePath}
+\`\`\`${language.toLowerCase()}
+${analysisContent}
+\`\`\`
+
+Return ONLY a JSON array of real issues. Be precise with line numbers:
+[{"type": "security|performance|logic", "message": "specific issue description", "line": actual_line_number, "severity": "critical|high|medium", "code": "exact problematic line"}]
+
+Rules:
+- Only return ACTUAL problems, not style/formatting
+- Line numbers must be accurate
+- Be specific in messages (not generic)
+- Return [] if no critical issues found
+- Max 10 issues per file`;
+
+    var response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',  // Fast and cost-effective
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 800,  // Reasonable response size
+        temperature: 0.1  // Consistent results
+      })
+    });
+    
+    if (!response.ok) {
+      console.error(`❌ OpenAI API error: ${response.status}`);
+      return performBasicAnalysis(content, filePath);
+    }
+    
+    var data = await response.json();
+    var aiResponse = data.choices[0].message.content.trim();
+    
+    // Extract JSON from response
+    var jsonMatch = aiResponse.match(/\[[\s\S]*?\]/);
+    if (jsonMatch) {
+      try {
+        var issues = JSON.parse(jsonMatch[0]);
+        console.log(`🧠 AI found ${issues.length} issues in ${filePath}`);
+        return Array.isArray(issues) ? issues : [];
+      } catch (parseError) {
+        console.warn(`⚠️ Failed to parse AI JSON for ${filePath}:`, parseError.message);
+        return [];
+      }
+    } else {
+      console.log(`ℹ️ AI found no issues in ${filePath}`);
+      return [];
+    }
+    
+  } catch (error) {
+    console.error(`❌ AI analysis failed for ${filePath}:`, error.message);
+    return performBasicAnalysis(content, filePath);
+  }
+}
+
+// 🚀 GREPTILE KILLER: HYBRID ANALYSIS ENGINE
+async function performHybridAnalysis(content, filePath, tempDir) {
+  console.log(`🔥 HYBRID ANALYSIS: ${filePath}`);
+  
+  var allIssues = [];
+  var ext = path.extname(filePath).toLowerCase();
+  var startTime = Date.now();
+  
+  try {
+    // PHASE 1: ⚡ LIGHTNING-FAST STATIC ANALYSIS (0.1-0.5 seconds)
+    console.log(`⚡ Phase 1: Static analysis for ${filePath}`);
+    var staticIssues = await performRealAnalysis(content, filePath, tempDir);
+    
+    if (staticIssues && staticIssues.length > 0) {
+      staticIssues.forEach(function(issue) {
+        issue.source = 'static';
+        issue.confidence = 'high'; // Static analysis is always confident
+      });
+      allIssues = allIssues.concat(staticIssues);
+      console.log(`⚡ Static found ${staticIssues.length} issues`);
+    }
+    
+    // PHASE 2: 🧠 SMART AI ANALYSIS (1-3 seconds, selective)
+    var shouldUseAI = decideShouldUseAI(content, filePath, staticIssues);
+    
+    if (shouldUseAI && OPENAI_API_KEY) {
+      console.log(`🧠 Phase 2: AI analysis for ${filePath}`);
+      var aiIssues = await performAIAnalysis(content, filePath);
+      
+      if (aiIssues && aiIssues.length > 0) {
+        // Deduplicate and enhance AI issues
+        var uniqueAIIssues = deduplicateIssues(staticIssues, aiIssues);
+        
+        uniqueAIIssues.forEach(function(issue) {
+          issue.source = 'ai';
+          issue.confidence = 'medium'; // AI might have false positives
+          issue.explanation = `AI detected: ${issue.message}`;
+        });
+        
+        allIssues = allIssues.concat(uniqueAIIssues);
+        console.log(`🧠 AI found ${uniqueAIIssues.length} additional issues`);
+      }
+    } else {
+      console.log(`⏭️ Skipping AI analysis: ${!shouldUseAI ? 'not needed' : 'no API key'}`);
+    }
+    
+    // PHASE 3: 🎯 PRIORITY SCORING & RANKING
+    allIssues = prioritizeIssues(allIssues, content, filePath);
+    
+    var analysisTime = Date.now() - startTime;
+    console.log(`🔥 HYBRID COMPLETE: ${allIssues.length} total issues in ${analysisTime}ms`);
+    
+    return allIssues;
+    
+  } catch (error) {
+    console.error(`❌ Hybrid analysis failed for ${filePath}:`, error.message);
+    return performBasicAnalysis(content, filePath);
+  }
+}
+
+// 🎯 INTELLIGENT AI DECISION ENGINE
+function decideShouldUseAI(content, filePath, staticIssues) {
+  var ext = path.extname(filePath).toLowerCase();
+  
+  // Always use AI for complex files
+  if (content.length > 2000) return true;
+  
+  // Use AI if static analysis found critical issues (for better explanations)
+  if (staticIssues && staticIssues.some(issue => issue.severity === 'critical')) return true;
+  
+  // Use AI for security-sensitive files
+  if (/password|token|secret|auth|crypto|security/i.test(content)) return true;
+  
+  // Use AI for complex React components
+  if (['.jsx', '.tsx'].includes(ext) && /useEffect|useState|useContext/i.test(content)) return true;
+  
+  // Use AI for C/C++ with pointers (memory safety)
+  if (['.c', '.cpp', '.cc'].includes(ext) && /\*|malloc|free|delete/i.test(content)) return true;
+  
+  // Use AI for Python with ML/AI libraries
+  if (ext === '.py' && /tensorflow|pytorch|numpy|pandas/i.test(content)) return true;
+  
+  // Skip AI for simple files
+  return false;
+}
+
+// 🔄 SMART DEDUPLICATION ENGINE  
+function deduplicateIssues(staticIssues, aiIssues) {
+  if (!staticIssues || staticIssues.length === 0) return aiIssues;
+  if (!aiIssues || aiIssues.length === 0) return [];
+  
+  var uniqueAIIssues = [];
+  
+  aiIssues.forEach(function(aiIssue) {
+    var isDuplicate = staticIssues.some(function(staticIssue) {
+      // Same line number and similar message
+      return Math.abs(aiIssue.line - staticIssue.line) <= 2 && 
+             (aiIssue.message.toLowerCase().includes(staticIssue.message.toLowerCase().substring(0, 20)) ||
+              staticIssue.message.toLowerCase().includes(aiIssue.message.toLowerCase().substring(0, 20)));
+    });
+    
+    if (!isDuplicate) {
+      uniqueAIIssues.push(aiIssue);
+    }
+  });
+  
+  return uniqueAIIssues;
+}
+
+// 🏆 INTELLIGENT PRIORITY SCORING
+function prioritizeIssues(issues, content, filePath) {
+  issues.forEach(function(issue) {
+    var score = 0;
+    
+    // Base severity score
+    if (issue.severity === 'critical') score += 100;
+    else if (issue.severity === 'high') score += 75;
+    else if (issue.severity === 'medium') score += 50;
+    else score += 25;
+    
+    // Source confidence boost
+    if (issue.source === 'static') score += 20; // Static analysis is reliable
+    if (issue.source === 'ai') score += 10;     // AI provides context
+    
+    // Security issues get priority
+    if (issue.type === 'security') score += 30;
+    
+    // Performance issues in hot paths
+    if (issue.type === 'performance' && /loop|render|effect/i.test(issue.message)) score += 15;
+    
+    // Critical files get attention
+    if (/index|main|app|server|auth|security/i.test(filePath)) score += 10;
+    
+    issue.priorityScore = score;
+  });
+  
+  // Sort by priority score (highest first)
+  return issues.sort(function(a, b) { return b.priorityScore - a.priorityScore; });
+}
+
+// Keep the old function for compatibility
+async function generateCustomRules(repoContext) {
+  console.log('🔥 Using HYBRID analysis engine (Static + AI)');
+  return null; // Signal to use hybrid analysis
 }
 
 // 🚀 EXECUTE AI-GENERATED RULES ON ALL FILES
@@ -551,7 +902,9 @@ export const handler = async (event) => {
       try {
         var content = await fs.readFile(file, 'utf-8');
         var relativePath = path.relative(tempDir, file);
-        var issues = performBasicAnalysis(content, relativePath);
+        
+        // 🚀 HYBRID ANALYSIS: Static + AI for maximum coverage
+        var issues = await performHybridAnalysis(content, relativePath, tempDir);
         
         processedFiles++;
         
