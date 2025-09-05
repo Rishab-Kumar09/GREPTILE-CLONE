@@ -1030,20 +1030,18 @@ function willNeedAIAnalysis(content, filePath, classification) {
   return false;
 }
 
-// Conservative batch sizing to avoid timeouts
+// FAST & SIMPLE batch sizing - prioritize speed over perfection
 function calculateAdaptiveBatchSize(totalFiles, batchNumber) {
-  // Much smaller batches to avoid 504 timeouts
-  if (totalFiles < 100) {
-    return Math.min(15, totalFiles); // Small repos: 15 files per batch
-  } else if (totalFiles < 1000) {
-    return batchNumber <= 3 ? 25 : 15; // Medium repos: 25 then 15
-  } else if (totalFiles < 5000) {
-    return batchNumber <= 2 ? 50 : 25; // Large repos: 50 then 25
+  // MUCH LARGER batches for speed - accept some timeout risk for performance
+  if (totalFiles < 500) {
+    return Math.min(100, totalFiles); // Small repos: 100 files per batch
+  } else if (totalFiles < 2000) {
+    return 150; // Medium repos: 150 files per batch
+  } else if (totalFiles < 10000) {
+    return 200; // Large repos: 200 files per batch  
   } else {
-    // Very large repos: Conservative sizing to avoid timeouts
-    if (batchNumber <= 2) return 75;       // First 2 batches: 75 files (likely configs/docs)
-    else if (batchNumber <= 8) return 35;  // Next 6 batches: 35 files (mixed)
-    else return 15;                        // Remaining batches: 15 files (likely complex)
+    // Huge repos: Still large batches for speed
+    return 250; // 250 files per batch = ~18 batches for React
   }
 }
 
@@ -1321,19 +1319,13 @@ export const handler = async (event) => {
     var MAX_BATCH_TIME_MS = 10000; // 10 seconds max per batch to avoid 504 timeouts
     
     for (var i = 0; i < filesToProcess.length; i++) {
-      // Check for timeout to prevent 504 errors
-      if (Date.now() - batchStartTime > MAX_BATCH_TIME_MS) {
-        console.warn(`⏰ Batch timeout reached after ${Date.now() - batchStartTime}ms, stopping early`);
-        console.warn(`📊 Processed ${processedFiles}/${filesToProcess.length} files before timeout`);
-        break;
-      }
       var file = filesToProcess[i];
       try {
         var content = await fs.readFile(file, 'utf-8');
         var relativePath = path.relative(tempDir, file);
         
-        // 🚀 HYBRID ANALYSIS: Static + AI for maximum coverage
-        var issues = await performHybridAnalysis(content, relativePath, tempDir);
+        // ⚡ FAST ANALYSIS: Pattern-based for speed
+        var issues = performBasicAnalysis(content, relativePath);
         
         processedFiles++;
         
