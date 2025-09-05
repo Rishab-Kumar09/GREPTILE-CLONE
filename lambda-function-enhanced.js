@@ -329,13 +329,32 @@ export const handler = async (event) => {
     console.log(`📥 Shallow cloning full repository ${isFileBatched ? `(file batch ${batchNumber})` : '(single analysis)'}...`);
     await fs.mkdir(tempDir, { recursive: true });
     
+    // Try git layer first, fallback to system git
     var gitPath = '/opt/bin/git'; // From git layer
+    try {
+      // Test if git layer exists
+      execSync(`${gitPath} --version`, { stdio: 'pipe' });
+      console.log('✅ Using git from Lambda layer: /opt/bin/git');
+    } catch (error) {
+      console.warn('⚠️ Git layer not found, using system git');
+      gitPath = 'git';
+    }
     
     // ALWAYS do shallow clone of complete repository
     console.log('🌊 Performing SHALLOW CLONE of full repository');
     var cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
-    execSync(cloneCmd, { stdio: 'pipe' });
-    console.log('✅ Shallow clone successful');
+    console.log(`📋 Clone command: ${cloneCmd}`);
+    
+    try {
+      execSync(cloneCmd, { stdio: 'pipe' });
+      console.log('✅ Shallow clone successful');
+    } catch (cloneError) {
+      console.error('❌ Git clone failed:', cloneError.message);
+      console.error('📋 Failed command:', cloneCmd);
+      console.error('🔍 Repository URL:', repoUrl);
+      console.error('📁 Target directory:', tempDir);
+      throw new Error(`Failed to clone repository: ${cloneError.message}`);
+    }
     
     // Step 2: Find ALL code files from full repository
     console.log('📁 Finding ALL code files from full repository...');
