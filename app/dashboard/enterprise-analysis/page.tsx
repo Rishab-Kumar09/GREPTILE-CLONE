@@ -912,8 +912,7 @@ export default function EnterpriseAnalysisPage() {
               <div className="text-center">
                 <div className="text-2xl font-bold text-red-600">
                   {status.results.filter((r: any) => 
-                    r.severity === 'critical' || r.severity === 'high' || 
-                    (r.description && (r.description.includes('HIGH:') || r.description.includes('CRITICAL:')))
+                    r.severity === 'critical' || r.severity === 'high'
                   ).length}
                 </div>
                 <div className="text-sm text-gray-500">High Priority</div>
@@ -921,8 +920,7 @@ export default function EnterpriseAnalysisPage() {
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">
                   {status.results.filter((r: any) => 
-                    r.severity === 'medium' || 
-                    (r.description && r.description.includes('MEDIUM:'))
+                    r.severity === 'medium'
                   ).length}
                 </div>
                 <div className="text-sm text-gray-500">Medium Priority</div>
@@ -930,9 +928,7 @@ export default function EnterpriseAnalysisPage() {
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
                   {status.results.filter((r: any) => 
-                    r.severity === 'low' || r.severity === 'info' || 
-                    (r.description && (r.description.includes('INFO:') || r.description.includes('LOW:'))) ||
-                    r.type === 'suggestion' || r.type === 'maintainability' || r.type === 'code-quality'
+                    r.severity === 'low' || r.severity === 'info' || r.severity === 'informational'
                   ).length}
                 </div>
                 <div className="text-sm text-gray-500">Informational</div>

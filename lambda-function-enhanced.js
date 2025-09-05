@@ -372,7 +372,7 @@ async function performSemanticBugDetection(content, filePath, repoDir) {
     issue.severity === 'critical' || issue.severity === 'high' || issue.severity === 'medium'
   );
   
-  console.log(`🔍 Static analysis found ${criticalIssues.length} critical/high/medium issues in ${filePath} (filtered out ${allIssues.length - criticalIssues.length} low-priority noise)`);
+  console.log(`🔍 Static analysis found ${criticalIssues.length} critical/high/medium issues in ${filePath} (filtered out ${allIssues.length - criticalIssues.length} low-priority/informational noise)`);
   return criticalIssues;
 }
 
@@ -2413,11 +2413,10 @@ export const handler = async (event) => {
       }
     }
     
-    // Step 4: Analyze files using fallback analysis (simple and fast)
+    // Step 4: Analyze files using semantic bug detection (no timeouts for speed)
     var processedFiles = 0;
     var totalIssues = 0;
     var batchStartTime = Date.now();
-    var MAX_BATCH_TIME_MS = 10000; // 10 seconds max per batch to avoid 504 timeouts
     
     for (var i = 0; i < filesToProcess.length; i++) {
       var file = filesToProcess[i];

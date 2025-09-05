@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
               file: fileResult.file,
               line: issue.line,
               code: issue.code,
+              severity: issue.severity, // ✅ Pass through severity for proper frontend categorization
               description: `${issue.severity.toUpperCase()}: ${issue.message}`
             })
           })
