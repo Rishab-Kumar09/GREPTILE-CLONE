@@ -379,6 +379,61 @@ function performBasicAnalysis(content, filePath) {
         severity: 'high'
       });
     }
+    
+    // 6. CRITICAL: Environment variable issues (common deployment failure)
+    if (trimmedLine.match(/process\.env\./) && !content.includes('||') && !content.includes('??')) {
+      issues.push({
+        type: 'deployment',
+        message: 'Missing fallback for environment variable - will crash if undefined',
+        line: lineNum,
+        code: trimmedLine.substring(0, 80),
+        severity: 'critical'
+      });
+    }
+    
+    // 7. HIGH: Unhandled promise rejections (silent failures)
+    if (trimmedLine.match(/\.then\(/) && !trimmedLine.includes('.catch(') && !content.includes('.catch(')) {
+      issues.push({
+        type: 'error-handling',
+        message: 'Unhandled promise rejection - will cause silent failures',
+        line: lineNum,
+        code: trimmedLine.substring(0, 80),
+        severity: 'high'
+      });
+    }
+    
+    // 8. REACT-SPECIFIC: useEffect without dependencies (infinite loops)
+    if (isReactFile && trimmedLine.match(/useEffect\s*\([^,]+\)/) && !trimmedLine.includes('[')) {
+      issues.push({
+        type: 'performance',
+        message: 'useEffect without dependencies - will cause infinite re-renders',
+        line: lineNum,
+        code: trimmedLine.substring(0, 80),
+        severity: 'critical'
+      });
+    }
+    
+    // 9. HIGH: CORS issues (API call failures)
+    if (trimmedLine.match(/fetch\s*\(\s*["'`]https?:\/\//) && !content.includes('cors') && !content.includes('Access-Control')) {
+      issues.push({
+        type: 'connectivity',
+        message: 'Potential CORS issue with external API call',
+        line: lineNum,
+        code: trimmedLine.substring(0, 80),
+        severity: 'high'
+      });
+    }
+    
+    // 10. CRITICAL: Database connection without error handling
+    if ((trimmedLine.match(/\.connect\(/) || trimmedLine.match(/\.query\(/)) && !content.includes('catch') && !content.includes('error')) {
+      issues.push({
+        type: 'connectivity',
+        message: 'Database operation without error handling - will crash on connection failure',
+        line: lineNum,
+        code: trimmedLine.substring(0, 80),
+        severity: 'critical'
+      });
+    }
   });
   
   console.log(`🔧 Selective fallback found ${issues.length} critical issues (filtered out noise)`);
@@ -831,8 +886,172 @@ async function buildRepositoryContext(filesToProcess, tempDir) {
   // Create summary
   repoContext.summary = `Repository batch with ${repoContext.fileContents.length} files`;
   
+  // Add cross-file analysis data
+  repoContext.crossFileAnalysis = analyzeCrossFileRelationships(repoContext);
+  
   console.log(`✅ Repository context built: ${repoContext.fileContents.length} files`);
   return repoContext;
+}
+
+// 🔗 CROSS-FILE ANALYSIS: Analyze relationships and dependencies between files
+function analyzeCrossFileRelationships(repoContext) {
+  console.log('🔗 Analyzing cross-file relationships...');
+  
+  var analysis = {
+    imports: [],
+    exports: [],
+    dependencies: [],
+    circularDeps: [],
+    unusedExports: [],
+    missingImports: [],
+    architecturalIssues: []
+  };
+  
+  var allImports = new Map();
+  var allExports = new Map();
+  
+  // Extract imports and exports from all files
+  repoContext.fileContents.forEach(function(file) {
+    var content = file.content;
+    var filePath = file.path;
+    
+    // Extract ES6 imports
+    var importMatches = content.match(/import\s+.*?\s+from\s+['"`]([^'"`]+)['"`]/g);
+    if (importMatches) {
+      importMatches.forEach(function(match) {
+        var moduleMatch = match.match(/from\s+['"`]([^'"`]+)['"`]/);
+        if (moduleMatch) {
+          var modulePath = moduleMatch[1];
+          if (!allImports.has(filePath)) allImports.set(filePath, []);
+          allImports.get(filePath).push(modulePath);
+          
+          analysis.imports.push({
+            file: filePath,
+            imports: modulePath,
+            line: content.split('\n').findIndex(function(line) { return line.includes(match); }) + 1
+          });
+        }
+      });
+    }
+    
+    // Extract CommonJS requires
+    var requireMatches = content.match(/require\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g);
+    if (requireMatches) {
+      requireMatches.forEach(function(match) {
+        var moduleMatch = match.match(/['"`]([^'"`]+)['"`]/);
+        if (moduleMatch) {
+          var modulePath = moduleMatch[1];
+          if (!allImports.has(filePath)) allImports.set(filePath, []);
+          allImports.get(filePath).push(modulePath);
+          
+          analysis.imports.push({
+            file: filePath,
+            imports: modulePath,
+            line: content.split('\n').findIndex(function(line) { return line.includes(match); }) + 1
+          });
+        }
+      });
+    }
+    
+    // Extract exports
+    var exportMatches = content.match(/export\s+(default\s+)?.*?/g);
+    if (exportMatches) {
+      exportMatches.forEach(function(match) {
+        if (!allExports.has(filePath)) allExports.set(filePath, []);
+        allExports.get(filePath).push(match);
+        
+        analysis.exports.push({
+          file: filePath,
+          exports: match,
+          line: content.split('\n').findIndex(function(line) { return line.includes(match); }) + 1
+        });
+      });
+    }
+  });
+  
+  // Detect circular dependencies (simplified)
+  allImports.forEach(function(imports, filePath) {
+    imports.forEach(function(importPath) {
+      if (importPath.startsWith('./') || importPath.startsWith('../')) {
+        // Check if imported file also imports this file
+        var resolvedPath = resolveRelativePath(filePath, importPath);
+        if (allImports.has(resolvedPath)) {
+          var reverseImports = allImports.get(resolvedPath);
+          var reverseResolvedPath = resolveRelativePath(resolvedPath, filePath);
+          if (reverseImports.some(function(imp) { 
+            return resolveRelativePath(resolvedPath, imp) === filePath; 
+          })) {
+            analysis.circularDeps.push({
+              file1: filePath,
+              file2: resolvedPath,
+              type: 'circular_dependency'
+            });
+          }
+        }
+      }
+    });
+  });
+  
+  // Detect potential architectural issues
+  repoContext.fileContents.forEach(function(file) {
+    var filePath = file.path;
+    var content = file.content;
+    
+    // Check for direct database access in UI components
+    if (filePath.includes('component') || filePath.includes('page')) {
+      if (content.match(/SELECT|INSERT|UPDATE|DELETE|query\(/i)) {
+        analysis.architecturalIssues.push({
+          file: filePath,
+          issue: 'Database access in UI component',
+          severity: 'high',
+          line: content.split('\n').findIndex(function(line) { 
+            return /SELECT|INSERT|UPDATE|DELETE|query\(/i.test(line); 
+          }) + 1
+        });
+      }
+    }
+    
+    // Check for business logic in view files
+    if (filePath.includes('view') || filePath.includes('template')) {
+      if (content.match(/function\s+\w+.*{[\s\S]{100,}}/)) {
+        analysis.architecturalIssues.push({
+          file: filePath,
+          issue: 'Complex business logic in view layer',
+          severity: 'medium',
+          line: 1
+        });
+      }
+    }
+  });
+  
+  console.log('🔗 Cross-file analysis complete:', {
+    imports: analysis.imports.length,
+    exports: analysis.exports.length,
+    circularDeps: analysis.circularDeps.length,
+    architecturalIssues: analysis.architecturalIssues.length
+  });
+  
+  return analysis;
+}
+
+// Helper function to resolve relative paths
+function resolveRelativePath(fromPath, toPath) {
+  if (!toPath.startsWith('./') && !toPath.startsWith('../')) {
+    return toPath;
+  }
+  
+  var fromDir = fromPath.split('/').slice(0, -1);
+  var toParts = toPath.split('/');
+  
+  toParts.forEach(function(part) {
+    if (part === '..') {
+      fromDir.pop();
+    } else if (part !== '.') {
+      fromDir.push(part);
+    }
+  });
+  
+  return fromDir.join('/');
 }
 
 // 🧠 REPOSITORY INTELLIGENCE: Analyze tech stack and architecture patterns
@@ -931,6 +1150,373 @@ function analyzeRepositoryTechStack(repoContext) {
   return techStack;
 }
 
+// 🎯 COMPREHENSIVE ANALYSIS TEMPLATES: Pre-defined checks for AI guidance
+function generateAnalysisTemplates(techStack) {
+  var templates = [];
+  
+  // 1. PERFORMANCE & OPTIMIZATION
+  var performanceChecks = [
+    'Memory leaks and resource cleanup',
+    'Inefficient algorithms and data structures',
+    'Unnecessary re-renders and computations',
+    'Large bundle sizes and code splitting issues',
+    'Database query optimization',
+    'Caching strategies and implementation',
+    'Async/await patterns and promise handling'
+  ];
+  
+  // Add framework-specific performance checks
+  if (techStack.type.includes('React')) {
+    performanceChecks.push(
+      'useEffect dependency arrays and infinite loops',
+      'React.memo and useMemo optimization opportunities',
+      'Component re-render cascades',
+      'Virtual DOM performance issues',
+      'State management inefficiencies'
+    );
+  } else if (techStack.type.includes('Vue')) {
+    performanceChecks.push(
+      'Computed properties vs methods usage',
+      'Watchers and reactive data optimization',
+      'Component lifecycle optimization'
+    );
+  } else if (techStack.type.includes('Kubernetes')) {
+    performanceChecks.push(
+      'Resource limits and requests configuration',
+      'Pod scaling and resource utilization',
+      'Network policies and service mesh performance'
+    );
+  }
+  
+  templates.push({
+    category: 'Performance & Optimization',
+    checks: performanceChecks
+  });
+  
+  // 2. SECURITY & VULNERABILITIES
+  var securityChecks = [
+    'Input validation and sanitization',
+    'Authentication and authorization bypasses',
+    'Data exposure and information leakage',
+    'Injection attacks (SQL, NoSQL, Command)',
+    'Cross-site scripting (XSS) vulnerabilities',
+    'Insecure direct object references',
+    'Security headers and HTTPS enforcement',
+    'Secrets and credentials in code'
+  ];
+  
+  if (techStack.type.includes('React') || techStack.type.includes('Next')) {
+    securityChecks.push(
+      'dangerouslySetInnerHTML without sanitization',
+      'Client-side routing security',
+      'API route authentication',
+      'CSRF protection in forms'
+    );
+  } else if (techStack.type.includes('Kubernetes')) {
+    securityChecks.push(
+      'Pod security policies and contexts',
+      'RBAC configurations and permissions',
+      'Network policies and ingress security',
+      'Secret management and encryption'
+    );
+  }
+  
+  templates.push({
+    category: 'Security & Vulnerabilities',
+    checks: securityChecks
+  });
+  
+  // 3. ARCHITECTURE & DESIGN PATTERNS
+  var architectureChecks = [
+    'Tight coupling and dependency issues',
+    'Circular dependencies between modules',
+    'Violation of SOLID principles',
+    'Improper separation of concerns',
+    'Anti-patterns and code smells',
+    'Inconsistent error handling patterns',
+    'Missing abstraction layers'
+  ];
+  
+  if (techStack.type.includes('React')) {
+    architectureChecks.push(
+      'Component composition vs inheritance',
+      'Props drilling and context overuse',
+      'State management architecture',
+      'Custom hooks design patterns'
+    );
+  } else if (techStack.type.includes('Express')) {
+    architectureChecks.push(
+      'Middleware ordering and design',
+      'Route organization and RESTful patterns',
+      'Error handling middleware'
+    );
+  }
+  
+  templates.push({
+    category: 'Architecture & Design Patterns',
+    checks: architectureChecks
+  });
+  
+  // 4. UI/UX & ACCESSIBILITY
+  var uiChecks = [
+    'Missing alt text and image descriptions',
+    'Poor color contrast and readability',
+    'Keyboard navigation and focus management',
+    'Screen reader compatibility',
+    'Mobile responsiveness and touch targets',
+    'Loading states and error messages',
+    'Form validation and user feedback'
+  ];
+  
+  if (techStack.type.includes('React') || techStack.type.includes('Vue') || techStack.type.includes('Angular')) {
+    uiChecks.push(
+      'Component accessibility props (aria-*)',
+      'Focus management in SPAs',
+      'Dynamic content announcements',
+      'Semantic HTML in components'
+    );
+  }
+  
+  templates.push({
+    category: 'UI/UX & Accessibility',
+    checks: uiChecks
+  });
+  
+  // 5. TESTING & RELIABILITY
+  var testingChecks = [
+    'Missing test coverage for critical paths',
+    'Brittle tests with implementation details',
+    'Inadequate error handling and edge cases',
+    'Missing integration and e2e tests',
+    'Test data management and mocking',
+    'Flaky tests and timing issues',
+    'Performance testing gaps'
+  ];
+  
+  templates.push({
+    category: 'Testing & Reliability',
+    checks: testingChecks
+  });
+  
+  // 6. DEPLOYMENT & RUNTIME ROADBLOCKS
+  var deploymentChecks = [
+    'Environment-specific configuration issues',
+    'Missing environment variables',
+    'Docker and containerization problems',
+    'Database migration and schema issues',
+    'Scaling and load balancing configuration',
+    'Monitoring and logging setup',
+    'CI/CD pipeline vulnerabilities',
+    'Health checks and readiness probes'
+  ];
+  
+  if (techStack.type.includes('Kubernetes')) {
+    deploymentChecks.push(
+      'Pod disruption budgets',
+      'Resource quotas and limits',
+      'Ingress and service configurations',
+      'ConfigMap and Secret management',
+      'Persistent volume configurations'
+    );
+  } else if (techStack.type.includes('Next')) {
+    deploymentChecks.push(
+      'Static generation vs SSR configuration',
+      'API route deployment issues',
+      'Build optimization and caching',
+      'CDN and asset delivery'
+    );
+  }
+  
+  templates.push({
+    category: 'Deployment & Runtime Roadblocks',
+    checks: deploymentChecks
+  });
+  
+  // 7. CODE QUALITY & MAINTAINABILITY
+  var maintainabilityChecks = [
+    'Technical debt and code complexity',
+    'Missing or outdated documentation',
+    'Inconsistent coding standards',
+    'Dead code and unused dependencies',
+    'Magic numbers and hardcoded values',
+    'Long functions and god classes',
+    'Refactoring opportunities'
+  ];
+  
+  templates.push({
+    category: 'Code Quality & Maintainability',
+    checks: maintainabilityChecks
+  });
+  
+  // 8. DATABASE & API CONNECTIVITY ISSUES
+  var connectivityChecks = [
+    'Database connection string issues',
+    'Missing database migrations or schema updates',
+    'API endpoint connectivity problems',
+    'CORS configuration issues',
+    'Authentication token expiration handling',
+    'Rate limiting and timeout configurations',
+    'Connection pool exhaustion',
+    'Database transaction deadlocks',
+    'API version compatibility issues',
+    'SSL/TLS certificate problems'
+  ];
+  
+  if (techStack.technologies.includes('MongoDB')) {
+    connectivityChecks.push(
+      'MongoDB connection URI issues',
+      'Missing MongoDB indexes causing slow queries',
+      'Mongoose schema validation errors'
+    );
+  } else if (techStack.technologies.includes('PostgreSQL')) {
+    connectivityChecks.push(
+      'PostgreSQL connection pooling issues',
+      'Missing foreign key constraints',
+      'SQL query performance problems'
+    );
+  }
+  
+  templates.push({
+    category: 'Database & API Connectivity',
+    checks: connectivityChecks
+  });
+  
+  // 9. COMPATIBILITY & VERSION ISSUES
+  var compatibilityChecks = [
+    'Node.js version compatibility problems',
+    'Package dependency version conflicts',
+    'Browser compatibility issues',
+    'Deprecated API usage',
+    'Breaking changes in dependencies',
+    'TypeScript version incompatibilities',
+    'React version migration issues',
+    'Polyfill requirements for older browsers',
+    'ES6+ features in legacy environments',
+    'Mobile device compatibility problems'
+  ];
+  
+  if (techStack.type.includes('React')) {
+    compatibilityChecks.push(
+      'React 18 concurrent features compatibility',
+      'React Router version migration issues',
+      'Hook usage in class components',
+      'Legacy lifecycle method usage'
+    );
+  }
+  
+  templates.push({
+    category: 'Compatibility & Version Issues',
+    checks: compatibilityChecks
+  });
+  
+  // 10. MISSING CRITICAL ELEMENTS
+  var missingElementsChecks = [
+    'Missing error boundaries in React apps',
+    'Missing loading states and error handling',
+    'Missing CSRF tokens in forms',
+    'Missing meta tags and SEO elements',
+    'Missing accessibility attributes',
+    'Missing environment variable validation',
+    'Missing health check endpoints',
+    'Missing rate limiting on APIs',
+    'Missing input validation on forms',
+    'Missing backup and recovery procedures'
+  ];
+  
+  if (techStack.type.includes('Next')) {
+    missingElementsChecks.push(
+      'Missing next.config.js optimizations',
+      'Missing Image component usage',
+      'Missing Head component for SEO',
+      'Missing API route error handling'
+    );
+  }
+  
+  templates.push({
+    category: 'Missing Critical Elements',
+    checks: missingElementsChecks
+  });
+  
+  // 11. REAL DEVELOPER PAIN POINTS
+  var painPointChecks = [
+    'Silent failures without proper logging',
+    'Race conditions in async operations',
+    'Memory leaks causing app crashes',
+    'Infinite loops and recursive calls',
+    'Unhandled promise rejections',
+    'CORS errors blocking API calls',
+    'Authentication redirects breaking user flow',
+    'Cache invalidation problems',
+    'File upload size and type restrictions',
+    'Timezone and date formatting issues',
+    'Email delivery and template problems',
+    'Payment gateway integration issues',
+    'Third-party service outages handling',
+    'Mobile responsive design breakpoints',
+    'Performance bottlenecks on large datasets'
+  ];
+  
+  if (techStack.type.includes('React')) {
+    painPointChecks.push(
+      'useEffect infinite re-render loops',
+      'State updates not reflecting in UI',
+      'Component not re-rendering after state change',
+      'Props not passing down correctly',
+      'Context value not updating components',
+      'Router navigation not working',
+      'Form validation not triggering',
+      'Event handlers not binding correctly'
+    );
+  } else if (techStack.type.includes('Express')) {
+    painPointChecks.push(
+      'Middleware not executing in correct order',
+      'Route parameters not parsing correctly',
+      'Session data not persisting',
+      'File uploads not processing',
+      'JSON parsing errors',
+      'Cookie settings not working'
+    );
+  } else if (techStack.type.includes('Kubernetes')) {
+    painPointChecks.push(
+      'Pods stuck in pending state',
+      'Service discovery not working',
+      'ConfigMap updates not propagating',
+      'Persistent volumes not mounting',
+      'Ingress routing issues',
+      'Resource limits causing crashes'
+    );
+  }
+  
+  templates.push({
+    category: 'Developer Pain Points',
+    checks: painPointChecks
+  });
+  
+  // 12. RUNTIME & DEPLOYMENT ROADBLOCKS
+  var roadblockChecks = [
+    'Environment variables not loading correctly',
+    'Build process failing on deployment',
+    'Docker container startup failures',
+    'Database migrations failing in production',
+    'SSL certificate renewal issues',
+    'CDN cache invalidation problems',
+    'Load balancer health check failures',
+    'Auto-scaling configuration issues',
+    'Backup and restore procedure failures',
+    'Monitoring and alerting gaps',
+    'Log aggregation and analysis issues',
+    'Performance degradation under load'
+  ];
+  
+  templates.push({
+    category: 'Runtime & Deployment Roadblocks',
+    checks: roadblockChecks
+  });
+  
+  console.log('🎯 Generated comprehensive analysis templates:', templates.length, 'categories');
+  return templates;
+}
+
 // 🧠 AI RULE GENERATOR: Creates minimal, focused rule set for each repo
 async function generateCustomRules(repoContext) {
   if (!OPENAI_API_KEY) {
@@ -942,7 +1528,10 @@ async function generateCustomRules(repoContext) {
     // Analyze the repository type and technology stack
     const techStack = analyzeRepositoryTechStack(repoContext);
     
-    const prompt = `You are a senior software architect and security expert. Analyze this ${techStack.type} repository and create HIGHLY SPECIFIC rules to detect CRITICAL issues that would actually impact users or developers.
+    // Generate comprehensive analysis templates
+    const analysisTemplates = generateAnalysisTemplates(techStack);
+    
+    const prompt = `You are a senior software architect, security expert, and DevOps engineer. Analyze this ${techStack.type} repository and create COMPREHENSIVE rules covering MULTIPLE DIMENSIONS of software quality.
 
 🔍 REPOSITORY INTELLIGENCE:
 - Type: ${techStack.type}
@@ -951,42 +1540,144 @@ async function generateCustomRules(repoContext) {
 - Files: ${repoContext.fileContents.length}
 - Key patterns: ${techStack.patterns.join(', ')}
 
+🔗 CROSS-FILE ANALYSIS:
+- Import/Export relationships: ${repoContext.crossFileAnalysis.imports.length} imports, ${repoContext.crossFileAnalysis.exports.length} exports
+- Circular dependencies: ${repoContext.crossFileAnalysis.circularDeps.length} detected
+- Architectural issues: ${repoContext.crossFileAnalysis.architecturalIssues.length} found
+
 📁 SAMPLE CODE ANALYSIS:
 ${repoContext.fileContents.slice(0, 3).map(file => `
 === ${file.path} ===
 ${file.content.substring(0, 1500)}
 `).join('\n')}
 
-🎯 MISSION: Create 3-8 LASER-FOCUSED rules that detect issues SPECIFIC to this ${techStack.type} codebase.
+🎯 COMPREHENSIVE ANALYSIS FRAMEWORK:
+Create rules covering these CRITICAL DIMENSIONS:
 
-❌ AVOID GENERIC PATTERNS:
-- console.log, TODO comments, basic null checks
-- Style/formatting issues
-- Generic security patterns that don't apply
+${analysisTemplates.map(template => `
+🔹 ${template.category.toUpperCase()}:
+${template.checks.map(check => `   - ${check}`).join('\n')}
+`).join('')}
 
-✅ FOCUS ON ${techStack.type.toUpperCase()}-SPECIFIC ISSUES:
-- Architecture violations specific to this framework
-- Performance bottlenecks in this technology
-- Security issues relevant to this stack
-- Breaking changes or deprecated API usage
-- Resource leaks or memory issues
-- Critical bugs that would crash/break functionality
+🎯 MISSION: Create 10-20 LASER-FOCUSED rules that detect REAL DEVELOPER PAIN POINTS.
 
-Return EXECUTABLE ES5 JavaScript:
+🔥 CRITICAL FOCUS AREAS:
+- Issues that cause "AHA! That's what's breaking my code!" moments
+- Silent failures that waste hours of debugging time
+- Configuration problems that prevent deployment
+- Compatibility issues that break in production
+- Missing elements that cause runtime crashes
+- Database/API connectivity problems
+- Authentication and security bypasses
+- Performance bottlenecks under load
+- Cross-browser and mobile compatibility issues
+- Environment-specific deployment failures
+
+💡 DEVELOPER FRUSTRATION TARGETS:
+- "Why isn't my component re-rendering?"
+- "Why is my API call failing with CORS errors?"
+- "Why does this work locally but not in production?"
+- "Why is my database connection timing out?"
+- "Why are my environment variables not loading?"
+- "Why is my build failing on deployment?"
+- "Why is my app crashing under load?"
+
+Return EXECUTABLE ES5 JavaScript with COMPREHENSIVE coverage:
 
 {
-  // Rule 1: Framework-specific performance issue
-  findPerformanceBottlenecks: function(content, lines, filePath) {
+  // 1. PERFORMANCE & OPTIMIZATION
+  findPerformanceIssues: function(content, lines, filePath) {
     var issues = [];
-    // Example: React-specific rules would look for useEffect without deps, 
-    // unnecessary re-renders, etc.
+    // ${techStack.type}-specific performance bottlenecks
+    // Memory leaks, inefficient algorithms, resource waste
     return issues;
   },
 
-  // Rule 2: Security issue specific to this tech stack
+  // 2. SECURITY & VULNERABILITIES
   findSecurityVulnerabilities: function(content, lines, filePath) {
     var issues = [];
-    // Example: For React, look for dangerouslySetInnerHTML without sanitization
+    // Framework-specific security issues
+    // XSS, injection, auth bypasses, data exposure
+    return issues;
+  },
+
+  // 3. ARCHITECTURE & DESIGN PATTERNS
+  findArchitecturalIssues: function(content, lines, filePath) {
+    var issues = [];
+    // Design pattern violations, coupling issues
+    // Dependency injection problems, circular deps
+    return issues;
+  },
+
+  // 4. UI/UX & ACCESSIBILITY ISSUES
+  findUIAccessibilityIssues: function(content, lines, filePath) {
+    var issues = [];
+    // Missing alt text, poor contrast, keyboard navigation
+    // Mobile responsiveness, WCAG violations
+    return issues;
+  },
+
+  // 5. TESTING & RELIABILITY
+  findTestingGaps: function(content, lines, filePath) {
+    var issues = [];
+    // Missing test coverage, brittle tests
+    // Error handling gaps, edge case issues
+    return issues;
+  },
+
+  // 6. DEPLOYMENT & RUNTIME ROADBLOCKS
+  findDeploymentRisks: function(content, lines, filePath) {
+    var issues = [];
+    // Environment-specific issues, config problems
+    // Docker/K8s misconfigurations, scaling issues
+    return issues;
+  },
+
+  // 7. CODE QUALITY & MAINTAINABILITY
+  findMaintainabilityIssues: function(content, lines, filePath) {
+    var issues = [];
+    // Technical debt, code smells
+    // Refactoring opportunities, documentation gaps
+    return issues;
+  },
+
+  // 8. DATABASE & API CONNECTIVITY
+  findConnectivityIssues: function(content, lines, filePath) {
+    var issues = [];
+    // Database connection problems, API timeout issues
+    // CORS configuration, authentication failures
+    return issues;
+  },
+
+  // 9. COMPATIBILITY & VERSION ISSUES
+  findCompatibilityIssues: function(content, lines, filePath) {
+    var issues = [];
+    // Browser compatibility, Node.js version issues
+    // Deprecated API usage, breaking changes
+    return issues;
+  },
+
+  // 10. MISSING CRITICAL ELEMENTS
+  findMissingElements: function(content, lines, filePath) {
+    var issues = [];
+    // Missing error boundaries, loading states
+    // Missing SEO tags, accessibility attributes
+    return issues;
+  },
+
+  // 11. DEVELOPER PAIN POINTS
+  findDeveloperPainPoints: function(content, lines, filePath) {
+    var issues = [];
+    // Silent failures, race conditions, infinite loops
+    // useEffect issues, state update problems
+    return issues;
+  },
+
+  // 12. RUNTIME & DEPLOYMENT ROADBLOCKS
+  findRuntimeRoadblocks: function(content, lines, filePath) {
+    var issues = [];
+    // Environment variable issues, build failures
+    // Docker problems, deployment configuration
     return issues;
   },
 
@@ -995,24 +1686,61 @@ Return EXECUTABLE ES5 JavaScript:
     var lines = content.split('\n');
     var allIssues = [];
     var ext = filePath.split('.').pop();
+    var isCodeFile = filePath.match(/\\.(js|jsx|ts|tsx|py|java|go|rs|php|rb)$/);
+    var isConfigFile = filePath.match(/\\.(json|yaml|yml|toml|ini|env)$/);
+    var isUIFile = filePath.match(/\\.(jsx|tsx|vue|html|css|scss)$/);
+    var isTestFile = filePath.match(/\\.(test|spec)\\./);
     
-    // Apply rules based on file type and content
-    if (filePath.match(/\\.(js|jsx|ts|tsx)$/)) {
-      allIssues = allIssues.concat(this.findPerformanceBottlenecks(content, lines, filePath));
+    // Apply comprehensive rules based on file type and content
+    if (isCodeFile) {
+      allIssues = allIssues.concat(this.findPerformanceIssues(content, lines, filePath));
       allIssues = allIssues.concat(this.findSecurityVulnerabilities(content, lines, filePath));
+      allIssues = allIssues.concat(this.findArchitecturalIssues(content, lines, filePath));
+      allIssues = allIssues.concat(this.findMaintainabilityIssues(content, lines, filePath));
+      allIssues = allIssues.concat(this.findConnectivityIssues(content, lines, filePath));
+      allIssues = allIssues.concat(this.findCompatibilityIssues(content, lines, filePath));
+      allIssues = allIssues.concat(this.findDeveloperPainPoints(content, lines, filePath));
     }
+    
+    if (isUIFile) {
+      allIssues = allIssues.concat(this.findUIAccessibilityIssues(content, lines, filePath));
+      allIssues = allIssues.concat(this.findMissingElements(content, lines, filePath));
+    }
+    
+    if (isTestFile) {
+      allIssues = allIssues.concat(this.findTestingGaps(content, lines, filePath));
+    }
+    
+    if (isConfigFile) {
+      allIssues = allIssues.concat(this.findDeploymentRisks(content, lines, filePath));
+      allIssues = allIssues.concat(this.findRuntimeRoadblocks(content, lines, filePath));
+    }
+    
+    // Apply cross-cutting concerns to all files
+    allIssues = allIssues.concat(this.findMissingElements(content, lines, filePath));
+    allIssues = allIssues.concat(this.findRuntimeRoadblocks(content, lines, filePath));
     
     return allIssues;
   }
 }
 
 🔥 CRITICAL REQUIREMENTS:
-- Maximum 8 rules (quality over quantity)
-- Each rule must be ACTIONABLE and SPECIFIC to ${techStack.type}
-- Focus on issues that would cause real problems
-- Severity should be HIGH/CRITICAL for most issues
-- Rules must be fast (simple regex/string matching)
-- NO generic patterns that apply to any codebase`;
+- Focus on DEVELOPER FRUSTRATION POINTS that waste hours of debugging
+- Each issue must make developers go "AHA! That's my problem!"
+- Prioritize SILENT FAILURES and hard-to-debug issues
+- Include environment-specific and deployment problems
+- Detect compatibility issues that work locally but fail in production
+- Find missing configurations that cause runtime crashes
+- Identify performance bottlenecks under real-world load
+- Catch authentication and security bypasses
+- Detect database connectivity and API integration problems
+- Severity: CRITICAL = app crashes/doesn't start, HIGH = feature broken, MEDIUM = performance/UX impact
+
+🎯 SUCCESS METRICS:
+- Developers should recognize these as REAL issues they've faced
+- Issues should point to ROOT CAUSES, not just symptoms
+- Solutions should be ACTIONABLE and specific
+- Focus on problems that cause 3AM debugging sessions`;
 
     console.log(`🧠 Asking AI to generate custom rules for repository...`);
 
