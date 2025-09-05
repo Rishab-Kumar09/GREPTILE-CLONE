@@ -1028,33 +1028,20 @@ function willNeedAIAnalysis(content, filePath, classification) {
   return false;
 }
 
-// Calculate optimal batch size based on file distribution
-function calculateOptimalBatchSize(instantCount, aiCount, currentBatch) {
-  // Configuration for different batch sizes
-  var INSTANT_BATCH_SIZE = 1000;  // Large batches for instant analysis
-  var AI_BATCH_SIZE = 15;         // Small batches for AI analysis
-  var MAX_LAMBDA_TIME = 12000;    // 12 seconds max per batch
-  
-  // Calculate how many instant batches we need
-  var instantBatches = Math.ceil(instantCount / INSTANT_BATCH_SIZE);
-  
-  // Determine if current batch should be instant or AI
-  if (currentBatch <= instantBatches) {
-    // We're in the instant analysis phase
-    return {
-      type: 'instant',
-      size: INSTANT_BATCH_SIZE,
-      instantBatchSize: INSTANT_BATCH_SIZE,
-      estimatedTime: '2-5 seconds'
-    };
+// Simple adaptive batch sizing (no pre-classification needed)
+function calculateAdaptiveBatchSize(totalFiles, batchNumber) {
+  // Start with larger batches, then reduce for complex files
+  if (totalFiles < 100) {
+    return Math.min(25, totalFiles); // Small repos: 25 files per batch
+  } else if (totalFiles < 1000) {
+    return batchNumber <= 3 ? 100 : 50; // Medium repos: 100 then 50
+  } else if (totalFiles < 5000) {
+    return batchNumber <= 5 ? 200 : 75; // Large repos: 200 then 75
   } else {
-    // We're in the AI analysis phase
-    return {
-      type: 'ai', 
-      size: AI_BATCH_SIZE,
-      instantBatchSize: INSTANT_BATCH_SIZE,
-      estimatedTime: '8-12 seconds'
-    };
+    // Very large repos: Start big, then smaller for likely complex files
+    if (batchNumber <= 3) return 500;      // First 3 batches: 500 files (likely configs/docs)
+    else if (batchNumber <= 10) return 150; // Next 7 batches: 150 files (mixed)
+    else return 50;                         // Remaining batches: 50 files (likely complex)
   }
 }
 
@@ -1356,72 +1343,23 @@ export const handler = async (event) => {
     var isLastBatch = true;
     
     if (isFileBatched) {
-      // 🚀 SMART DYNAMIC BATCHING: Classify files first, then batch by complexity
-      console.log('🧠 Performing smart file classification for dynamic batching...');
+      // 🚀 ADAPTIVE BATCHING: Smart but lightweight approach
+      console.log('🎯 Using adaptive batching strategy...');
       
-      var fileClassifications = allFiles.map(function(file) {
-        try {
-          var content = require('fs').readFileSync(file, 'utf8');
-          var classification = classifyFileType(path.relative(tempDir, file), content);
-          return {
-            path: file,
-            relativePath: path.relative(tempDir, file),
-            classification: classification,
-            needsAI: willNeedAIAnalysis(content, file, classification)
-          };
-        } catch (error) {
-          return {
-            path: file,
-            relativePath: path.relative(tempDir, file),
-            classification: { category: 'unknown', subtype: 'generic', priority: 'low' },
-            needsAI: false
-          };
-        }
-      });
+      // Determine batch size based on repository size and batch number
+      var adaptiveBatchSize = calculateAdaptiveBatchSize(allFiles.length, batchNumber);
+      console.log(`📊 Adaptive batch size: ${adaptiveBatchSize} files`);
       
-      // Separate files by analysis complexity
-      var instantFiles = fileClassifications.filter(f => !f.needsAI);
-      var aiFiles = fileClassifications.filter(f => f.needsAI);
+      const startIndex = (batchNumber - 1) * adaptiveBatchSize;
+      const endIndex = startIndex + adaptiveBatchSize;
       
-      console.log(`📊 FILE COMPLEXITY BREAKDOWN:`);
-      console.log(`   ⚡ Instant analysis: ${instantFiles.length} files (${Math.round(instantFiles.length/allFiles.length*100)}%)`);
-      console.log(`   🧠 AI analysis needed: ${aiFiles.length} files (${Math.round(aiFiles.length/allFiles.length*100)}%)`);
+      filesToProcess = allFiles.slice(startIndex, endIndex);
+      isLastBatch = endIndex >= allFiles.length || filesToProcess.length === 0;
       
-      // 🎯 DYNAMIC BATCH SIZING STRATEGY
-      var batchConfig = calculateOptimalBatchSize(instantFiles.length, aiFiles.length, batchNumber);
-      console.log(`🎯 Batch ${batchNumber} config: ${batchConfig.type} (${batchConfig.size} files)`);
-      
-      var allClassifiedFiles = [];
-      
-      if (batchConfig.type === 'instant') {
-        // LARGE BATCHES for instant analysis (1000+ files)
-        const startIndex = (batchNumber - 1) * batchConfig.size;
-        const endIndex = Math.min(startIndex + batchConfig.size, instantFiles.length);
-        allClassifiedFiles = instantFiles.slice(startIndex, endIndex);
-        
-        // Check if we need to switch to AI batches next
-        var instantBatchesComplete = endIndex >= instantFiles.length;
-        var aiRemaining = aiFiles.length > 0;
-        isLastBatch = instantBatchesComplete && !aiRemaining;
-        
-      } else if (batchConfig.type === 'ai') {
-        // SMALL BATCHES for AI analysis (10-25 files)
-        var instantBatches = Math.ceil(instantFiles.length / batchConfig.instantBatchSize);
-        var aiBatchNumber = batchNumber - instantBatches;
-        
-        const startIndex = (aiBatchNumber - 1) * batchConfig.size;
-        const endIndex = Math.min(startIndex + batchConfig.size, aiFiles.length);
-        allClassifiedFiles = aiFiles.slice(startIndex, endIndex);
-        
-        isLastBatch = endIndex >= aiFiles.length;
-      }
-      
-      filesToProcess = allClassifiedFiles.map(f => f.path);
-      
-      console.log(`📦 SMART BATCH ${batchNumber} DETAILS:`);
+      console.log(`📦 ADAPTIVE BATCH ${batchNumber} DETAILS:`);
       console.log(`   📊 Total files in repo: ${allFiles.length}`);
+      console.log(`   📍 Processing range: ${startIndex + 1} to ${Math.min(endIndex, allFiles.length)}`);
       console.log(`   📁 Files in this batch: ${filesToProcess.length}`);
-      console.log(`   ⚡ Analysis type: ${batchConfig.type}`);
       console.log(`   🏁 Is last batch: ${isLastBatch}`);
       
       if (filesToProcess.length === 0) {
@@ -1440,7 +1378,7 @@ export const handler = async (event) => {
               totalIssues: 0,
               totalFilesInRepo: allFiles.length
             },
-            message: `SMART BATCH ${batchNumber} - No more files to process`
+            message: `ADAPTIVE BATCH ${batchNumber} - No more files to process`
           })
         };
       }
