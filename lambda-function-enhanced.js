@@ -574,6 +574,758 @@ function checkInsecureOperations(content, filePath) {
   return issues;
 }
 
+// 🟠 HIGH PRIORITY LOGIC CHECKS
+
+// 7. NULL DEREFERENCE DETECTION
+function checkNullDereference(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Object method calls without null checks
+    if (/\w+\.(length|push|pop|map|filter|forEach|slice|indexOf|includes)/i.test(line)) {
+      var prevLines = lines.slice(Math.max(0, index - 3), index).join('\n');
+      var currentAndNext = lines.slice(index, index + 2).join('\n');
+      
+      if (!/if.*null|if.*undefined|\?\.|&&.*\w+|optional|guard|check/i.test(prevLines + currentAndNext)) {
+        issues.push({
+          type: 'logic',
+          message: 'Potential null dereference: Check if object exists before calling methods',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'null_dereference'
+        });
+      }
+    }
+    
+    // Array/Object access without bounds checking
+    if (/\w+\[\d+\]|\w+\[.*\]/i.test(line) && !/length|size|bounds|check/i.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Array access without bounds checking - may cause runtime errors',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'bounds_check'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 8. UNHANDLED PROMISES DETECTION
+function checkUnhandledPromises(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Async calls without proper error handling
+    if (/await\s+\w+\(/i.test(line)) {
+      var surroundingCode = lines.slice(Math.max(0, index - 5), index + 5).join('\n');
+      if (!/try|catch|\.catch\(/i.test(surroundingCode)) {
+        issues.push({
+          type: 'logic',
+          message: 'Unhandled async operation: Add try-catch or .catch() for error handling',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'unhandled_promise'
+        });
+      }
+    }
+    
+    // Promise chains without catch
+    if (/\.then\s*\(/i.test(line)) {
+      var nextLines = lines.slice(index, index + 5).join('\n');
+      if (!/\.catch\s*\(/i.test(nextLines)) {
+        issues.push({
+          type: 'logic',
+          message: 'Promise chain without error handling: Add .catch() block',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'unhandled_promise'
+        });
+      }
+    }
+    
+    // Fire-and-forget async calls
+    if (/^\s*\w+\s*\(/i.test(line) && /async|await|Promise/i.test(line) && !/await|return|const|let|var/i.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Fire-and-forget async call: Handle the promise or mark as intentional',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'fire_forget_async'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 9. RESOURCE LEAKS DETECTION
+function checkResourceLeaks(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // File operations without proper cleanup
+    if (/open\s*\(|createReadStream|createWriteStream|fs\.open/i.test(line)) {
+      var nextLines = lines.slice(index, index + 15).join('\n');
+      if (!/close\s*\(\)|\.end\s*\(\)|finally|with\s+/i.test(nextLines)) {
+        issues.push({
+          type: 'logic',
+          message: 'Resource leak: File/stream opened but not properly closed',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'resource_leak'
+        });
+      }
+    }
+    
+    // Database connections without cleanup
+    if (/connect\s*\(|createConnection|getConnection/i.test(line)) {
+      var nextLines = lines.slice(index, index + 20).join('\n');
+      if (!/disconnect|close|end|release|finally/i.test(nextLines)) {
+        issues.push({
+          type: 'logic',
+          message: 'Database connection leak: Connection not properly closed',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'connection_leak'
+        });
+      }
+    }
+    
+    // Event listeners without cleanup
+    if (/addEventListener|on\s*\(/i.test(line)) {
+      if (!/removeEventListener|off\s*\(|cleanup|unmount/i.test(content)) {
+        issues.push({
+          type: 'performance',
+          message: 'Memory leak: Event listener added but never removed',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'memory_leak'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+// 10. RACE CONDITIONS DETECTION
+function checkRaceConditions(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Multiple async operations without proper synchronization
+    if (/Promise\.all|Promise\.allSettled/i.test(line)) {
+      var nextLines = lines.slice(index, index + 10).join('\n');
+      if (/shared|global|state|variable/i.test(nextLines) && !/mutex|lock|semaphore/i.test(nextLines)) {
+        issues.push({
+          type: 'logic',
+          message: 'Potential race condition: Concurrent access to shared state without synchronization',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'race_condition'
+        });
+      }
+    }
+    
+    // Global variable modifications in async context
+    if (/global\.|window\.|process\.env/i.test(line) && /=|assign|push|pop/i.test(line)) {
+      var surroundingCode = lines.slice(Math.max(0, index - 3), index + 3).join('\n');
+      if (/async|await|setTimeout|setInterval/i.test(surroundingCode)) {
+        issues.push({
+          type: 'logic',
+          message: 'Race condition risk: Global state modification in async context',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'async_global_modify'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+// 11. ERROR HANDLING ISSUES
+function checkErrorHandling(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Empty catch blocks
+    if (/catch\s*\(\s*\w*\s*\)\s*\{[\s]*\}/i.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Empty catch block: Handle errors properly or add explanatory comment',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'empty_catch'
+      });
+    }
+    
+    // Catch blocks that only log
+    if (/catch.*\{[\s]*console\.log|catch.*\{[\s]*logger/i.test(line)) {
+      var nextLines = lines.slice(index, index + 5).join('\n');
+      if (!/throw|return|handle|recover/i.test(nextLines)) {
+        issues.push({
+          type: 'logic',
+          message: 'Error swallowing: Catch block only logs but doesn\'t handle the error',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'error_swallow'
+        });
+      }
+    }
+    
+    // Generic error messages
+    if (/throw.*Error\s*\(\s*["']error|["']something went wrong|["']oops/i.test(line)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Generic error message: Provide specific, actionable error details',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'generic_error'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// ⚡ PERFORMANCE CHECKS
+
+// 12. N+1 QUERIES DETECTION
+function checkNPlusOneQueries(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Database queries inside loops
+    if (/for\s*\(|while\s*\(|\.forEach|\.map/i.test(line)) {
+      var nextLines = lines.slice(index, index + 15).join('\n');
+      var queryPatterns = [
+        'query\\s*\\(',
+        'find\\s*\\(',
+        'findOne\\s*\\(',
+        'findMany\\s*\\(',
+        'select\\s*\\(',
+        'insert\\s*\\(',
+        'update\\s*\\(',
+        'delete\\s*\\(',
+        'execute\\s*\\(',
+        'fetch\\s*\\(',
+        'get\\s*\\(',
+        'post\\s*\\(',
+        'put\\s*\\(',
+        'patch\\s*\\('
+      ];
+      
+      queryPatterns.forEach(pattern => {
+        if (new RegExp(pattern, 'i').test(nextLines)) {
+          issues.push({
+            type: 'performance',
+            message: 'N+1 query problem: Database/API query inside loop - use batch operations',
+            line: index + 1,
+            severity: 'high',
+            code: line.trim(),
+            pattern: 'n_plus_one'
+          });
+        }
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 13. INEFFICIENT REGEX DETECTION
+function checkInefficiientRegex(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  var dangerousPatterns = [
+    { pattern: /\/.*\(\.\*\)\+.*\//, message: 'Catastrophic backtracking: (.*)+ pattern' },
+    { pattern: /\/.*\(\.\+\)\*.*\//, message: 'Catastrophic backtracking: (.+)* pattern' },
+    { pattern: /\/.*\(\.\*\)\*.*\//, message: 'Catastrophic backtracking: (.*)*  pattern' },
+    { pattern: /\/.*\(\.\+\)\+.*\//, message: 'Catastrophic backtracking: (.+)+ pattern' },
+    { pattern: /\/.*\(\.\*\)\{.*,.*\}.*\//, message: 'Potentially expensive: (.*)* with large quantifier' }
+  ];
+  
+  lines.forEach((line, index) => {
+    dangerousPatterns.forEach(({ pattern, message }) => {
+      if (pattern.test(line)) {
+        issues.push({
+          type: 'performance',
+          message: message + ' - may cause exponential time complexity',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'inefficient_regex'
+        });
+      }
+    });
+    
+    // Very long regex patterns
+    var regexMatch = line.match(/\/(.{50,})\//);
+    if (regexMatch) {
+      issues.push({
+        type: 'performance',
+        message: 'Complex regex pattern: Consider breaking into smaller patterns',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'complex_regex'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 14. MEMORY LEAKS DETECTION
+function checkMemoryLeaks(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Timers without cleanup
+    if (/setInterval|setTimeout/i.test(line) && !/clearInterval|clearTimeout/i.test(content)) {
+      issues.push({
+        type: 'performance',
+        message: 'Memory leak: Timer created but never cleared',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'timer_leak'
+      });
+    }
+    
+    // Event listeners in loops
+    if (/for\s*\(|while\s*\(|\.forEach/i.test(line)) {
+      var nextLines = lines.slice(index, index + 10).join('\n');
+      if (/addEventListener|on\s*\(/i.test(nextLines)) {
+        issues.push({
+          type: 'performance',
+          message: 'Memory leak: Event listeners created in loop without cleanup',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'loop_event_leak'
+        });
+      }
+    }
+    
+    // Global arrays that only grow
+    if (/\.push\s*\(|\.unshift\s*\(/i.test(line) && /global|window|process/i.test(line)) {
+      if (!/\.pop|\.shift|\.splice|\.length\s*=\s*0|clear/i.test(content)) {
+        issues.push({
+          type: 'performance',
+          message: 'Memory leak: Global array grows but never shrinks',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'growing_global_array'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+// 15. PERFORMANCE ANTIPATTERNS
+function checkPerformanceAntipatterns(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // String concatenation in loops
+    if (/for\s*\(|while\s*\(|\.forEach/i.test(line)) {
+      var nextLines = lines.slice(index, index + 10).join('\n');
+      if (/\+\s*=.*["']|concat\s*\(/i.test(nextLines)) {
+        issues.push({
+          type: 'performance',
+          message: 'Performance issue: String concatenation in loop - use array.join() or StringBuilder',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'string_concat_loop'
+        });
+      }
+    }
+    
+    // Inefficient array operations
+    if (/\.indexOf\s*\(.*\)\s*!==\s*-1/i.test(line)) {
+      issues.push({
+        type: 'performance',
+        message: 'Performance: Use .includes() instead of .indexOf() !== -1',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'inefficient_array_check'
+      });
+    }
+    
+    // Synchronous file operations in async context
+    if (/readFileSync|writeFileSync|existsSync/i.test(line)) {
+      var surroundingCode = lines.slice(Math.max(0, index - 5), index + 5).join('\n');
+      if (/async|await|Promise/i.test(surroundingCode)) {
+        issues.push({
+          type: 'performance',
+          message: 'Performance: Use async file operations instead of sync in async context',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'sync_in_async'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+// 🔍 CODE QUALITY CHECKS
+
+// 16. COMPLEXITY ANALYSIS
+function checkComplexity(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  var currentFunction = null;
+  var complexity = 0;
+  var functionStart = 0;
+  var braceDepth = 0;
+  
+  lines.forEach((line, index) => {
+    // Track brace depth
+    braceDepth += (line.match(/\{/g) || []).length;
+    braceDepth -= (line.match(/\}/g) || []).length;
+    
+    // Function start
+    var funcMatch = line.match(/function\s+(\w+)|const\s+(\w+)\s*=.*=>|def\s+(\w+)|(\w+)\s*\(/i);
+    if (funcMatch && /function|const.*=>|def\s+/i.test(line)) {
+      if (currentFunction && complexity > 10) {
+        issues.push({
+          type: 'maintainability',
+          message: `High cyclomatic complexity (${complexity}): Break function into smaller pieces`,
+          line: functionStart,
+          severity: 'medium',
+          code: `function ${currentFunction}...`,
+          pattern: 'high_complexity'
+        });
+      }
+      
+      currentFunction = funcMatch[1] || funcMatch[2] || funcMatch[3] || funcMatch[4];
+      complexity = 1;
+      functionStart = index + 1;
+    }
+    
+    // Complexity indicators
+    if (/if\s*\(|else|elif|while\s*\(|for\s*\(|catch|case\s+|switch\s*\(/i.test(line)) {
+      complexity++;
+    }
+    if (/&&|\|\||and\s+|or\s+/i.test(line)) {
+      complexity += (line.match(/&&|\|\|/g) || []).length;
+    }
+    
+    // Function too long
+    if (currentFunction && braceDepth === 0 && index - functionStart > 50) {
+      issues.push({
+        type: 'maintainability',
+        message: `Long function (${index - functionStart + 1} lines): Consider breaking into smaller functions`,
+        line: functionStart,
+        severity: 'low',
+        code: `function ${currentFunction}...`,
+        pattern: 'long_function'
+      });
+    }
+  });
+  
+  // Check last function
+  if (currentFunction && complexity > 10) {
+    issues.push({
+      type: 'maintainability',
+      message: `High cyclomatic complexity (${complexity}): Break function into smaller pieces`,
+      line: functionStart,
+      severity: 'medium',
+      code: `function ${currentFunction}...`,
+      pattern: 'high_complexity'
+    });
+  }
+  
+  return issues;
+}
+
+// 17. CODE SMELLS DETECTION
+function checkCodeSmells(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Magic numbers
+    if (/\d{4,}|[^.\d]\d{2,3}[^.\d]/.test(line) && !/year|date|time|port|version/i.test(line)) {
+      var numbers = line.match(/\d{2,}/g);
+      if (numbers) {
+        issues.push({
+          type: 'maintainability',
+          message: 'Magic number: Consider using named constants for better readability',
+          line: index + 1,
+          severity: 'low',
+          code: line.trim(),
+          pattern: 'magic_number'
+        });
+      }
+    }
+    
+    // TODO/FIXME/HACK comments
+    if (/TODO|FIXME|HACK|XXX|BUG/i.test(line) && /\/\/|\/\*|\#/.test(line)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'TODO comment: Address this technical debt',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'todo_comment'
+      });
+    }
+    
+    // Commented out code
+    if (/^\s*\/\/.*[=\(\)\{\}]|^\s*\/\*.*[=\(\)\{\}]/.test(line)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Commented code: Remove dead code or use version control',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'commented_code'
+      });
+    }
+    
+    // Long parameter lists
+    var paramMatch = line.match(/function.*\(([^)]+)\)|.*\(([^)]+)\)\s*=>/);
+    if (paramMatch) {
+      var params = (paramMatch[1] || paramMatch[2]).split(',');
+      if (params.length > 5) {
+        issues.push({
+          type: 'maintainability',
+          message: `Too many parameters (${params.length}): Consider using an options object`,
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'long_parameter_list'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+// 18. BEST PRACTICES CHECK
+function checkBestPractices(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Console.log in production code
+    if (/console\.(log|debug|info|warn|error)/i.test(line) && !/debug|development|test/i.test(filePath)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Console statement: Remove or replace with proper logging in production',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'console_log'
+      });
+    }
+    
+    // Var instead of let/const
+    if (/^\s*var\s+/i.test(line) && !/function/.test(line)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Use let/const instead of var for better scoping',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'var_usage'
+      });
+    }
+    
+    // == instead of ===
+    if (/[^=!]==[^=]|[^=!]!=[^=]/.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Use === or !== for strict equality comparison',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'loose_equality'
+      });
+    }
+    
+    // Missing semicolons (basic check)
+    if (/\w+$/.test(line.trim()) && /return|break|continue|throw/.test(line)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Missing semicolon: Add semicolon for consistency',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'missing_semicolon'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 🔗 CROSS-FILE ANALYSIS
+
+// 19. UNUSED IMPORTS DETECTION
+function checkUnusedImports(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  var imports = [];
+  
+  lines.forEach((line, index) => {
+    // ES6 imports
+    var esImportMatch = line.match(/import\s+(?:\{([^}]+)\}|\*\s+as\s+(\w+)|(\w+))\s+from/i);
+    if (esImportMatch) {
+      var importedItems = [];
+      if (esImportMatch[1]) { // Named imports
+        importedItems = esImportMatch[1].split(',').map(s => s.trim().replace(/\s+as\s+\w+/, ''));
+      } else if (esImportMatch[2]) { // Namespace import
+        importedItems = [esImportMatch[2]];
+      } else if (esImportMatch[3]) { // Default import
+        importedItems = [esImportMatch[3]];
+      }
+      
+      importedItems.forEach(item => {
+        imports.push({
+          name: item,
+          line: index + 1,
+          code: line.trim()
+        });
+      });
+    }
+    
+    // CommonJS require
+    var requireMatch = line.match(/(?:const|let|var)\s+(?:\{([^}]+)\}|(\w+))\s*=\s*require/i);
+    if (requireMatch) {
+      var requiredItems = [];
+      if (requireMatch[1]) { // Destructured require
+        requiredItems = requireMatch[1].split(',').map(s => s.trim());
+      } else if (requireMatch[2]) { // Direct require
+        requiredItems = [requireMatch[2]];
+      }
+      
+      requiredItems.forEach(item => {
+        imports.push({
+          name: item,
+          line: index + 1,
+          code: line.trim()
+        });
+      });
+    }
+  });
+  
+  // Check if imports are used
+  imports.forEach(imp => {
+    var isUsed = content.split('\n').some((line, idx) => 
+      idx !== imp.line - 1 && 
+      new RegExp('\\b' + imp.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(line)
+    );
+    
+    if (!isUsed) {
+      issues.push({
+        type: 'maintainability',
+        message: `Unused import: '${imp.name}' is imported but never used`,
+        line: imp.line,
+        severity: 'low',
+        code: imp.code,
+        pattern: 'unused_import'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 20. IMPORT ISSUES DETECTION
+function checkImportIssues(content, filePath, repoDir) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Relative imports that might be problematic
+    if (/import.*from\s*["']\.\.?\//i.test(line)) {
+      var importPath = line.match(/from\s*["']([^"']+)["']/i);
+      if (importPath && importPath[1]) {
+        var relativePath = importPath[1];
+        
+        // Very deep relative imports
+        if ((relativePath.match(/\.\.\//g) || []).length > 2) {
+          issues.push({
+            type: 'maintainability',
+            message: 'Deep relative import: Consider restructuring or using absolute imports',
+            line: index + 1,
+            severity: 'low',
+            code: line.trim(),
+            pattern: 'deep_relative_import'
+          });
+        }
+        
+        // Importing from parent directories
+        if (relativePath.startsWith('../')) {
+          issues.push({
+            type: 'maintainability',
+            message: 'Parent directory import: Verify file exists and consider module structure',
+            line: index + 1,
+            severity: 'low',
+            code: line.trim(),
+            pattern: 'parent_import'
+          });
+        }
+      }
+    }
+    
+    // Missing file extensions in imports
+    if (/import.*from\s*["'][^"']*(?<!\.js|\.ts|\.jsx|\.tsx|\.json)["']/i.test(line) && 
+        !/node_modules|@|\//.test(line)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Missing file extension: Consider adding .js/.ts extension for clarity',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'missing_extension'
+      });
+    }
+  });
+  
+  return issues;
+}
+
 // 🔒 SECURITY VULNERABILITY DETECTION
 function detectSecurityVulnerabilities(content, filePath) {
   var issues = [];
