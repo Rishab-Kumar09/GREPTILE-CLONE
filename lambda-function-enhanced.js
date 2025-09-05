@@ -1030,20 +1030,20 @@ function willNeedAIAnalysis(content, filePath, classification) {
   return false;
 }
 
-// Simple adaptive batch sizing (no pre-classification needed)
+// Conservative batch sizing to avoid timeouts
 function calculateAdaptiveBatchSize(totalFiles, batchNumber) {
-  // Start with larger batches, then reduce for complex files
+  // Much smaller batches to avoid 504 timeouts
   if (totalFiles < 100) {
-    return Math.min(25, totalFiles); // Small repos: 25 files per batch
+    return Math.min(15, totalFiles); // Small repos: 15 files per batch
   } else if (totalFiles < 1000) {
-    return batchNumber <= 3 ? 100 : 50; // Medium repos: 100 then 50
+    return batchNumber <= 3 ? 25 : 15; // Medium repos: 25 then 15
   } else if (totalFiles < 5000) {
-    return batchNumber <= 5 ? 200 : 75; // Large repos: 200 then 75
+    return batchNumber <= 2 ? 50 : 25; // Large repos: 50 then 25
   } else {
-    // Very large repos: Start big, then smaller for likely complex files
-    if (batchNumber <= 3) return 500;      // First 3 batches: 500 files (likely configs/docs)
-    else if (batchNumber <= 10) return 150; // Next 7 batches: 150 files (mixed)
-    else return 50;                         // Remaining batches: 50 files (likely complex)
+    // Very large repos: Conservative sizing to avoid timeouts
+    if (batchNumber <= 2) return 75;       // First 2 batches: 75 files (likely configs/docs)
+    else if (batchNumber <= 8) return 35;  // Next 6 batches: 35 files (mixed)
+    else return 15;                        // Remaining batches: 15 files (likely complex)
   }
 }
 
@@ -1317,8 +1317,16 @@ export const handler = async (event) => {
     // Step 4: Analyze files using fallback analysis (simple and fast)
     var processedFiles = 0;
     var totalIssues = 0;
+    var batchStartTime = Date.now();
+    var MAX_BATCH_TIME_MS = 10000; // 10 seconds max per batch to avoid 504 timeouts
     
     for (var i = 0; i < filesToProcess.length; i++) {
+      // Check for timeout to prevent 504 errors
+      if (Date.now() - batchStartTime > MAX_BATCH_TIME_MS) {
+        console.warn(`⏰ Batch timeout reached after ${Date.now() - batchStartTime}ms, stopping early`);
+        console.warn(`📊 Processed ${processedFiles}/${filesToProcess.length} files before timeout`);
+        break;
+      }
       var file = filesToProcess[i];
       try {
         var content = await fs.readFile(file, 'utf-8');
