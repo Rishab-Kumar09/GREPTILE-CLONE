@@ -103,11 +103,65 @@ function performBasicAnalysis(content, filePath) {
       });
     }
     
-    // 8. REACT-SPECIFIC: useEffect without dependencies (infinite loops)
-    if (isReactFile && trimmedLine.match(/useEffect\s*\([^,]+\)/) && !trimmedLine.includes('[')) {
+    // 8. REACT-SPECIFIC: useEffect without dependencies (more precise detection)
+    if (isReactFile && trimmedLine.match(/useEffect\s*\(\s*\(\s*\)\s*=>\s*{/) && 
+        !content.includes('[]') && !trimmedLine.includes('[]') && 
+        !trimmedLine.includes('dependencies') && !trimmedLine.includes('deps')) {
+      
+      // Additional validation: make sure it's actually a problematic useEffect
+      var hasStateUpdate = /setState|set[A-Z]/.test(content);
+      var hasAsyncOperation = /fetch|axios|setTimeout|setInterval/.test(content);
+      
+      if (hasStateUpdate || hasAsyncOperation) {
+        issues.push({
+          type: 'performance',
+          message: 'useEffect without dependencies may cause infinite re-renders',
+          line: lineNum,
+          code: trimmedLine.substring(0, 80),
+          severity: 'high'  // Reduced from critical
+        });
+      }
+    }
+    
+    // 9. SECURITY: Dangerous eval() usage
+    if (trimmedLine.match(/eval\s*\(/) && !trimmedLine.includes('// safe')) {
+      issues.push({
+        type: 'security',
+        message: 'eval() usage detected - potential code injection risk',
+        line: lineNum,
+        code: trimmedLine.substring(0, 80),
+        severity: 'critical'
+      });
+    }
+    
+    // 10. PERFORMANCE: Inefficient loops in large datasets
+    if (trimmedLine.match(/for\s*\([^)]*in[^)]*\)/) && content.includes('length') && content.length > 5000) {
       issues.push({
         type: 'performance',
-        message: 'useEffect without dependencies - will cause infinite re-renders',
+        message: 'for...in loop on large dataset - consider optimization',
+        line: lineNum,
+        code: trimmedLine.substring(0, 80),
+        severity: 'medium'
+      });
+    }
+    
+    // 11. SECURITY: Unsafe HTML rendering
+    if (trimmedLine.match(/innerHTML\s*=/) && !trimmedLine.includes('sanitize') && !trimmedLine.includes('DOMPurify')) {
+      issues.push({
+        type: 'security',
+        message: 'Unsafe innerHTML assignment - XSS vulnerability',
+        line: lineNum,
+        code: trimmedLine.substring(0, 80),
+        severity: 'high'
+      });
+    }
+    
+    // 12. CRITICAL: Null pointer dereferences in C/C++
+    if (['.c', '.cpp', '.cc', '.h', '.hpp'].includes(ext) && 
+        trimmedLine.match(/\*\w+\s*[=\.]/) && !trimmedLine.includes('if') && !trimmedLine.includes('null')) {
+      issues.push({
+        type: 'security',
+        message: 'Potential null pointer dereference',
         line: lineNum,
         code: trimmedLine.substring(0, 80),
         severity: 'critical'
@@ -340,20 +394,105 @@ export const handler = async (event) => {
       gitPath = 'git';
     }
     
-    // ALWAYS do shallow clone of complete repository
-    console.log('🌊 Performing SHALLOW CLONE of full repository');
-    var cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
-    console.log(`📋 Clone command: ${cloneCmd}`);
+    // Check available /tmp storage space
+    try {
+      var tmpStats = await fs.stat('/tmp');
+      console.log('💾 /tmp directory exists, checking available space...');
+      
+      // Get disk usage info (rough estimate)
+      var tmpUsage = execSync('df -h /tmp', { encoding: 'utf8' });
+      console.log('💾 /tmp storage info:', tmpUsage);
+    } catch (storageError) {
+      console.warn('⚠️ Could not check /tmp storage:', storageError.message);
+    }
+    
+    // ULTRA-SHALLOW CLONE: Only essential code files, no binaries/benchmarks
+    console.log('🌊 Performing ULTRA-SHALLOW CLONE (code files only)');
     
     try {
-      execSync(cloneCmd, { stdio: 'pipe' });
-      console.log('✅ Shallow clone successful');
+      // Step 1: Initialize empty repo
+      console.log('📂 Initializing empty repository...');
+      execSync(`${gitPath} init "${tempDir}"`, { stdio: 'pipe' });
+      
+      // Step 2: Add remote
+      console.log('🔗 Adding remote origin...');
+      execSync(`${gitPath} -C "${tempDir}" remote add origin "${repoUrl}"`, { stdio: 'pipe' });
+      
+      // Step 3: Enable sparse checkout
+      console.log('⚡ Enabling sparse-checkout for code files only...');
+      execSync(`${gitPath} -C "${tempDir}" config core.sparseCheckout true`, { stdio: 'pipe' });
+      
+      // Step 4: Define sparse-checkout patterns (smart inclusion for maximum coverage)
+      var sparsePatterns = [
+        // INCLUDE: All source code files
+        '*.js', '*.ts', '*.jsx', '*.tsx',           // JavaScript/TypeScript
+        '*.py', '*.pyx', '*.pyi',                   // Python (TensorFlow core)
+        '*.cpp', '*.cc', '*.c', '*.h', '*.hpp',     // C/C++ (performance critical)
+        '*.java', '*.kt', '*.scala',                // JVM languages  
+        '*.go', '*.rs', '*.swift', '*.rb',          // Other languages
+        '*.php', '*.css', '*.scss', '*.less',       // Web interfaces
+        '*.sql', '*.sh', '*.bash', '*.zsh',         // Scripts/SQL
+        '*.yaml', '*.yml', '*.json', '*.toml',      // Config files
+        '*.proto', '*.pbtxt',                       // Protocol buffers (small)
+        '*.BUILD', '*.bazel', '*.bzl',              // Bazel build files
+        '*.cmake', 'CMakeLists.txt',                // CMake files
+        'Dockerfile*', '*.dockerfile',              // Docker configs
+        '*.md', '*.txt', '*.rst',                   // Docs (small)
+        
+        // INCLUDE: Critical directories (but exclude huge files within them)
+        'tensorflow/core/**',                       // Core TensorFlow code
+        'tensorflow/python/**',                     // Python API
+        'tensorflow/compiler/**',                   // Compiler code
+        'tensorflow/stream_executor/**',            // GPU execution
+        
+        // EXCLUDE: Massive files and directories
+        '!**/*.hlo',                                // Huge benchmark files (1GB+)
+        '!**/*.pb',                                 // Large binary protobufs
+        '!**/*.bin', '!**/*.dat',                   // Binary data files
+        '!**/benchmarks/**',                        // Benchmark data
+        '!**/testdata/**', '!**/test_data/**',      // Test datasets
+        '!**/node_modules/**',                      // Dependencies
+        '!**/build/**', '!**/dist/**',              // Build outputs
+        '!**/*.min.js', '!**/*.bundle.js',          // Minified files
+        '!**/third_party/xla/**/benchmarks/**',     // XLA benchmarks (the culprit!)
+        '!**/third_party/xla/**/*.hlo'              // XLA HLO files (huge!)
+      ].join('\\n');
+      
+      await fs.writeFile(path.join(tempDir, '.git/info/sparse-checkout'), sparsePatterns);
+      console.log('📋 Sparse-checkout patterns configured for code files only');
+      
+      // Step 5: Fetch only what we need (ultra shallow)
+      console.log('📥 Fetching code files only (depth=1)...');
+      var fetchCmd = `${gitPath} -C "${tempDir}" fetch --depth 1 origin HEAD`;
+      execSync(fetchCmd, { stdio: 'pipe' });
+      
+      // Step 6: Checkout sparse files
+      console.log('📂 Checking out sparse code files...');
+      execSync(`${gitPath} -C "${tempDir}" checkout FETCH_HEAD`, { stdio: 'pipe' });
+      
+      console.log('✅ Ultra-shallow sparse clone successful (code files only)');
+      
     } catch (cloneError) {
-      console.error('❌ Git clone failed:', cloneError.message);
-      console.error('📋 Failed command:', cloneCmd);
+      console.error('❌ Ultra-shallow clone failed:', cloneError.message);
       console.error('🔍 Repository URL:', repoUrl);
       console.error('📁 Target directory:', tempDir);
-      throw new Error(`Failed to clone repository: ${cloneError.message}`);
+      
+      // Fallback to regular shallow clone if sparse fails
+      console.log('🔄 Falling back to regular shallow clone...');
+      try {
+        // Clean up failed sparse attempt
+        execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
+        await fs.mkdir(tempDir, { recursive: true });
+        
+        var fallbackCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
+        console.log('📋 Fallback command:', fallbackCmd);
+        execSync(fallbackCmd, { stdio: 'pipe' });
+        console.log('✅ Fallback shallow clone successful');
+        
+      } catch (fallbackError) {
+        console.error('❌ Both sparse and fallback clones failed:', fallbackError.message);
+        throw new Error(`Failed to clone repository: ${fallbackError.message}`);
+      }
     }
     
     // Step 2: Find ALL code files from full repository
