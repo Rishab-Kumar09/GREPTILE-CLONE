@@ -1584,20 +1584,40 @@ ${template.checks.map(check => `   - ${check}`).join('\n')}
 
 Return EXECUTABLE ES5 JavaScript with COMPREHENSIVE coverage:
 
+CRITICAL: Use ONLY this exact format with proper ES5 syntax:
+
 {
-  // 1. PERFORMANCE & OPTIMIZATION
   findPerformanceIssues: function(content, lines, filePath) {
     var issues = [];
-    // ${techStack.type}-specific performance bottlenecks
-    // Memory leaks, inefficient algorithms, resource waste
+    
+    // Example: Check for specific performance patterns
+    if (content.indexOf('useEffect') !== -1 && content.indexOf('[]') === -1) {
+      issues.push({
+        type: 'performance',
+        message: 'useEffect without dependency array may cause infinite re-renders',
+        line: 1,
+        code: 'useEffect(...)',
+        severity: 'high'
+      });
+    }
+    
     return issues;
   },
 
-  // 2. SECURITY & VULNERABILITIES
   findSecurityVulnerabilities: function(content, lines, filePath) {
     var issues = [];
-    // Framework-specific security issues
-    // XSS, injection, auth bypasses, data exposure
+    
+    // Example: Check for security patterns
+    if (content.indexOf('dangerouslySetInnerHTML') !== -1) {
+      issues.push({
+        type: 'security',
+        message: 'Potential XSS vulnerability with dangerouslySetInnerHTML',
+        line: 1,
+        code: 'dangerouslySetInnerHTML',
+        severity: 'critical'
+      });
+    }
+    
     return issues;
   },
 
@@ -1691,56 +1711,66 @@ Return EXECUTABLE ES5 JavaScript with COMPREHENSIVE coverage:
     var isUIFile = filePath.match(/\\.(jsx|tsx|vue|html|css|scss)$/);
     var isTestFile = filePath.match(/\\.(test|spec)\\./);
     
-    // Apply comprehensive rules based on file type and content
+    // Apply rules based on file type
     if (isCodeFile) {
-      allIssues = allIssues.concat(this.findPerformanceIssues(content, lines, filePath));
-      allIssues = allIssues.concat(this.findSecurityVulnerabilities(content, lines, filePath));
-      allIssues = allIssues.concat(this.findArchitecturalIssues(content, lines, filePath));
-      allIssues = allIssues.concat(this.findMaintainabilityIssues(content, lines, filePath));
-      allIssues = allIssues.concat(this.findConnectivityIssues(content, lines, filePath));
-      allIssues = allIssues.concat(this.findCompatibilityIssues(content, lines, filePath));
-      allIssues = allIssues.concat(this.findDeveloperPainPoints(content, lines, filePath));
+      if (this.findPerformanceIssues) allIssues = allIssues.concat(this.findPerformanceIssues(content, lines, filePath));
+      if (this.findSecurityVulnerabilities) allIssues = allIssues.concat(this.findSecurityVulnerabilities(content, lines, filePath));
+      if (this.findArchitecturalIssues) allIssues = allIssues.concat(this.findArchitecturalIssues(content, lines, filePath));
+      if (this.findMaintainabilityIssues) allIssues = allIssues.concat(this.findMaintainabilityIssues(content, lines, filePath));
+      if (this.findConnectivityIssues) allIssues = allIssues.concat(this.findConnectivityIssues(content, lines, filePath));
+      if (this.findCompatibilityIssues) allIssues = allIssues.concat(this.findCompatibilityIssues(content, lines, filePath));
+      if (this.findDeveloperPainPoints) allIssues = allIssues.concat(this.findDeveloperPainPoints(content, lines, filePath));
     }
     
     if (isUIFile) {
-      allIssues = allIssues.concat(this.findUIAccessibilityIssues(content, lines, filePath));
-      allIssues = allIssues.concat(this.findMissingElements(content, lines, filePath));
+      if (this.findUIAccessibilityIssues) allIssues = allIssues.concat(this.findUIAccessibilityIssues(content, lines, filePath));
+      if (this.findMissingElements) allIssues = allIssues.concat(this.findMissingElements(content, lines, filePath));
     }
     
     if (isTestFile) {
-      allIssues = allIssues.concat(this.findTestingGaps(content, lines, filePath));
+      if (this.findTestingGaps) allIssues = allIssues.concat(this.findTestingGaps(content, lines, filePath));
     }
     
     if (isConfigFile) {
-      allIssues = allIssues.concat(this.findDeploymentRisks(content, lines, filePath));
-      allIssues = allIssues.concat(this.findRuntimeRoadblocks(content, lines, filePath));
+      if (this.findDeploymentRisks) allIssues = allIssues.concat(this.findDeploymentRisks(content, lines, filePath));
+      if (this.findRuntimeRoadblocks) allIssues = allIssues.concat(this.findRuntimeRoadblocks(content, lines, filePath));
     }
-    
-    // Apply cross-cutting concerns to all files
-    allIssues = allIssues.concat(this.findMissingElements(content, lines, filePath));
-    allIssues = allIssues.concat(this.findRuntimeRoadblocks(content, lines, filePath));
     
     return allIssues;
   }
 }
 
 🔥 CRITICAL REQUIREMENTS:
-- Focus on DEVELOPER FRUSTRATION POINTS that waste hours of debugging
-- Each issue must make developers go "AHA! That's my problem!"
-- Prioritize SILENT FAILURES and hard-to-debug issues
-- Include environment-specific and deployment problems
-- Detect compatibility issues that work locally but fail in production
-- Find missing configurations that cause runtime crashes
-- Identify performance bottlenecks under real-world load
-- Catch authentication and security bypasses
-- Detect database connectivity and API integration problems
-- Severity: CRITICAL = app crashes/doesn't start, HIGH = feature broken, MEDIUM = performance/UX impact
+- Use ONLY ES5 syntax: var, function() {}, no const/let/arrow functions
+- MUST include executeRules function that calls other functions
+- Each function MUST return an array of issues
+- Use content.indexOf() instead of includes() for compatibility
+- Focus on REAL developer pain points that cause debugging sessions
+- Generate WORKING JavaScript code that executes without errors
 
-🎯 SUCCESS METRICS:
-- Developers should recognize these as REAL issues they've faced
-- Issues should point to ROOT CAUSES, not just symptoms
-- Solutions should be ACTIONABLE and specific
-- Focus on problems that cause 3AM debugging sessions`;
+EXAMPLE WORKING FORMAT:
+{
+  findPerformanceIssues: function(content, lines, filePath) {
+    var issues = [];
+    if (content.indexOf('useEffect') !== -1 && content.indexOf('[]') === -1) {
+      issues.push({
+        type: 'performance',
+        message: 'useEffect without dependency array',
+        line: 1,
+        code: 'useEffect',
+        severity: 'high'
+      });
+    }
+    return issues;
+  },
+  executeRules: function(content, filePath) {
+    var allIssues = [];
+    if (filePath.match(/\\.(js|jsx|ts|tsx)$/)) {
+      allIssues = allIssues.concat(this.findPerformanceIssues(content, content.split('\n'), filePath));
+    }
+    return allIssues;
+  }
+}`;
 
     console.log(`🧠 Asking AI to generate custom rules for repository...`);
 
@@ -1774,13 +1804,33 @@ Return EXECUTABLE ES5 JavaScript with COMPREHENSIVE coverage:
     
     if (jsMatch) {
       var generatedCode = jsMatch[1] || jsMatch[0];
+      
+      // Clean and validate the code
+      generatedCode = generatedCode
+        .replace(/```javascript/g, '')
+        .replace(/```js/g, '')
+        .replace(/```/g, '')
+        .trim();
+      
+      // Basic validation - ensure it looks like a valid object
+      if (!generatedCode.startsWith('{') || !generatedCode.endsWith('}')) {
+        console.warn('⚠️ Generated code does not appear to be a valid JavaScript object');
+        return null;
+      }
+      
+      // Check for executeRules function
+      if (!generatedCode.includes('executeRules:') && !generatedCode.includes('executeRules ')) {
+        console.warn('⚠️ Generated code missing executeRules function');
+        return null;
+      }
+      
       console.log(`✅ AI generated ${generatedCode.length} characters of custom rules`);
       console.log(`🔍 Generated code preview:`, generatedCode.substring(0, 300) + '...');
       return generatedCode;
     }
     
     console.warn('⚠️ Could not extract JavaScript code from AI response');
-    console.log('🔍 Full AI response:', aiResponse);
+    console.log('🔍 Full AI response:', aiResponse.substring(0, 1000) + '...');
     return null;
 
   } catch (error) {
@@ -1796,18 +1846,24 @@ async function executeCustomRules(customRulesCode, filesToProcess, tempDir) {
     console.log(`🔍 AI generated code preview:`, customRulesCode.substring(0, 200) + '...');
     
     // SAFE EVALUATION: Use Function constructor instead of eval
-    let customRules;
+    var customRules;
     try {
       // Clean the code and wrap it properly
-      const cleanCode = customRulesCode
+      var cleanCode = customRulesCode
         .replace(/```javascript/g, '')
+        .replace(/```js/g, '')
         .replace(/```/g, '')
         .trim();
       
       console.log(`🧹 Cleaned code preview:`, cleanCode.substring(0, 200) + '...');
       
+      // Validate basic structure before evaluation
+      if (!cleanCode.startsWith('{') || !cleanCode.endsWith('}')) {
+        throw new Error('Invalid JavaScript object structure');
+      }
+      
       // Use Function constructor for safer evaluation
-      const ruleFunction = new Function('return ' + cleanCode);
+      var ruleFunction = new Function('return ' + cleanCode);
       customRules = ruleFunction();
       
       console.log(`✅ Successfully evaluated AI rules`);
@@ -1815,14 +1871,22 @@ async function executeCustomRules(customRulesCode, filesToProcess, tempDir) {
       
     } catch (evalError) {
       console.error('❌ Failed to evaluate AI-generated code:', evalError.message);
-      console.log(`🔍 Problematic code:`, customRulesCode);
+      console.log(`🔍 Problematic code snippet:`, customRulesCode.substring(0, 500) + '...');
       return null;
     }
     
-    if (!customRules || typeof customRules.executeRules !== 'function') {
-      console.warn('⚠️ Invalid custom rules generated by AI');
+    if (!customRules || typeof customRules !== 'object') {
+      console.warn('⚠️ AI did not generate a valid rules object');
       console.log(`🔍 customRules type:`, typeof customRules);
-      console.log(`🔍 executeRules type:`, typeof customRules?.executeRules);
+      return null;
+    }
+    
+    if (typeof customRules.executeRules !== 'function') {
+      console.warn('⚠️ Missing or invalid executeRules function');
+      console.log(`🔍 executeRules type:`, typeof customRules.executeRules);
+      console.log(`🔍 Available methods:`, Object.keys(customRules).filter(function(key) { 
+        return typeof customRules[key] === 'function'; 
+      }));
       return null;
     }
     
