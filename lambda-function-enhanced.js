@@ -367,8 +367,13 @@ async function performSemanticBugDetection(content, filePath, repoDir) {
     allIssues = allIssues.concat(checkImportIssues(content, filePath, repoDir));
   }
   
-  console.log(`🔍 Static analysis found ${allIssues.length} issues in ${filePath}`);
-  return allIssues;
+  // FILTER OUT LOW SEVERITY ISSUES - Focus on what matters
+  var criticalIssues = allIssues.filter(issue => 
+    issue.severity === 'critical' || issue.severity === 'high' || issue.severity === 'medium'
+  );
+  
+  console.log(`🔍 Static analysis found ${criticalIssues.length} critical/high/medium issues in ${filePath} (filtered out ${allIssues.length - criticalIssues.length} low-priority noise)`);
+  return criticalIssues;
 }
 
 // 🔴 CRITICAL SECURITY FUNCTIONS
@@ -1081,44 +1086,9 @@ function checkCodeSmells(content, filePath) {
   var lines = content.split('\n');
   
   lines.forEach((line, index) => {
-    // Magic numbers
-    if (/\d{4,}|[^.\d]\d{2,3}[^.\d]/.test(line) && !/year|date|time|port|version/i.test(line)) {
-      var numbers = line.match(/\d{2,}/g);
-      if (numbers) {
-        issues.push({
-          type: 'maintainability',
-          message: 'Magic number: Consider using named constants for better readability',
-          line: index + 1,
-          severity: 'low',
-          code: line.trim(),
-          pattern: 'magic_number'
-        });
-      }
-    }
-    
-    // TODO/FIXME/HACK comments
-    if (/TODO|FIXME|HACK|XXX|BUG/i.test(line) && /\/\/|\/\*|\#/.test(line)) {
-      issues.push({
-        type: 'maintainability',
-        message: 'TODO comment: Address this technical debt',
-        line: index + 1,
-        severity: 'low',
-        code: line.trim(),
-        pattern: 'todo_comment'
-      });
-    }
-    
-    // Commented out code
-    if (/^\s*\/\/.*[=\(\)\{\}]|^\s*\/\*.*[=\(\)\{\}]/.test(line)) {
-      issues.push({
-        type: 'maintainability',
-        message: 'Commented code: Remove dead code or use version control',
-        line: index + 1,
-        severity: 'low',
-        code: line.trim(),
-        pattern: 'commented_code'
-      });
-    }
+    // REMOVED: Magic numbers, TODO comments, commented code
+    // These are "informational" issues that create noise
+    // Focus only on medium+ severity issues that matter
     
     // Long parameter lists
     var paramMatch = line.match(/function.*\(([^)]+)\)|.*\(([^)]+)\)\s*=>/);
@@ -1146,31 +1116,7 @@ function checkBestPractices(content, filePath) {
   var lines = content.split('\n');
   
   lines.forEach((line, index) => {
-    // Console.log in production code
-    if (/console\.(log|debug|info|warn|error)/i.test(line) && !/debug|development|test/i.test(filePath)) {
-      issues.push({
-        type: 'maintainability',
-        message: 'Console statement: Remove or replace with proper logging in production',
-        line: index + 1,
-        severity: 'low',
-        code: line.trim(),
-        pattern: 'console_log'
-      });
-    }
-    
-    // Var instead of let/const
-    if (/^\s*var\s+/i.test(line) && !/function/.test(line)) {
-      issues.push({
-        type: 'maintainability',
-        message: 'Use let/const instead of var for better scoping',
-        line: index + 1,
-        severity: 'low',
-        code: line.trim(),
-        pattern: 'var_usage'
-      });
-    }
-    
-    // == instead of ===
+    // == instead of ===  (Keep only medium+ severity issues)
     if (/[^=!]==[^=]|[^=!]!=[^=]/.test(line)) {
       issues.push({
         type: 'logic',
@@ -1182,17 +1128,8 @@ function checkBestPractices(content, filePath) {
       });
     }
     
-    // Missing semicolons (basic check)
-    if (/\w+$/.test(line.trim()) && /return|break|continue|throw/.test(line)) {
-      issues.push({
-        type: 'maintainability',
-        message: 'Missing semicolon: Add semicolon for consistency',
-        line: index + 1,
-        severity: 'low',
-        code: line.trim(),
-        pattern: 'missing_semicolon'
-      });
-    }
+    // REMOVED: console.log, var usage, missing semicolons
+    // These are "informational" noise that inflates issue counts
   });
   
   return issues;
@@ -1256,16 +1193,8 @@ function checkUnusedImports(content, filePath) {
       new RegExp('\\b' + imp.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(line)
     );
     
-    if (!isUsed) {
-      issues.push({
-        type: 'maintainability',
-        message: `Unused import: '${imp.name}' is imported but never used`,
-        line: imp.line,
-        severity: 'low',
-        code: imp.code,
-        pattern: 'unused_import'
-      });
-    }
+    // REMOVED: Unused imports detection
+    // This is informational noise - bundlers tree-shake unused imports
   });
   
   return issues;
@@ -1295,32 +1224,13 @@ function checkImportIssues(content, filePath, repoDir) {
           });
         }
         
-        // Importing from parent directories
-        if (relativePath.startsWith('../')) {
-          issues.push({
-            type: 'maintainability',
-            message: 'Parent directory import: Verify file exists and consider module structure',
-            line: index + 1,
-            severity: 'low',
-            code: line.trim(),
-            pattern: 'parent_import'
-          });
-        }
+        // REMOVED: Parent directory import warnings
+        // This is informational noise - relative imports are normal
       }
     }
     
-    // Missing file extensions in imports
-    if (/import.*from\s*["'][^"']*(?<!\.js|\.ts|\.jsx|\.tsx|\.json)["']/i.test(line) && 
-        !/node_modules|@|\//.test(line)) {
-      issues.push({
-        type: 'maintainability',
-        message: 'Missing file extension: Consider adding .js/.ts extension for clarity',
-        line: index + 1,
-        severity: 'low',
-        code: line.trim(),
-        pattern: 'missing_extension'
-      });
-    }
+    // REMOVED: Missing file extensions 
+    // This is informational noise - modern bundlers handle this
   });
   
   return issues;
