@@ -246,206 +246,6 @@ async function executeCustomRules(customRulesCode, filesToProcess, tempDir) {
   }
 }
 
-export const handler = async (event) => {
-  console.log('🤖 CLEAN Lambda analyzer started:', JSON.stringify(event));
-  
-  var { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false } = JSON.parse(event.body || '{}');
-  
-  if (!repoUrl || !analysisId) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: 'repoUrl and analysisId required' })
-    };
-  }
-  
-  var tempDir = path.join('/tmp', `analysis-${Date.now()}`);
-  var results = [];
-  var isFileBatched = !!batchNumber;
-  
-  try {
-    // Step 1: ALWAYS SHALLOW CLONE FULL REPOSITORY
-    console.log(`📥 Shallow cloning full repository ${isFileBatched ? `(file batch ${batchNumber})` : '(single analysis)'}...`);
-    await fs.mkdir(tempDir, { recursive: true });
-    
-    var gitPath = '/opt/bin/git'; // From git layer
-    
-    // ALWAYS do shallow clone of complete repository
-    console.log('🌊 Performing SHALLOW CLONE of full repository');
-    var cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
-    execSync(cloneCmd, { stdio: 'pipe' });
-    console.log('✅ Shallow clone successful');
-    
-    // Step 2: Find ALL code files from full repository
-    console.log('📁 Finding ALL code files from full repository...');
-    
-    var allFiles = await findCodeFiles(tempDir); // Get ALL files from entire repository
-    console.log(`📊 CRITICAL: Found ${allFiles.length} total code files in repository`);
-    
-    // Step 3: Handle file-based batching
-    var filesToProcess = allFiles;
-    var isLastBatch = true;
-    
-    if (isFileBatched) {
-      // FILE-BASED BATCHING: Process files in chunks
-      const filesPerBatch = 50; // Reduced to prevent Gateway timeouts
-      console.log(`⚡ Fast batch size: ${filesPerBatch} files per batch`);
-      
-      const startIndex = (batchNumber - 1) * filesPerBatch;
-      const endIndex = startIndex + filesPerBatch;
-      
-      filesToProcess = allFiles.slice(startIndex, endIndex);
-      isLastBatch = endIndex >= allFiles.length || filesToProcess.length === 0;
-      
-      console.log(`📦 BATCH ${batchNumber} DETAILS:`);
-      console.log(`   📊 Total files in repo: ${allFiles.length}`);
-      console.log(`   📍 Processing range: ${startIndex + 1} to ${Math.min(endIndex, allFiles.length)}`);
-      console.log(`   📁 Files in this batch: ${filesToProcess.length}`);
-      console.log(`   🏁 Is last batch: ${isLastBatch}`);
-      
-      // Early return if no files in this batch
-      if (filesToProcess.length === 0) {
-        console.log(`🛑 EARLY RETURN: No files in batch ${batchNumber}, marking as last batch`);
-        
-        return {
-          statusCode: 200,
-          body: JSON.stringify({
-            success: true,
-            analysisId: analysisId,
-            results: [],
-            isFileBatched: true,
-            batchNumber: batchNumber,
-            isLastBatch: true, // Force last batch when no files
-            stats: {
-              filesProcessed: 0,
-              filesWithIssues: 0,
-              totalIssues: 0,
-              totalFilesInRepo: allFiles.length
-            },
-            message: `FILE BATCH ${batchNumber} - No more files to process`
-          })
-        };
-      }
-    }
-    
-    console.log(`🔍 Processing ${filesToProcess.length} files in this batch`);
-    
-    // Step 4: Analyze files in this batch
-    console.log(`🔍 Analyzing ${filesToProcess.length} files in this batch...`);
-    var processedFiles = 0;
-    var totalIssues = 0;
-    
-    // 🧠 AI RULE GENERATOR: Create minimal, focused rules for this repo
-    console.log(`🧠 AI RULE GENERATOR: Creating custom analysis rules for ${filesToProcess.length} files...`);
-    
-    // Step 1: Build repository context (simplified)
-    var repoContext = {
-      totalFiles: filesToProcess.length,
-      fileContents: []
-    };
-    
-    // Step 2: AI generates minimal rule set (now using hardcoded rules)
-    var customRulesCode = await generateCustomRules(repoContext);
-    
-    if (customRulesCode) {
-      console.log(`⚡ Executing fast hardcoded rules...`);
-      
-      // Step 3: Execute rules on all files (milliseconds per file!)
-      var ruleResults = await executeCustomRules(customRulesCode, filesToProcess, tempDir);
-      
-      if (ruleResults && ruleResults.length > 0) {
-        results.push.apply(results, ruleResults);
-        totalIssues = ruleResults.reduce(function(sum, file) { return sum + file.issues.length; }, 0);
-        processedFiles = filesToProcess.length;
-        
-        console.log(`🎉 RULE EXECUTION complete: ${totalIssues} issues found in ${ruleResults.length} files`);
-      } else {
-        console.log(`⚠️ Rules found no issues, using fallback analysis...`);
-        processedFiles = filesToProcess.length; // Still processed
-      }
-    } else {
-      console.log(`⚠️ Rule generation failed, falling back to basic analysis...`);
-      
-      // Fallback to basic analysis
-      for (var i = 0; i < filesToProcess.length; i++) {
-        var file = filesToProcess[i];
-        try {
-          var content = await fs.readFile(file, 'utf-8');
-          var relativePath = path.relative(tempDir, file);
-          var issues = performBasicAnalysis(content, relativePath);
-          
-          processedFiles++;
-          
-          if (issues.length > 0) {
-            results.push({
-              file: relativePath,
-              issues: issues
-            });
-            totalIssues += issues.length;
-          }
-        } catch (err) {
-          console.warn(`❌ Failed to analyze ${file}:`, err.message);
-          processedFiles++;
-        }
-      }
-    }
-    
-    console.log(`✅ ANALYSIS COMPLETE FOR BATCH ${batchNumber || 'N/A'}:`);
-    console.log(`   📊 Files processed: ${processedFiles}`);
-    console.log(`   📁 Files with issues: ${results.length}`);
-    console.log(`   🚨 Total issues found: ${totalIssues}`);
-    console.log(`   🏁 Will return isLastBatch: ${isLastBatch}`);
-    
-    // CRITICAL: Log what we're returning to frontend
-    var returnData = {
-      success: true,
-      analysisId: analysisId,
-      results: results,
-      isFileBatched: isFileBatched,
-      batchNumber: batchNumber,
-      isLastBatch: isLastBatch,
-      stats: {
-        filesProcessed: processedFiles,
-        filesWithIssues: results.length,
-        totalIssues: totalIssues,
-        totalFilesInRepo: isFileBatched ? allFiles.length : processedFiles
-      },
-      message: `${isFileBatched ? `FILE BATCH ${batchNumber}` : 'FULL'} Analysis complete: ${totalIssues} issues found in ${results.length} files`
-    };
-    
-    console.log(`📤 RETURNING TO FRONTEND:`, JSON.stringify({
-      success: returnData.success,
-      isLastBatch: returnData.isLastBatch,
-      batchNumber: returnData.batchNumber,
-      totalIssues: returnData.stats.totalIssues,
-      totalFilesInRepo: returnData.stats.totalFilesInRepo
-    }));
-    
-    return {
-      statusCode: 200,
-      body: JSON.stringify(returnData)
-    };
-    
-  } catch (error) {
-    console.error('❌ Analysis failed:', error);
-    
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: error.message
-      })
-    };
-    
-  } finally {
-    // Cleanup
-    try {
-      execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
-    } catch (err) {
-      console.warn('Cleanup failed:', err.message);
-    }
-  }
-};
-
 async function findCodeFiles(dir) {
   var files = [];
   
@@ -507,3 +307,152 @@ async function scanDirectory(dir, files, extensions, depth) {
     console.warn(`Failed to read directory ${dir}:`, error.message);
   }
 }
+
+export const handler = async (event) => {
+  console.log('🤖 CLEAN Lambda analyzer started:', JSON.stringify(event));
+  
+  var { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false } = JSON.parse(event.body || '{}');
+  
+  if (!repoUrl || !analysisId) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: 'repoUrl and analysisId required' })
+    };
+  }
+  
+  var tempDir = path.join('/tmp', `analysis-${Date.now()}`);
+  var results = [];
+  var isFileBatched = !!batchNumber;
+  
+  try {
+    // Step 1: ALWAYS SHALLOW CLONE FULL REPOSITORY
+    console.log(`📥 Shallow cloning full repository ${isFileBatched ? `(file batch ${batchNumber})` : '(single analysis)'}...`);
+    await fs.mkdir(tempDir, { recursive: true });
+    
+    var gitPath = '/opt/bin/git'; // From git layer
+    
+    // ALWAYS do shallow clone of complete repository
+    console.log('🌊 Performing SHALLOW CLONE of full repository');
+    var cloneCmd = `${gitPath} clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`;
+    execSync(cloneCmd, { stdio: 'pipe' });
+    console.log('✅ Shallow clone successful');
+    
+    // Step 2: Find ALL code files from full repository
+    console.log('📁 Finding ALL code files from full repository...');
+    
+    var allFiles = await findCodeFiles(tempDir);
+    console.log(`📊 CRITICAL: Found ${allFiles.length} total code files in repository`);
+    
+    // Step 3: Handle file-based batching
+    var filesToProcess = allFiles;
+    var isLastBatch = true;
+    
+    if (isFileBatched) {
+      const filesPerBatch = 50;
+      console.log(`⚡ Fast batch size: ${filesPerBatch} files per batch`);
+      
+      const startIndex = (batchNumber - 1) * filesPerBatch;
+      const endIndex = startIndex + filesPerBatch;
+      
+      filesToProcess = allFiles.slice(startIndex, endIndex);
+      isLastBatch = endIndex >= allFiles.length || filesToProcess.length === 0;
+      
+      console.log(`📦 BATCH ${batchNumber} DETAILS:`);
+      console.log(`   📊 Total files in repo: ${allFiles.length}`);
+      console.log(`   📁 Files in this batch: ${filesToProcess.length}`);
+      console.log(`   🏁 Is last batch: ${isLastBatch}`);
+      
+      if (filesToProcess.length === 0) {
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            success: true,
+            analysisId: analysisId,
+            results: [],
+            isFileBatched: true,
+            batchNumber: batchNumber,
+            isLastBatch: true,
+            stats: {
+              filesProcessed: 0,
+              filesWithIssues: 0,
+              totalIssues: 0,
+              totalFilesInRepo: allFiles.length
+            },
+            message: `FILE BATCH ${batchNumber} - No more files to process`
+          })
+        };
+      }
+    }
+    
+    // Step 4: Analyze files using fallback analysis (simple and fast)
+    var processedFiles = 0;
+    var totalIssues = 0;
+    
+    for (var i = 0; i < filesToProcess.length; i++) {
+      var file = filesToProcess[i];
+      try {
+        var content = await fs.readFile(file, 'utf-8');
+        var relativePath = path.relative(tempDir, file);
+        var issues = performBasicAnalysis(content, relativePath);
+        
+        processedFiles++;
+        
+        if (issues.length > 0) {
+          results.push({
+            file: relativePath,
+            issues: issues
+          });
+          totalIssues += issues.length;
+        }
+      } catch (err) {
+        console.warn(`❌ Failed to analyze ${file}:`, err.message);
+        processedFiles++;
+      }
+    }
+    
+    console.log(`✅ ANALYSIS COMPLETE FOR BATCH ${batchNumber || 'N/A'}:`);
+    console.log(`   📊 Files processed: ${processedFiles}`);
+    console.log(`   📁 Files with issues: ${results.length}`);
+    console.log(`   🚨 Total issues found: ${totalIssues}`);
+    
+    var returnData = {
+      success: true,
+      analysisId: analysisId,
+      results: results,
+      isFileBatched: isFileBatched,
+      batchNumber: batchNumber,
+      isLastBatch: isLastBatch,
+      stats: {
+        filesProcessed: processedFiles,
+        filesWithIssues: results.length,
+        totalIssues: totalIssues,
+        totalFilesInRepo: isFileBatched ? allFiles.length : processedFiles
+      },
+      message: `${isFileBatched ? `FILE BATCH ${batchNumber}` : 'FULL'} Analysis complete: ${totalIssues} issues found in ${results.length} files`
+    };
+    
+    return {
+      statusCode: 200,
+      body: JSON.stringify(returnData)
+    };
+    
+  } catch (error) {
+    console.error('❌ Analysis failed:', error);
+    
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        success: false,
+        error: error.message
+      })
+    };
+    
+  } finally {
+    // Cleanup
+    try {
+      execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
+    } catch (err) {
+      console.warn('Cleanup failed:', err.message);
+    }
+  }
+};
