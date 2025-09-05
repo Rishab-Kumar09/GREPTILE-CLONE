@@ -519,11 +519,11 @@ export default function EnterpriseAnalysisPage() {
                continue;
              }
       
-      // Safety limit to prevent infinite loops
-      if (batchNumber > 20) {
-        console.warn('⚠️ Reached maximum batch limit (20), stopping')
-        break
-      }
+                   // Safety limit to prevent infinite loops (only if isLastBatch logic fails)
+             if (batchNumber > 100) {
+               console.warn('⚠️ Reached maximum batch limit (100), stopping - this indicates isLastBatch logic may be broken')
+               break
+             }
     }
 
     // Final results
