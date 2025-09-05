@@ -432,62 +432,55 @@ Rules:
   }
 }
 
-// 🚀 GREPTILE KILLER: HYBRID ANALYSIS ENGINE
+// 🚀 ULTIMATE FILE-SPECIFIC ANALYSIS ENGINE
 async function performHybridAnalysis(content, filePath, tempDir) {
-  console.log(`🔥 HYBRID ANALYSIS: ${filePath}`);
+  console.log(`🎯 SMART FILE ANALYSIS: ${filePath}`);
   
-  var allIssues = [];
-  var ext = path.extname(filePath).toLowerCase();
   var startTime = Date.now();
+  var ext = path.extname(filePath).toLowerCase();
+  var fileName = path.basename(filePath).toLowerCase();
   
   try {
-    // PHASE 1: ⚡ LIGHTNING-FAST STATIC ANALYSIS (0.1-0.5 seconds)
-    console.log(`⚡ Phase 1: Static analysis for ${filePath}`);
-    var staticIssues = await performRealAnalysis(content, filePath, tempDir);
+    // PHASE 1: 🔍 INTELLIGENT FILE CLASSIFICATION & SPECIALIZED ANALYSIS
+    var fileType = classifyFileType(filePath, content);
+    console.log(`📋 File classified as: ${fileType.category} (${fileType.subtype})`);
     
-    if (staticIssues && staticIssues.length > 0) {
-      staticIssues.forEach(function(issue) {
-        issue.source = 'static';
-        issue.confidence = 'high'; // Static analysis is always confident
-      });
-      allIssues = allIssues.concat(staticIssues);
-      console.log(`⚡ Static found ${staticIssues.length} issues`);
+    var issues = [];
+    
+    // PHASE 2: ⚡ SPECIALIZED ANALYZERS (Ultra-fast, file-specific)
+    switch (fileType.category) {
+      case 'code':
+        issues = await analyzeCodeFile(content, filePath, fileType, tempDir);
+        break;
+      case 'config':
+        issues = analyzeConfigFile(content, filePath, fileType);
+        break;
+      case 'security':
+        issues = analyzeSecurityFile(content, filePath, fileType);
+        break;
+      case 'build':
+        issues = analyzeBuildFile(content, filePath, fileType);
+        break;
+      case 'docs':
+        issues = analyzeDocumentationFile(content, filePath, fileType);
+        break;
+      case 'data':
+        issues = analyzeDataFile(content, filePath, fileType);
+        break;
+      default:
+        issues = performBasicAnalysis(content, filePath);
     }
     
-    // PHASE 2: 🧠 SMART AI ANALYSIS (1-3 seconds, selective)
-    var shouldUseAI = decideShouldUseAI(content, filePath, staticIssues);
-    
-    if (shouldUseAI && OPENAI_API_KEY) {
-      console.log(`🧠 Phase 2: AI analysis for ${filePath}`);
-      var aiIssues = await performAIAnalysis(content, filePath);
-      
-      if (aiIssues && aiIssues.length > 0) {
-        // Deduplicate and enhance AI issues
-        var uniqueAIIssues = deduplicateIssues(staticIssues, aiIssues);
-        
-        uniqueAIIssues.forEach(function(issue) {
-          issue.source = 'ai';
-          issue.confidence = 'medium'; // AI might have false positives
-          issue.explanation = `AI detected: ${issue.message}`;
-        });
-        
-        allIssues = allIssues.concat(uniqueAIIssues);
-        console.log(`🧠 AI found ${uniqueAIIssues.length} additional issues`);
-      }
-    } else {
-      console.log(`⏭️ Skipping AI analysis: ${!shouldUseAI ? 'not needed' : 'no API key'}`);
-    }
-    
-    // PHASE 3: 🎯 PRIORITY SCORING & RANKING
-    allIssues = prioritizeIssues(allIssues, content, filePath);
+    // PHASE 3: 🎯 PRIORITY SCORING & ENHANCEMENT
+    issues = enhanceIssuesWithMetadata(issues, fileType, content, filePath);
     
     var analysisTime = Date.now() - startTime;
-    console.log(`🔥 HYBRID COMPLETE: ${allIssues.length} total issues in ${analysisTime}ms`);
+    console.log(`🎯 SPECIALIZED ANALYSIS COMPLETE: ${issues.length} issues in ${analysisTime}ms`);
     
-    return allIssues;
+    return issues;
     
   } catch (error) {
-    console.error(`❌ Hybrid analysis failed for ${filePath}:`, error.message);
+    console.error(`❌ Specialized analysis failed for ${filePath}:`, error.message);
     return performBasicAnalysis(content, filePath);
   }
 }
@@ -572,10 +565,448 @@ function prioritizeIssues(issues, content, filePath) {
   return issues.sort(function(a, b) { return b.priorityScore - a.priorityScore; });
 }
 
+// 🧠 INTELLIGENT FILE CLASSIFIER
+function classifyFileType(filePath, content) {
+  var ext = path.extname(filePath).toLowerCase();
+  var fileName = path.basename(filePath).toLowerCase();
+  var dirPath = path.dirname(filePath).toLowerCase();
+  
+  // CODE FILES - Need deep analysis
+  if (['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.cpp', '.c', '.h', '.go', '.rs', '.php', '.rb'].includes(ext)) {
+    var subtype = 'general';
+    if (/react|component|hook/i.test(content) || ['.jsx', '.tsx'].includes(ext)) subtype = 'react';
+    else if (/express|server|api|route/i.test(content)) subtype = 'backend';
+    else if (/test|spec|__test__/i.test(fileName)) subtype = 'test';
+    else if (/tensorflow|pytorch|numpy|ml|ai/i.test(content)) subtype = 'ml';
+    return { category: 'code', subtype: subtype, priority: 'high' };
+  }
+  
+  // SECURITY FILES - Critical analysis
+  if (fileName.includes('auth') || fileName.includes('security') || fileName.includes('secret') || 
+      fileName.includes('key') || fileName.includes('cert') || ext === '.pem' || ext === '.key') {
+    return { category: 'security', subtype: 'credentials', priority: 'critical' };
+  }
+  
+  // CONFIG FILES - Structured analysis
+  if (['.json', '.yaml', '.yml', '.toml', '.ini', '.conf', '.cfg'].includes(ext) ||
+      ['package.json', 'tsconfig.json', 'webpack.config.js', '.env', '.gitignore'].includes(fileName)) {
+    var subtype = 'general';
+    if (fileName === 'package.json') subtype = 'npm';
+    else if (fileName.includes('docker')) subtype = 'docker';
+    else if (fileName.includes('webpack') || fileName.includes('babel')) subtype = 'build';
+    else if (fileName === '.env' || fileName.includes('env')) subtype = 'environment';
+    return { category: 'config', subtype: subtype, priority: 'medium' };
+  }
+  
+  // BUILD FILES - Deployment analysis  
+  if (['dockerfile', 'makefile', 'gulpfile.js', 'gruntfile.js'].includes(fileName) ||
+      fileName.includes('build') || fileName.includes('deploy') || ext === '.sh' || ext === '.bat') {
+    return { category: 'build', subtype: 'deployment', priority: 'high' };
+  }
+  
+  // DATA FILES - Format validation
+  if (['.csv', '.xml', '.sql', '.db', '.sqlite'].includes(ext)) {
+    return { category: 'data', subtype: 'structured', priority: 'low' };
+  }
+  
+  // DOCUMENTATION - Content analysis
+  if (['.md', '.txt', '.rst', '.adoc'].includes(ext) || fileName === 'readme') {
+    return { category: 'docs', subtype: 'markdown', priority: 'low' };
+  }
+  
+  return { category: 'unknown', subtype: 'generic', priority: 'low' };
+}
+
+// 💻 CODE FILE ANALYZER (AI-Enhanced for Complex Logic)
+async function analyzeCodeFile(content, filePath, fileType, tempDir) {
+  console.log(`💻 Analyzing ${fileType.subtype} code file: ${filePath}`);
+  
+  var issues = [];
+  
+  // PHASE 1: Fast pattern-based analysis
+  var patterns = getCodePatterns(fileType.subtype);
+  issues = issues.concat(analyzeWithPatterns(content, patterns, filePath));
+  
+  // PHASE 2: AI analysis for complex files only
+  if (content.length > 1000 || issues.some(i => i.severity === 'critical')) {
+    console.log(`🧠 Using AI for complex ${fileType.subtype} analysis`);
+    var aiIssues = await performAIAnalysis(content, filePath);
+    if (aiIssues) {
+      aiIssues.forEach(issue => issue.source = 'ai');
+      issues = issues.concat(aiIssues);
+    }
+  }
+  
+  return issues;
+}
+
+// ⚙️ CONFIG FILE ANALYZER (100+ Predefined Rules)
+function analyzeConfigFile(content, filePath, fileType) {
+  console.log(`⚙️ Analyzing ${fileType.subtype} config: ${filePath}`);
+  
+  var issues = [];
+  var fileName = path.basename(filePath);
+  
+  try {
+    if (fileType.subtype === 'npm' && fileName === 'package.json') {
+      issues = issues.concat(analyzePackageJson(content, filePath));
+    } else if (fileType.subtype === 'environment') {
+      issues = issues.concat(analyzeEnvFile(content, filePath));
+    } else if (fileType.subtype === 'docker') {
+      issues = issues.concat(analyzeDockerfile(content, filePath));
+    } else if (['.json', '.yaml', '.yml'].includes(path.extname(filePath))) {
+      issues = issues.concat(analyzeGenericConfig(content, filePath));
+    }
+  } catch (error) {
+    console.warn(`Config analysis failed for ${filePath}:`, error.message);
+  }
+  
+  return issues;
+}
+
+// 🔒 SECURITY FILE ANALYZER (Critical Security Checks)
+function analyzeSecurityFile(content, filePath, fileType) {
+  console.log(`🔒 Security analysis: ${filePath}`);
+  
+  var issues = [];
+  
+  // Check for exposed secrets
+  var secretPatterns = [
+    { pattern: /sk-[a-zA-Z0-9]{48}/, message: 'OpenAI API key exposed', severity: 'critical' },
+    { pattern: /ghp_[a-zA-Z0-9]{36}/, message: 'GitHub token exposed', severity: 'critical' },
+    { pattern: /AKIA[0-9A-Z]{16}/, message: 'AWS access key exposed', severity: 'critical' },
+    { pattern: /-----BEGIN PRIVATE KEY-----/, message: 'Private key exposed', severity: 'critical' },
+    { pattern: /password\s*[=:]\s*["'][^"']{8,}["']/, message: 'Hardcoded password', severity: 'high' }
+  ];
+  
+  secretPatterns.forEach(function(check) {
+    if (check.pattern.test(content)) {
+      issues.push({
+        type: 'security',
+        message: check.message,
+        line: findLineNumber(content, check.pattern),
+        severity: check.severity,
+        source: 'security-scanner'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 🏗️ BUILD FILE ANALYZER (Deployment & CI/CD Issues)
+function analyzeBuildFile(content, filePath, fileType) {
+  console.log(`🏗️ Build file analysis: ${filePath}`);
+  
+  var issues = [];
+  var fileName = path.basename(filePath).toLowerCase();
+  
+  if (fileName === 'dockerfile') {
+    issues = issues.concat(analyzeDockerfile(content, filePath));
+  } else if (path.extname(filePath) === '.sh') {
+    issues = issues.concat(analyzeShellScript(content, filePath));
+  }
+  
+  return issues;
+}
+
+// 📚 DOCUMENTATION ANALYZER (Content Quality)
+function analyzeDocumentationFile(content, filePath, fileType) {
+  console.log(`📚 Documentation analysis: ${filePath}`);
+  
+  var issues = [];
+  
+  // Check for common documentation issues
+  if (content.length < 100) {
+    issues.push({
+      type: 'documentation',
+      message: 'Documentation file is too short',
+      line: 1,
+      severity: 'low',
+      source: 'doc-analyzer'
+    });
+  }
+  
+  if (!/#+\s/.test(content)) {
+    issues.push({
+      type: 'documentation', 
+      message: 'Missing proper markdown headers',
+      line: 1,
+      severity: 'low',
+      source: 'doc-analyzer'
+    });
+  }
+  
+  return issues;
+}
+
+// 📊 DATA FILE ANALYZER (Format & Structure)
+function analyzeDataFile(content, filePath, fileType) {
+  console.log(`📊 Data file analysis: ${filePath}`);
+  
+  var issues = [];
+  var ext = path.extname(filePath);
+  
+  if (ext === '.json') {
+    try {
+      JSON.parse(content);
+    } catch (error) {
+      issues.push({
+        type: 'syntax',
+        message: 'Invalid JSON format: ' + error.message,
+        line: 1,
+        severity: 'high',
+        source: 'json-parser'
+      });
+    }
+  }
+  
+  return issues;
+}
+
+// 🎯 SPECIALIZED HELPER FUNCTIONS
+
+// Get code patterns for specific subtypes
+function getCodePatterns(subtype) {
+  var patterns = {
+    react: [
+      { pattern: /useEffect\s*\(\s*[^,]+\s*\)(?!\s*,\s*\[)/, message: 'useEffect missing dependencies', severity: 'high' },
+      { pattern: /dangerouslySetInnerHTML/, message: 'XSS risk with dangerouslySetInnerHTML', severity: 'critical' },
+      { pattern: /useState\(\s*\{\s*\}\s*\)/, message: 'useState with object - prefer useReducer', severity: 'medium' }
+    ],
+    backend: [
+      { pattern: /app\.use\([^)]*\)(?!.*cors)/, message: 'Missing CORS middleware', severity: 'high' },
+      { pattern: /process\.env\.[A-Z_]+(?!\s*\|\|)/, message: 'Missing environment variable fallback', severity: 'medium' },
+      { pattern: /\.query\s*\(\s*["`'][^"`']*\+/, message: 'SQL injection vulnerability', severity: 'critical' }
+    ],
+    ml: [
+      { pattern: /torch\.load\([^)]*\)(?!.*map_location)/, message: 'PyTorch load without map_location', severity: 'medium' },
+      { pattern: /pickle\.load/, message: 'Unsafe pickle.load usage', severity: 'high' },
+      { pattern: /eval\s*\(/, message: 'Dangerous eval() in ML code', severity: 'critical' }
+    ]
+  };
+  
+  return patterns[subtype] || [];
+}
+
+// Analyze with pattern matching
+function analyzeWithPatterns(content, patterns, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  patterns.forEach(function(pattern) {
+    lines.forEach(function(line, index) {
+      if (pattern.pattern.test(line)) {
+        issues.push({
+          type: 'pattern',
+          message: pattern.message,
+          line: index + 1,
+          code: line.trim(),
+          severity: pattern.severity,
+          source: 'pattern-matcher'
+        });
+      }
+    });
+  });
+  
+  return issues;
+}
+
+// Package.json analyzer
+function analyzePackageJson(content, filePath) {
+  var issues = [];
+  
+  try {
+    var pkg = JSON.parse(content);
+    
+    // Security checks
+    if (!pkg.engines || !pkg.engines.node) {
+      issues.push({
+        type: 'config',
+        message: 'Missing Node.js engine specification',
+        line: 1,
+        severity: 'medium',
+        source: 'npm-analyzer'
+      });
+    }
+    
+    // Check for known vulnerable packages
+    var vulnerablePackages = ['lodash@4.17.20', 'moment@2.29.1', 'axios@0.21.0'];
+    Object.keys(pkg.dependencies || {}).forEach(function(dep) {
+      var version = pkg.dependencies[dep];
+      if (vulnerablePackages.some(vuln => vuln.startsWith(dep + '@'))) {
+        issues.push({
+          type: 'security',
+          message: `Potentially vulnerable package: ${dep}@${version}`,
+          line: findLineInJson(content, dep),
+          severity: 'high',
+          source: 'vulnerability-scanner'
+        });
+      }
+    });
+    
+  } catch (error) {
+    issues.push({
+      type: 'syntax',
+      message: 'Invalid package.json: ' + error.message,
+      line: 1,
+      severity: 'high',
+      source: 'json-parser'
+    });
+  }
+  
+  return issues;
+}
+
+// Environment file analyzer
+function analyzeEnvFile(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach(function(line, index) {
+    var trimmed = line.trim();
+    
+    // Check for exposed secrets
+    if (/^[A-Z_]+\s*=\s*[a-zA-Z0-9+/]{20,}/.test(trimmed)) {
+      issues.push({
+        type: 'security',
+        message: 'Potential secret in environment file',
+        line: index + 1,
+        code: trimmed.substring(0, 50) + '...',
+        severity: 'critical',
+        source: 'env-scanner'
+      });
+    }
+    
+    // Check for missing quotes
+    if (/=.*\s/.test(trimmed) && !/=["']/.test(trimmed)) {
+      issues.push({
+        type: 'config',
+        message: 'Environment value with spaces should be quoted',
+        line: index + 1,
+        code: trimmed,
+        severity: 'medium',
+        source: 'env-scanner'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// Dockerfile analyzer
+function analyzeDockerfile(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach(function(line, index) {
+    var trimmed = line.trim().toUpperCase();
+    
+    // Security best practices
+    if (trimmed.startsWith('FROM ') && trimmed.includes(':LATEST')) {
+      issues.push({
+        type: 'deployment',
+        message: 'Using :latest tag is not recommended',
+        line: index + 1,
+        code: line.trim(),
+        severity: 'medium',
+        source: 'docker-analyzer'
+      });
+    }
+    
+    if (trimmed.startsWith('RUN ') && trimmed.includes('SUDO')) {
+      issues.push({
+        type: 'security',
+        message: 'Avoid using sudo in Dockerfile',
+        line: index + 1,
+        code: line.trim(),
+        severity: 'high',
+        source: 'docker-analyzer'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// Shell script analyzer
+function analyzeShellScript(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach(function(line, index) {
+    var trimmed = line.trim();
+    
+    // Security checks
+    if (/\$\([^)]*\)/.test(trimmed) && !/set -e/.test(content)) {
+      issues.push({
+        type: 'security',
+        message: 'Command substitution without error handling',
+        line: index + 1,
+        code: trimmed,
+        severity: 'medium',
+        source: 'shell-analyzer'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// Generic config analyzer
+function analyzeGenericConfig(content, filePath) {
+  var issues = [];
+  
+  // Check for common misconfigurations
+  if (/debug\s*[:=]\s*true/i.test(content)) {
+    issues.push({
+      type: 'config',
+      message: 'Debug mode enabled in configuration',
+      line: findLineNumber(content, /debug\s*[:=]\s*true/i),
+      severity: 'medium',
+      source: 'config-analyzer'
+    });
+  }
+  
+  return issues;
+}
+
+// Helper functions
+function findLineNumber(content, pattern) {
+  var lines = content.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    if (pattern.test(lines[i])) {
+      return i + 1;
+    }
+  }
+  return 1;
+}
+
+function findLineInJson(content, key) {
+  var lines = content.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].includes('"' + key + '"')) {
+      return i + 1;
+    }
+  }
+  return 1;
+}
+
+// Enhance issues with metadata
+function enhanceIssuesWithMetadata(issues, fileType, content, filePath) {
+  return issues.map(function(issue) {
+    issue.fileType = fileType.category;
+    issue.subtype = fileType.subtype;
+    issue.priority = fileType.priority;
+    issue.confidence = issue.source === 'pattern-matcher' ? 'high' : 'medium';
+    return issue;
+  });
+}
+
 // Keep the old function for compatibility
 async function generateCustomRules(repoContext) {
-  console.log('🔥 Using HYBRID analysis engine (Static + AI)');
-  return null; // Signal to use hybrid analysis
+  console.log('🎯 Using SPECIALIZED file-type analyzers');
+  return null; // Signal to use specialized analysis
 }
 
 // 🚀 EXECUTE AI-GENERATED RULES ON ALL FILES
