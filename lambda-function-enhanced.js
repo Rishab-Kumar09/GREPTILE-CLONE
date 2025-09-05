@@ -799,17 +799,17 @@ function checkErrorHandling(content, filePath) {
       }
     }
     
-    // Generic error messages
-    if (/throw.*Error\s*\(\s*["']error|["']something went wrong|["']oops/i.test(line)) {
-      issues.push({
-        type: 'maintainability',
-        message: 'Generic error message: Provide specific, actionable error details',
-        line: index + 1,
-        severity: 'low',
-        code: line.trim(),
-        pattern: 'generic_error'
-      });
-    }
+    // REMOVED: Generic error messages (low severity noise)
+    // if (/throw.*Error\s*\(\s*["']error|["']something went wrong|["']oops/i.test(line)) {
+    //   issues.push({
+    //     type: 'maintainability',
+    //     message: 'Generic error message: Provide specific, actionable error details',
+    //     line: index + 1,
+    //     severity: 'low',
+    //     code: line.trim(),
+    //     pattern: 'generic_error'
+    //   });
+    // }
   });
   
   return issues;
@@ -977,17 +977,17 @@ function checkPerformanceAntipatterns(content, filePath) {
       }
     }
     
-    // Inefficient array operations
-    if (/\.indexOf\s*\(.*\)\s*!==\s*-1/i.test(line)) {
-      issues.push({
-        type: 'performance',
-        message: 'Performance: Use .includes() instead of .indexOf() !== -1',
-        line: index + 1,
-        severity: 'low',
-        code: line.trim(),
-        pattern: 'inefficient_array_check'
-      });
-    }
+    // REMOVED: Inefficient array operations (low severity noise)
+    // if (/\.indexOf\s*\(.*\)\s*!==\s*-1/i.test(line)) {
+    //   issues.push({
+    //     type: 'performance',
+    //     message: 'Performance: Use .includes() instead of .indexOf() !== -1',
+    //     line: index + 1,
+    //     severity: 'low',
+    //     code: line.trim(),
+    //     pattern: 'inefficient_array_check'
+    //   });
+    // }
     
     // Synchronous file operations in async context
     if (/readFileSync|writeFileSync|existsSync/i.test(line)) {
@@ -1052,17 +1052,17 @@ function checkComplexity(content, filePath) {
       complexity += (line.match(/&&|\|\|/g) || []).length;
     }
     
-    // Function too long
-    if (currentFunction && braceDepth === 0 && index - functionStart > 50) {
-      issues.push({
-        type: 'maintainability',
-        message: `Long function (${index - functionStart + 1} lines): Consider breaking into smaller functions`,
-        line: functionStart,
-        severity: 'low',
-        code: `function ${currentFunction}...`,
-        pattern: 'long_function'
-      });
-    }
+    // REMOVED: Long function check (low severity noise)  
+    // if (currentFunction && braceDepth === 0 && index - functionStart > 50) {
+    //   issues.push({
+    //     type: 'maintainability',
+    //     message: `Long function (${index - functionStart + 1} lines): Consider breaking into smaller functions`,
+    //     line: functionStart,
+    //     severity: 'low',
+    //     code: `function ${currentFunction}...`,
+    //     pattern: 'long_function'
+    //   });
+    // }
   });
   
   // Check last function
@@ -1212,17 +1212,17 @@ function checkImportIssues(content, filePath, repoDir) {
       if (importPath && importPath[1]) {
         var relativePath = importPath[1];
         
-        // Very deep relative imports
-        if ((relativePath.match(/\.\.\//g) || []).length > 2) {
-          issues.push({
-            type: 'maintainability',
-            message: 'Deep relative import: Consider restructuring or using absolute imports',
-            line: index + 1,
-            severity: 'low',
-            code: line.trim(),
-            pattern: 'deep_relative_import'
-          });
-        }
+        // REMOVED: Deep relative imports (low severity noise)
+        // if ((relativePath.match(/\.\.\//g) || []).length > 2) {
+        //   issues.push({
+        //     type: 'maintainability',
+        //     message: 'Deep relative import: Consider restructuring or using absolute imports',
+        //     line: index + 1,
+        //     severity: 'low',
+        //     code: line.trim(),
+        //     pattern: 'deep_relative_import'
+        //   });
+        // }
         
         // REMOVED: Parent directory import warnings
         // This is informational noise - relative imports are normal
@@ -1415,14 +1415,15 @@ async function detectCrossFileIssues(content, filePath, repoDir) {
       if (importPath && !importPath[1].includes('node_modules')) {
         // TODO: Check if imported file exists and exports match
         // For now, just flag relative imports for review
-        issues.push({
-          type: 'logic',
-          message: 'Relative import detected - verify file exists and exports match',
-          line: lineNum,
-          severity: 'low',
-          code: line.trim(),
-          pattern: 'import_mismatch'
-        });
+        // REMOVED: Relative import detection (low severity noise)
+        // issues.push({
+        //   type: 'logic',
+        //   message: 'Relative import detected - verify file exists and exports match',
+        //   line: lineNum,
+        //   severity: 'low',
+        //   code: line.trim(),
+        //   pattern: 'import_mismatch'
+        // });
       }
     }
   });
@@ -1821,24 +1822,26 @@ function analyzeDocumentationFile(content, filePath, fileType) {
   
   // Check for common documentation issues
   if (content.length < 100) {
-    issues.push({
-      type: 'documentation',
-      message: 'Documentation file is too short',
-      line: 1,
-      severity: 'low',
-      source: 'doc-analyzer'
-    });
+    // REMOVED: Short documentation file (low severity noise)
+    // issues.push({
+    //   type: 'documentation',
+    //   message: 'Documentation file is too short',
+    //   line: 1,
+    //   severity: 'low',
+    //   source: 'doc-analyzer'
+    // });
   }
   
-  if (!/#+\s/.test(content)) {
-    issues.push({
-      type: 'documentation', 
-      message: 'Missing proper markdown headers',
-      line: 1,
-      severity: 'low',
-      source: 'doc-analyzer'
-    });
-  }
+  // REMOVED: Missing markdown headers (low severity noise)
+  // if (!/#+\s/.test(content)) {
+  //   issues.push({
+  //     type: 'documentation',
+  //     message: 'Missing proper markdown headers',
+  //     line: 1,
+  //     severity: 'low',
+  //     source: 'doc-analyzer'
+  //   });
+  // }
   
   return issues;
 }
