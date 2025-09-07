@@ -333,6 +333,32 @@ function performBasicAnalysis(content, filePath) {
 async function performSemanticBugDetection(content, filePath, repoDir) {
   console.log(`🔍 Complete static analysis: ${filePath}`);
   
+  // Skip analysis for non-code files that shouldn't have logic/security issues
+  var ext = path.extname(filePath).toLowerCase();
+  var fileName = path.basename(filePath).toLowerCase();
+  
+  // Skip non-code files (assets, styles, etc.)
+  var skipExtensions = ['.css', '.scss', '.sass', '.less', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.map'];
+  
+  // Skip test files, config files, and documentation (high false positive rate)
+  var skipPatterns = [
+    /test/i, /spec/i, /__tests__/i, /\.test\./i, /\.spec\./i,
+    /config/i, /\.config\./i, /webpack/i, /babel/i, /eslint/i,
+    /readme/i, /changelog/i, /license/i, /\.md$/i,
+    /fixture/i, /mock/i, /example/i, /demo/i,
+    /node_modules/i, /dist/i, /build/i, /coverage/i
+  ];
+  
+  if (skipExtensions.includes(ext)) {
+    console.log(`⏭️ Skipping static analysis for ${ext} file: ${filePath} (non-code file)`);
+    return [];
+  }
+  
+  if (skipPatterns.some(pattern => pattern.test(filePath))) {
+    console.log(`⏭️ Skipping static analysis for: ${filePath} (test/config/docs file)`);
+    return [];
+  }
+  
   var allIssues = [];
   
   // 🔴 CRITICAL SECURITY CHECKS
@@ -373,7 +399,239 @@ async function performSemanticBugDetection(content, filePath, repoDir) {
   );
   
   console.log(`🔍 Static analysis found ${criticalIssues.length} critical/high/medium issues in ${filePath} (filtered out ${allIssues.length - criticalIssues.length} low-priority/informational noise)`);
+  
+  // Note: AI filtering now happens at batch level for efficiency
   return criticalIssues;
+}
+
+// 🤖 AI-POWERED POST-ANALYSIS FILTER
+async function performAIIssueFilter(issues, content, filePath) {
+  if (!OPENAI_API_KEY || issues.length === 0) {
+    console.log('⚠️ Skipping AI filter: No API key or no issues');
+    return issues;
+  }
+  
+  try {
+    console.log(`🤖 AI filtering ${issues.length} issues in ${filePath}...`);
+    
+    // Prepare issues for AI analysis
+    var issuesSummary = issues.map((issue, index) => ({
+      id: index,
+      type: issue.type,
+      message: issue.message,
+      line: issue.line,
+      severity: issue.severity,
+      code: issue.code,
+      context: getCodeContext(content, issue.line)
+    }));
+    
+    var aiPrompt = `You are an expert code reviewer. Analyze these ${issues.length} potential code issues and determine which are REAL actionable problems vs false positives.
+
+File: ${filePath}
+Issues found by static analysis:
+
+${issuesSummary.map(issue => 
+`[${issue.id}] ${issue.severity.toUpperCase()}: ${issue.message}
+Line ${issue.line}: ${issue.code}
+Context: ${issue.context}
+`).join('\n')}
+
+For each issue, determine if it's:
+- REAL: Actual problem that needs developer attention
+- FALSE_POSITIVE: Static analysis mistake, not a real issue
+- IGNORE: Too minor/context-dependent to be actionable
+
+Consider:
+1. Is this a genuine security/performance/logic issue?
+2. Is the code pattern actually problematic in this context?
+3. Would a developer realistically need to fix this?
+4. Are there obvious false positives (e.g., test files, mock data, comments)?
+
+Return ONLY a JSON array with issue IDs to KEEP (real issues only):
+[0, 2, 5, 7]`;
+
+    var response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: aiPrompt }],
+        temperature: 0.1,
+        max_tokens: 500
+      })
+    });
+    
+    if (!response.ok) {
+      console.error(`❌ AI filter API error: ${response.status}`);
+      return issues; // Return original issues on API failure
+    }
+    
+    var data = await response.json();
+    var aiResponse = data.choices[0].message.content.trim();
+    
+    // Parse AI response to get issue IDs to keep
+    var jsonMatch = aiResponse.match(/\[[\d,\s]*\]/);
+    if (jsonMatch) {
+      var idsToKeep = JSON.parse(jsonMatch[0]);
+      var filteredIssues = issues.filter((_, index) => idsToKeep.includes(index));
+      
+      console.log(`🤖 AI filter results: Keeping ${filteredIssues.length}/${issues.length} issues`);
+      console.log(`🗑️ AI removed: ${issues.length - filteredIssues.length} false positives/non-actionable issues`);
+      
+      return filteredIssues;
+    } else {
+      console.warn('⚠️ AI filter: Could not parse response, keeping all issues');
+      console.log('AI response:', aiResponse);
+      return issues;
+    }
+    
+  } catch (error) {
+    console.error(`❌ AI filter failed for ${filePath}:`, error.message);
+    return issues; // Return original issues on error
+  }
+}
+
+// Helper function to get code context around an issue
+function getCodeContext(content, lineNumber) {
+  var lines = content.split('\n');
+  var start = Math.max(0, lineNumber - 3);
+  var end = Math.min(lines.length, lineNumber + 2);
+  return lines.slice(start, end).map((line, i) => {
+    var actualLineNum = start + i + 1;
+    var marker = actualLineNum === lineNumber ? '→ ' : '  ';
+    return `${marker}${actualLineNum}: ${line}`;
+  }).join('\n');
+}
+
+// 🤖 BATCH AI FILTER - Process multiple files efficiently
+async function performBatchAIFilter(fileResults) {
+  if (!OPENAI_API_KEY || fileResults.length === 0) {
+    return fileResults;
+  }
+  
+  try {
+    // Process files in smaller batches to avoid token limits
+    var batchSize = 3; // Process 3 files at a time
+    var filteredResults = [];
+    
+    for (var i = 0; i < fileResults.length; i += batchSize) {
+      var batch = fileResults.slice(i, i + batchSize);
+      var batchFiltered = await processBatchFiles(batch);
+      filteredResults = filteredResults.concat(batchFiltered);
+      
+      console.log(`🤖 AI batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(fileResults.length/batchSize)} complete`);
+    }
+    
+    return filteredResults;
+    
+  } catch (error) {
+    console.error('❌ Batch AI filter failed:', error.message);
+    return fileResults; // Return original on error
+  }
+}
+
+// Process a small batch of files with AI
+async function processBatchFiles(batch) {
+  var totalIssues = batch.reduce((sum, file) => sum + file.issues.length, 0);
+  
+  if (totalIssues === 0) {
+    return batch;
+  }
+  
+  console.log(`🤖 AI analyzing ${batch.length} files with ${totalIssues} total issues...`);
+  
+  // Create comprehensive prompt for batch analysis
+  var batchPrompt = `You are an expert code reviewer. Analyze these ${totalIssues} potential code issues across ${batch.length} files and identify which are REAL actionable problems vs false positives.
+
+${batch.map((fileResult, fileIndex) => 
+`FILE ${fileIndex}: ${fileResult.file}
+${fileResult.issues.map((issue, issueIndex) => 
+`[${fileIndex}.${issueIndex}] ${issue.severity.toUpperCase()}: ${issue.message}
+Line ${issue.line}: ${issue.code}
+Context: ${getCodeContext(fileResult.content, issue.line)}
+`).join('\n')}
+`).join('\n')}
+
+For each issue, determine if it's:
+- REAL: Actual problem that needs developer attention  
+- FALSE_POSITIVE: Static analysis mistake (e.g., test files, mock data, comments, legitimate patterns)
+- IGNORE: Too minor/context-dependent to be actionable
+
+Consider:
+1. Is this a genuine security/performance/logic issue?
+2. Is the code pattern actually problematic in this context?
+3. Would a developer realistically need to fix this?
+4. Are there obvious false positives (test files, mock data, generated code)?
+5. Is this issue in a test file, config file, or documentation?
+
+Return ONLY a JSON object with file indices and issue indices to KEEP:
+{
+  "0": [0, 2, 5],
+  "1": [1, 3],
+  "2": []
+}`;
+
+  try {
+    var response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: batchPrompt }],
+        temperature: 0.1,
+        max_tokens: 1000
+      })
+    });
+    
+    if (!response.ok) {
+      console.error(`❌ Batch AI filter API error: ${response.status}`);
+      return batch;
+    }
+    
+    var data = await response.json();
+    var aiResponse = data.choices[0].message.content.trim();
+    
+    // Parse AI response
+    var jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      var keepMap = JSON.parse(jsonMatch[0]);
+      
+      // Filter issues based on AI recommendations
+      var filteredBatch = batch.map((fileResult, fileIndex) => {
+        var indicesToKeep = keepMap[fileIndex.toString()] || [];
+        var filteredIssues = fileResult.issues.filter((_, issueIndex) => 
+          indicesToKeep.includes(issueIndex)
+        );
+        
+        return {
+          file: fileResult.file,
+          issues: filteredIssues,
+          content: fileResult.content
+        };
+      });
+      
+      var originalCount = totalIssues;
+      var filteredCount = filteredBatch.reduce((sum, file) => sum + file.issues.length, 0);
+      
+      console.log(`🤖 AI batch filter: ${originalCount} → ${filteredCount} issues (removed ${originalCount - filteredCount})`);
+      
+      return filteredBatch;
+      
+    } else {
+      console.warn('⚠️ Could not parse AI batch response, keeping all issues');
+      return batch;
+    }
+    
+  } catch (error) {
+    console.error(`❌ Batch AI processing failed:`, error.message);
+    return batch;
+  }
 }
 
 // 🔴 CRITICAL SECURITY FUNCTIONS
@@ -2449,6 +2707,8 @@ export const handler = async (event) => {
     console.log(`   📊 Files processed: ${processedFiles}`);
     console.log(`   📁 Files with issues: ${results.length}`);
     console.log(`   🚨 Total issues found: ${totalIssues}`);
+    
+    // Note: AI filtering now happens in frontend API layer for better performance
     
     var returnData = {
       success: true,
