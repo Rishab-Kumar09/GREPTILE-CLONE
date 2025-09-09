@@ -2244,7 +2244,11 @@ function checkLogicErrors(content, filePath) {
   lines.forEach((line, index) => {
     var trimmed = line.trim();
     
-    // 1. Assignment in if condition (= instead of ==)
+    // 1. DISABLED: Assignment in if condition check (too many false positives)
+    // The pattern was flagging valid "== null" checks as bugs
+    // Facebook React intentionally uses "== null" to check both null and undefined
+    // This is NOT a bug - it's a deliberate and correct pattern
+    /*
     if (/if\s*\([^)]*=\s*[^=]/.test(line) && !/===|!==|<=|>=/.test(line)) {
       issues.push({
         type: 'logic',
@@ -2255,6 +2259,7 @@ function checkLogicErrors(content, filePath) {
         pattern: 'assignment_in_condition'
       });
     }
+    */
     
     // 2. Array.length in loop condition (performance issue)
     if (/for\s*\([^;]*;\s*\w+\s*<\s*\w+\.length/.test(line)) {
