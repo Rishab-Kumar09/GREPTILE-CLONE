@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
         };
         
         issues.forEach(issue => {
-            const severity = issue.severity.toLowerCase();
+            const severity = issue.severity.toLowerCase() as keyof typeof groupedIssues;
             if (groupedIssues[severity]) {
                 groupedIssues[severity].push({
                     type: issue.type,
