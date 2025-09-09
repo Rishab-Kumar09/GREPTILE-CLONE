@@ -3828,6 +3828,10 @@ export const handler = async (event) => {
       console.log(`   🏁 Is last batch: ${isLastBatch}`);
       
       if (filesToProcess.length === 0) {
+        console.log(`⚠️ WARNING: No files to process in batch ${batchNumber}`);
+        console.log(`📊 Debug info: allFiles.length=${allFiles.length}, startIndex=${startIndex}, endIndex=${endIndex}`);
+        console.log(`🎭 AI Strategy files: critical=${analysisStrategy.critical?.length || 0}, high=${analysisStrategy.high?.length || 0}, medium=${analysisStrategy.medium?.length || 0}, light=${analysisStrategy.light?.length || 0}`);
+        
         return {
           statusCode: 200,
           body: JSON.stringify({
