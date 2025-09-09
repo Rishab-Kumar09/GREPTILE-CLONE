@@ -20,6 +20,8 @@ interface AnalysisStatus {
   progress: number
   currentFile: string
   results: AnalysisResult[]
+  totalFilesAnalyzed?: number
+  totalFilesInRepo?: number
 }
 
 interface ChatMessage {
@@ -347,6 +349,8 @@ export default function EnterpriseAnalysisPage() {
     let totalIssues = 0
     let batchNumber = 1
     let estimatedTotalBatches = 8 // Start with reasonable estimate, will update dynamically
+    let totalFilesInRepo = 0
+    let totalFilesProcessed = 0
     
     setAnalysisId(uuid())
 
@@ -358,7 +362,7 @@ export default function EnterpriseAnalysisPage() {
       setStatus(prev => ({
         ...prev,
         progress: Math.round(batchProgress),
-        currentFile: `Analyzing repository files...`
+        currentFile: `Processing batch ${batchNumber}... (${totalFilesProcessed}${totalFilesInRepo > 0 ? `/${totalFilesInRepo}` : ''} files analyzed)`
       }))
 
       console.log(`🔄 Processing file batch ${batchNumber}`)
@@ -402,12 +406,18 @@ export default function EnterpriseAnalysisPage() {
         if (data.success) {
                            // Update estimated total batches based on Lambda stats
                  if (data.stats && data.stats.totalFilesInRepo) {
-                   const filesPerBatch = 50 // Match Lambda batch size to prevent Gateway timeouts
+                   totalFilesInRepo = data.stats.totalFilesInRepo
+                   const filesPerBatch = 200 // Match Lambda batch size 
                    const actualTotalBatches = Math.ceil(data.stats.totalFilesInRepo / filesPerBatch)
                    if (actualTotalBatches !== estimatedTotalBatches) {
                      estimatedTotalBatches = actualTotalBatches
-                     console.log(`📊 Updated estimate: ${estimatedTotalBatches} total batches (50 files each) based on ${data.stats.totalFilesInRepo} files`)
+                     console.log(`📊 Updated estimate: ${estimatedTotalBatches} total batches (200 files each) based on ${data.stats.totalFilesInRepo} files`)
                    }
+                 }
+                 
+                 // Track files processed
+                 if (data.stats && data.stats.filesProcessed) {
+                   totalFilesProcessed += data.stats.filesProcessed
                  }
           
           // Add results if any exist
@@ -541,7 +551,9 @@ export default function EnterpriseAnalysisPage() {
       status: 'completed',
       progress: 100,
       currentFile: `FILE-BASED ANALYSIS COMPLETE: ${totalIssues} issues found from full repository`,
-      results: allResults
+      results: allResults,
+      totalFilesAnalyzed: totalFilesProcessed,
+      totalFilesInRepo: totalFilesInRepo
     })
     
     setIsAnalyzing(false)
@@ -897,8 +909,8 @@ export default function EnterpriseAnalysisPage() {
               AI-Generated Analysis Summary
             </h3>
             <p className="text-gray-700">
-              This analysis identified <strong>{status.results.length} issues</strong> across <strong>{Math.ceil(status.results.length / 10)} files</strong> in the repository. 
-              The review focused on functions, components, security patterns, and API calls with comprehensive code scanning. 
+              This analysis identified <strong>{status.results.length} issues</strong> across <strong>{groupResultsByFile(status.results).length} files</strong> in the repository. 
+              The AI Orchestra Manager analyzed <strong>{status.totalFilesAnalyzed || 'thousands of'} files</strong> and intelligently prioritized critical issues.
               Key areas requiring attention include potential security vulnerabilities, performance optimizations, 
               and code quality improvements that could enhance application stability and maintainability.
             </p>
