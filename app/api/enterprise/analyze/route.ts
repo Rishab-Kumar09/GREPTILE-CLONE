@@ -107,8 +107,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(response);
     } catch (error) {
         console.error('Error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         return NextResponse.json(
-            { error: 'Failed to analyze code', details: error.message },
+            { error: 'Failed to analyze code', details: errorMessage },
             { status: 500 }
         );
     }

@@ -482,7 +482,7 @@ export default function EnterpriseAnalysisPage() {
                  continue;
                }
                
-               if (error.message.includes('504') || error.message.includes('Gateway')) {
+               if ((error instanceof Error && error.message.includes('504')) || (error instanceof Error && error.message.includes('Gateway'))) {
                  console.warn(`🌐 Gateway timeout for batch ${batchNumber} - retrying once...`);
                  
                  // Single retry for gateway timeouts
