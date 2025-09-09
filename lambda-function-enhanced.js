@@ -2073,7 +2073,7 @@ async function analyzeFileByPriority(content, filePath, priority = 'medium', ana
   }
 }
 
-// 🔥 CRITICAL FILES - Full comprehensive analysis
+// 🔥 CRITICAL FILES - Full comprehensive analysis including medium issues
 async function analyzeCriticalFile(content, filePath) {
   console.log(`🔥 CRITICAL analysis: ${filePath}`);
   var allIssues = [];
@@ -2088,11 +2088,16 @@ async function analyzeCriticalFile(content, filePath) {
   allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
   allIssues = allIssues.concat(checkPerformanceIssuesEnhanced(content, filePath));
   
+  // 🎯 NEW: Add comprehensive medium priority detection for critical files
+  allIssues = allIssues.concat(checkReactPerformanceIssues(content, filePath));
+  allIssues = allIssues.concat(checkLogicErrors(content, filePath));
+  allIssues = allIssues.concat(checkAsyncPatternIssues(content, filePath));
+  
   // Return ALL issues including low severity for critical files
   return allIssues;
 }
 
-// ⚡ HIGH PRIORITY FILES - Security + Logic focus
+// ⚡ HIGH PRIORITY FILES - Security + Logic focus + Medium Issues
 async function analyzeHighPriorityFile(content, filePath) {
   console.log(`⚡ HIGH priority analysis: ${filePath}`);
   var allIssues = [];
@@ -2103,13 +2108,18 @@ async function analyzeHighPriorityFile(content, filePath) {
   allIssues = allIssues.concat(checkXSSVulnerabilitiesEnhanced(content, filePath));
   allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
   
+  // 🎯 NEW: Add medium priority detection
+  allIssues = allIssues.concat(checkReactPerformanceIssues(content, filePath));
+  allIssues = allIssues.concat(checkLogicErrors(content, filePath));
+  allIssues = allIssues.concat(checkAsyncPatternIssues(content, filePath));
+  
   // Return medium+ severity issues
   return allIssues.filter(issue => 
     issue.severity === 'critical' || issue.severity === 'high' || issue.severity === 'medium'
   );
 }
 
-// 📋 MEDIUM PRIORITY FILES - Security focus only
+// 📋 MEDIUM PRIORITY FILES - Security + Basic Medium Issues
 async function analyzeMediumPriorityFile(content, filePath) {
   console.log(`📋 MEDIUM priority analysis: ${filePath}`);
   var allIssues = [];
@@ -2118,9 +2128,13 @@ async function analyzeMediumPriorityFile(content, filePath) {
   allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
   allIssues = allIssues.concat(checkSQLInjectionEnhanced(content, filePath));
   
-  // Return high+ severity issues only
+  // 🎯 NEW: Add selective medium priority detection for medium files
+  allIssues = allIssues.concat(checkLogicErrors(content, filePath));
+  
+  // Return high+ severity issues + some medium
   return allIssues.filter(issue => 
-    issue.severity === 'critical' || issue.severity === 'high'
+    issue.severity === 'critical' || issue.severity === 'high' || 
+    (issue.severity === 'medium' && ['assignment_in_condition', 'nan_comparison', 'missing_await'].includes(issue.pattern))
   );
 }
 
@@ -2134,6 +2148,238 @@ async function analyzeLightFile(content, filePath) {
   
   // Return only critical issues
   return allIssues.filter(issue => issue.severity === 'critical');
+}
+
+// 🎯 ENHANCED MEDIUM PRIORITY DETECTION - React Performance & Logic Issues
+function checkReactPerformanceIssues(content, filePath) {
+  console.log(`⚡ Checking React performance issues: ${filePath}`);
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var trimmed = line.trim();
+    
+    // Skip comments and imports
+    if (/^\/\/|^\/\*|\*\/|^import|^export/.test(trimmed)) return;
+    
+    // 1. useEffect missing dependencies
+    if (/useEffect\s*\(\s*\(\s*\)\s*=>\s*\{/.test(line)) {
+      var nextLines = lines.slice(index, index + 10).join('\n');
+      if (!/\[\s*\]/.test(nextLines) && /setState|set[A-Z]|fetch|axios/.test(nextLines)) {
+        issues.push({
+          type: 'performance',
+          message: 'useEffect missing dependencies - may cause infinite re-renders',
+          line: index + 1,
+          severity: 'high',
+          code: trimmed,
+          pattern: 'react_useeffect_deps'
+        });
+      }
+    }
+    
+    // 2. Expensive operations in render (no useMemo)
+    if (/\.map\s*\(.*\.sort\s*\(|\.filter\s*\(.*\.map\s*\(/.test(line)) {
+      var surroundingCode = lines.slice(Math.max(0, index - 5), index + 5).join('\n');
+      if (!/useMemo|React\.memo/.test(surroundingCode)) {
+        issues.push({
+          type: 'performance',
+          message: 'Expensive array operations in render - consider useMemo',
+          line: index + 1,
+          severity: 'medium',
+          code: trimmed,
+          pattern: 'react_expensive_render'
+        });
+      }
+    }
+    
+    // 3. Missing React.memo for functional components
+    if (/^(export\s+)?(const|function)\s+[A-Z]\w*\s*[=\(]/.test(trimmed) && /props/.test(line)) {
+      var componentLines = lines.slice(index, index + 20).join('\n');
+      if (!/React\.memo|memo\s*\(/.test(componentLines) && /\.map\s*\(|props\.\w+/.test(componentLines)) {
+        issues.push({
+          type: 'performance',
+          message: 'Component receives props but not memoized - may cause unnecessary re-renders',
+          line: index + 1,
+          severity: 'medium',
+          code: trimmed,
+          pattern: 'react_missing_memo'
+        });
+      }
+    }
+    
+    // 4. useState with object (should use useReducer)
+    if (/useState\s*\(\s*\{/.test(line)) {
+      issues.push({
+        type: 'maintainability',
+        message: 'Complex state object in useState - consider useReducer',
+        line: index + 1,
+        severity: 'medium',
+        code: trimmed,
+        pattern: 'react_complex_state'
+      });
+    }
+    
+    // 5. Inline object/array in JSX (causes re-renders)
+    if (/\w+\s*=\s*\{[^}]+\}|\w+\s*=\s*\[[^\]]+\]/.test(line) && /style|className|props/.test(line)) {
+      issues.push({
+        type: 'performance',
+        message: 'Inline object/array in JSX causes re-renders - move outside render',
+        line: index + 1,
+        severity: 'medium',
+        code: trimmed,
+        pattern: 'react_inline_objects'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 🧠 LOGIC ERROR DETECTION - Common Programming Mistakes
+function checkLogicErrors(content, filePath) {
+  console.log(`🧠 Checking logic errors: ${filePath}`);
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var trimmed = line.trim();
+    
+    // 1. Assignment in if condition (= instead of ==)
+    if (/if\s*\([^)]*=\s*[^=]/.test(line) && !/===|!==|<=|>=/.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Assignment in if condition - did you mean == or ===?',
+        line: index + 1,
+        severity: 'high',
+        code: trimmed,
+        pattern: 'assignment_in_condition'
+      });
+    }
+    
+    // 2. Array.length in loop condition (performance issue)
+    if (/for\s*\([^;]*;\s*\w+\s*<\s*\w+\.length/.test(line)) {
+      issues.push({
+        type: 'performance',
+        message: 'Array.length evaluated every iteration - cache the length',
+        line: index + 1,
+        severity: 'medium',
+        code: trimmed,
+        pattern: 'inefficient_loop'
+      });
+    }
+    
+    // 3. Comparing with NaN (always false)
+    if (/===\s*NaN|!==\s*NaN|==\s*NaN|!=\s*NaN/.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Comparison with NaN always returns false - use isNaN() or Number.isNaN()',
+        line: index + 1,
+        severity: 'high',
+        code: trimmed,
+        pattern: 'nan_comparison'
+      });
+    }
+    
+    // 4. Missing break in switch case
+    if (/case\s+.*:/.test(line)) {
+      var nextLines = lines.slice(index + 1, index + 10);
+      var hasBreak = false;
+      var hasReturn = false;
+      
+      for (var i = 0; i < nextLines.length; i++) {
+        if (/break;|return/.test(nextLines[i])) {
+          hasBreak = true;
+          break;
+        }
+        if (/case\s+.*:|default\s*:/.test(nextLines[i])) {
+          break;
+        }
+      }
+      
+      if (!hasBreak && nextLines.some(l => l.trim().length > 0)) {
+        issues.push({
+          type: 'logic',
+          message: 'Switch case without break - may cause fall-through',
+          line: index + 1,
+          severity: 'medium',
+          code: trimmed,
+          pattern: 'missing_break'
+        });
+      }
+    }
+    
+    // 5. Potential null/undefined access
+    if (/\w+\.\w+/.test(line) && !/if.*null|if.*undefined|\?\.|&&.*\w+/.test(line)) {
+      var prevLine = lines[index - 1] || '';
+      if (!/if.*null|if.*undefined/.test(prevLine)) {
+        issues.push({
+          type: 'logic',
+          message: 'Potential null/undefined access - add null check',
+          line: index + 1,
+          severity: 'medium',
+          code: trimmed,
+          pattern: 'null_access_risk'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+// 🔄 ASYNC/AWAIT PATTERN ISSUES
+function checkAsyncPatternIssues(content, filePath) {
+  console.log(`🔄 Checking async pattern issues: ${filePath}`);
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var trimmed = line.trim();
+    
+    // 1. await in loop (should use Promise.all)
+    if (/for\s*\(|while\s*\(|\.forEach/.test(line)) {
+      var nextLines = lines.slice(index, index + 10).join('\n');
+      if (/await\s+/.test(nextLines)) {
+        issues.push({
+          type: 'performance',
+          message: 'await in loop - consider Promise.all for parallel execution',
+          line: index + 1,
+          severity: 'medium',
+          code: trimmed,
+          pattern: 'await_in_loop'
+        });
+      }
+    }
+    
+    // 2. Missing await on Promise-returning function
+    if (/\.\s*(fetch|query|save|update|delete|find)\s*\(/.test(line) && !/await|\.then|\.catch/.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Promise-returning function without await - potential unhandled promise',
+        line: index + 1,
+        severity: 'medium',
+        code: trimmed,
+        pattern: 'missing_await'
+      });
+    }
+    
+    // 3. async function without try-catch
+    if (/async\s+(function|\w+\s*=>|\w+\s*\()/.test(line)) {
+      var functionBody = lines.slice(index, index + 20).join('\n');
+      if (!/try\s*\{|\.catch\s*\(/.test(functionBody) && /await/.test(functionBody)) {
+        issues.push({
+          type: 'error-handling',
+          message: 'async function without error handling - add try-catch',
+          line: index + 1,
+          severity: 'medium',
+          code: trimmed,
+          pattern: 'async_no_error_handling'
+        });
+      }
+    }
+  });
+  
+  return issues;
 }
 
 async function analyzeFileWithNewEngine(content, filePath, tempDir, analysisStrategy = null, selectedPatterns = 'all') {
