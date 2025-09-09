@@ -2245,7 +2245,10 @@ function checkLogicErrors(content, filePath) {
     var trimmed = line.trim();
     
     // 1. REAL ASSIGNMENT BUGS: Only flag actual assignment (=) not equality (==)
-    // Fixed: Now only catches real bugs like "if (x = 5)" not valid "if (x == null)"
+    // DISABLED: Pattern was too aggressive, flagging valid arrow functions and property access
+    // TODO: Create more precise pattern that only catches real assignments like "if (x = 5)"
+    // Current pattern incorrectly flags: "if (gate(flags => flags.something))" as assignment
+    /*
     if (/if\s*\([^)]*[^=!<>]\s*=\s*[^=]/.test(line) && !/===|!==|==|!=|<=|>=/.test(line)) {
       issues.push({
         type: 'logic',
@@ -2256,6 +2259,7 @@ function checkLogicErrors(content, filePath) {
         pattern: 'assignment_in_condition'
       });
     }
+    */
     
     // 2. REAL LOGIC ISSUES: Missing null checks before property access
     if (/\w+\.\w+/.test(line) && !/if\s*\(.*!=\s*null\)|if\s*\(.*==\s*null\)/.test(line) && /\.length|\.push|\.map|\.filter/.test(line)) {
