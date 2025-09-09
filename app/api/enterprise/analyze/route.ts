@@ -12,7 +12,21 @@ export async function POST(req: NextRequest) {
         const issues = analyzer.analyze_file(fileName, content);
         
         // Group issues by severity
-        const groupedIssues = {
+        type IssueItem = {
+            type: string;
+            description: string;
+            line: number;
+            proof: string;
+            fix: string;
+            confidence: number;
+        };
+        
+        const groupedIssues: {
+            critical: IssueItem[];
+            high: IssueItem[];
+            medium: IssueItem[];
+            low: IssueItem[];
+        } = {
             critical: [],
             high: [],
             medium: [],
