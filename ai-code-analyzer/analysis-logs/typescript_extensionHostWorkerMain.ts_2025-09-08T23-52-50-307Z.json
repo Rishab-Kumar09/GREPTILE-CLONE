@@ -1,0 +1,50 @@
+{
+  "metadata": {
+    "fileName": "extensionHostWorkerMain.ts",
+    "fileType": "typescript",
+    "analyzedAt": "2025-09-08T23:52:50.307Z",
+    "fileSize": 14,
+    "numberOfLines": 1
+  },
+  "rawAiResponse": "=== NO CRITICAL ISSUES START ===\nThe provided code snippet does not contain any code to analyze. It only contains a HTTP 404 error message, which indicates that the requested resource could not be found on the server. Therefore, it is not possible to identify any critical issues, security vulnerabilities, or bugs in this code snippet.\n=== NO CRITICAL ISSUES END ===\n\n=== ANALYSIS START ===\n1. What you checked for:\n   - As the provided code snippet does not contain any code, it was not possible to check for any security vulnerabilities, critical logic errors, authentication/authorization bypass risks, input validation issues, unsafe data handling, memory leaks, resource exhaustion, race conditions, or code that could crash the application.\n\n2. For SQL/Database code:\n   - As the provided code snippet does not contain any SQL or database code, it was not possible to check for SQL injection through string concatenation, missing input validation, unsafe escaping methods, direct user input in queries, or improper parameter binding.\n=== ANALYSIS END ===\n\nANALYSIS METHODOLOGY:\nGiven the lack of code in the provided snippet, no specific functions or patterns were analyzed. The analysis process was limited to recognizing the HTTP 404 error message. No specific checks were performed, and no potential issues were validated. The severity of issues could not be determined due to the absence of code.\n\nDETAILED FINDINGS:\nNo patterns or issues were discovered in the provided code snippet. There are no critical issues because the snippet does not contain any code. The confidence level in this finding is high, as the absence of code is clear.\n\nFINAL RESULTS:\nThe provided code snippet does not contain any code to analyze. Therefore, no critical issues, security vulnerabilities, or bugs were identified.\n\nREPLICATION GUIDE:\nTo replicate this analysis, follow these steps:\n1. Read the provided code snippet.\n2. If the snippet contains a HTTP 404 error message and no other code, conclude that there are no issues to analyze.\n\nOPTIMIZATION GUIDE:\nWhen checking this type of file, avoid over-analysis by recognizing when a file does not contain any code to analyze. In this case, deep inspection is not necessary. Handle files with no context about the rest of the repo by analyzing the provided code in isolation. Prioritize files to analyze based on the presence of code in the file. Skip all checks if the file does not contain any code.",
+  "processedResult": {
+    "fileName": "extensionHostWorkerMain.ts",
+    "analysis": {
+      "rawResponse": "=== NO CRITICAL ISSUES START ===\nThe provided code snippet does not contain any code to analyze. It only contains a HTTP 404 error message, which indicates that the requested resource could not be found on the server. Therefore, it is not possible to identify any critical issues, security vulnerabilities, or bugs in this code snippet.\n=== NO CRITICAL ISSUES END ===\n\n=== ANALYSIS START ===\n1. What you checked for:\n   - As the provided code snippet does not contain any code, it was not possible to check for any security vulnerabilities, critical logic errors, authentication/authorization bypass risks, input validation issues, unsafe data handling, memory leaks, resource exhaustion, race conditions, or code that could crash the application.\n\n2. For SQL/Database code:\n   - As the provided code snippet does not contain any SQL or database code, it was not possible to check for SQL injection through string concatenation, missing input validation, unsafe escaping methods, direct user input in queries, or improper parameter binding.\n=== ANALYSIS END ===\n\nANALYSIS METHODOLOGY:\nGiven the lack of code in the provided snippet, no specific functions or patterns were analyzed. The analysis process was limited to recognizing the HTTP 404 error message. No specific checks were performed, and no potential issues were validated. The severity of issues could not be determined due to the absence of code.\n\nDETAILED FINDINGS:\nNo patterns or issues were discovered in the provided code snippet. There are no critical issues because the snippet does not contain any code. The confidence level in this finding is high, as the absence of code is clear.\n\nFINAL RESULTS:\nThe provided code snippet does not contain any code to analyze. Therefore, no critical issues, security vulnerabilities, or bugs were identified.\n\nREPLICATION GUIDE:\nTo replicate this analysis, follow these steps:\n1. Read the provided code snippet.\n2. If the snippet contains a HTTP 404 error message and no other code, conclude that there are no issues to analyze.\n\nOPTIMIZATION GUIDE:\nWhen checking this type of file, avoid over-analysis by recognizing when a file does not contain any code to analyze. In this case, deep inspection is not necessary. Handle files with no context about the rest of the repo by analyzing the provided code in isolation. Prioritize files to analyze based on the presence of code in the file. Skip all checks if the file does not contain any code.",
+      "explanation": [
+        "=== NO CRITICAL ISSUES START ===",
+        "The provided code snippet does not contain any code to analyze. It only contains a HTTP 404 error message, which indicates that the requested resource could not be found on the server. Therefore, it is not possible to identify any critical issues, security vulnerabilities, or bugs in this code snippet.",
+        "=== NO CRITICAL ISSUES END ===",
+        "=== ANALYSIS START ===",
+        "1. What you checked for:",
+        "- As the provided code snippet does not contain any code, it was not possible to check for any security vulnerabilities, critical logic errors, authentication/authorization bypass risks, input validation issues, unsafe data handling, memory leaks, resource exhaustion, race conditions, or code that could crash the application.",
+        "2. For SQL/Database code:",
+        "- As the provided code snippet does not contain any SQL or database code, it was not possible to check for SQL injection through string concatenation, missing input validation, unsafe escaping methods, direct user input in queries, or improper parameter binding.",
+        "=== ANALYSIS END ===",
+        "ANALYSIS METHODOLOGY:",
+        "Given the lack of code in the provided snippet, no specific functions or patterns were analyzed. The analysis process was limited to recognizing the HTTP 404 error message. No specific checks were performed, and no potential issues were validated. The severity of issues could not be determined due to the absence of code.",
+        "DETAILED FINDINGS:",
+        "No patterns or issues were discovered in the provided code snippet. There are no critical issues because the snippet does not contain any code. The confidence level in this finding is high, as the absence of code is clear.",
+        "FINAL RESULTS:",
+        "The provided code snippet does not contain any code to analyze. Therefore, no critical issues, security vulnerabilities, or bugs were identified.",
+        "REPLICATION GUIDE:",
+        "To replicate this analysis, follow these steps:",
+        "1. Read the provided code snippet.",
+        "2. If the snippet contains a HTTP 404 error message and no other code, conclude that there are no issues to analyze.",
+        "OPTIMIZATION GUIDE:",
+        "When checking this type of file, avoid over-analysis by recognizing when a file does not contain any code to analyze. In this case, deep inspection is not necessary. Handle files with no context about the rest of the repo by analyzing the provided code in isolation. Prioritize files to analyze based on the presence of code in the file. Skip all checks if the file does not contain any code."
+      ],
+      "hasCriticalIssues": false
+    },
+    "analyzedAt": "2025-09-08T23:52:50.304Z",
+    "filePath": "https://raw.githubusercontent.com/microsoft/vscode/main/src/vs/workbench/services/extensions/worker/extensionHostWorkerMain.ts",
+    "fileSize": 14,
+    "fileContent": "404: Not Found"
+  },
+  "analysisDetails": {
+    "patternsUsed": [],
+    "functionsAnalyzed": [],
+    "testingSteps": []
+  },
+  "issues": []
+}

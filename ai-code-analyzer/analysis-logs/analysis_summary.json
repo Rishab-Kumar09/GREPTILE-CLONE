@@ -1,0 +1,14 @@
+{
+  "fileTypes": {
+    "react": 10,
+    "js": 8,
+    "ts": 1,
+    "typescript": 4,
+    "tsx": 1,
+    "javascript": 11,
+    "test": 8,
+    "python": 11
+  },
+  "patterns": {},
+  "totalAnalyses": 54
+}

@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "fileName": "ReactFiberWorkLoop.js",
+    "fileType": "react",
+    "analyzedAt": "2025-09-08T18:30:57.929Z",
+    "fileSize": 179496,
+    "numberOfLines": 5015
+  },
+  "rawAiResponse": "```json\n{\n  \"fileName\": \"ReactFiberWorkLoop.js\",\n  \"criticalBugs\": [],\n  \"summary\": {\n    \"totalCriticalIssues\": 0,\n    \"riskLevel\": \"low\"\n  }\n}\n```",
+  "processedResult": {
+    "fileName": "ReactFiberWorkLoop.js",
+    "analysis": {
+      "rawResponse": "```json\n{\n  \"fileName\": \"ReactFiberWorkLoop.js\",\n  \"criticalBugs\": [],\n  \"summary\": {\n    \"totalCriticalIssues\": 0,\n    \"riskLevel\": \"low\"\n  }\n}\n```",
+      "explanation": [
+        "```json",
+        "{",
+        "\"fileName\": \"ReactFiberWorkLoop.js\",",
+        "\"criticalBugs\": [],",
+        "\"summary\": {",
+        "\"totalCriticalIssues\": 0,",
+        "\"riskLevel\": \"low\"",
+        "}",
+        "}",
+        "```"
+      ],
+      "hasCriticalIssues": true
+    }
+  },
+  "analysisDetails": {
+    "patternsUsed": [],
+    "functionsAnalyzed": [],
+    "testingSteps": []
+  },
+  "issues": []
+}

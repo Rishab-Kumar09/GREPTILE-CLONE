@@ -62,6 +62,10 @@ Consider:
 3. Would a developer realistically need to fix this?
 4. Are there obvious false positives (test files, mock data, generated code)?
 5. Is this issue in a test file, config file, or documentation?
+6. **CRITICAL**: Is this a type definition, interface, or declare statement? (These should ALWAYS be ignored)
+7. **CRITICAL**: Is this in flow-typed/ directory? (Pure type definitions - always ignore)
+8. Is this just a function declaration being misclassified as a memory leak?
+9. Is this a comment or documentation being analyzed as code?
 
 Return ONLY a JSON object with file indices and issue indices to KEEP (real issues only):
 {

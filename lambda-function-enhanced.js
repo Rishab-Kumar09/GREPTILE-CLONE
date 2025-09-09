@@ -340,13 +340,17 @@ async function performSemanticBugDetection(content, filePath, repoDir) {
   // Skip non-code files (assets, styles, etc.)
   var skipExtensions = ['.css', '.scss', '.sass', '.less', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.map'];
   
-  // Skip test files, config files, and documentation (high false positive rate)
+  // Skip test files, config files, documentation, and type definitions (high false positive rate)
   var skipPatterns = [
     /test/i, /spec/i, /__tests__/i, /\.test\./i, /\.spec\./i,
     /config/i, /\.config\./i, /webpack/i, /babel/i, /eslint/i,
     /readme/i, /changelog/i, /license/i, /\.md$/i,
     /fixture/i, /mock/i, /example/i, /demo/i,
-    /node_modules/i, /dist/i, /build/i, /coverage/i
+    /node_modules/i, /dist/i, /build/i, /coverage/i,
+    // Skip type definition directories and files - MORE AGGRESSIVE
+    /^flow-typed\//i, /\/flow-typed\//i, /\.d\.ts$/i, /@types/i, /types\//i,
+    // Skip pure declaration files
+    /\.d\.[jt]s$/i, /\.flow$/i
   ];
   
   if (skipExtensions.includes(ext)) {
@@ -356,6 +360,20 @@ async function performSemanticBugDetection(content, filePath, repoDir) {
   
   if (skipPatterns.some(pattern => pattern.test(filePath))) {
     console.log(`⏭️ Skipping static analysis for: ${filePath} (test/config/docs file)`);
+    return [];
+  }
+  
+  // Skip if content is primarily type definitions
+  if (isPureTypeDefinitionContent(content, filePath)) {
+    console.log(`⏭️ Skipping ${filePath} - pure type definitions (no implementation code)`);
+    return [];
+  }
+  
+  // Additional check: Skip files that are clearly type definitions by content patterns
+  var typeDefinitionRatio = (content.match(/^declare\s|interface\s|type\s.*=|:\s*(string|number|boolean|void|Promise)/gm) || []).length;
+  var totalLines = content.split('\n').filter(line => line.trim()).length;
+  if (totalLines > 10 && typeDefinitionRatio / totalLines > 0.6) {
+    console.log(`⏭️ Skipping ${filePath} - high type definition ratio (${Math.round(typeDefinitionRatio/totalLines*100)}%)`);
     return [];
   }
   
@@ -714,9 +732,18 @@ function checkSQLInjection(content, filePath) {
   var lines = content.split('\n');
   
   lines.forEach((line, index) => {
-    // String concatenation in SQL queries
-    if ((/query|select|insert|update|delete|execute/i.test(line)) && 
-        (/\+.*["']|["'].*\+|\$\{|\`\$\{|format\(|f["']/i.test(line))) {
+    // More precise SQL injection detection - must have SQL context AND string concatenation
+    var hasSQLContext = /\.(query|execute)\s*\(|sql\s*=|query\s*=|executeQuery|createStatement/i.test(line);
+    var hasStringConcatenation = /\+.*["']|["'].*\+|\$\{.*\}|\`.*\$\{/i.test(line);
+    var hasSQLKeywords = /select\s+.*from|insert\s+into|update\s+.*set|delete\s+from/i.test(line);
+    
+    // Only flag if we have actual SQL context AND string concatenation
+    if ((hasSQLContext || hasSQLKeywords) && hasStringConcatenation) {
+      // Skip if using parameterized queries (safe patterns)
+      if (/parameterize|prepare|execute.*,\s*\[|\?\s*,|\$[0-9]+|bind.*param/i.test(line)) return;
+      // Skip console.log, error messages, and UI strings
+      if (/console\.|log\(|error\(|message\s*[:=]|text\s*[:=]|\.innerHTML|chalk\.|theme`/i.test(line)) return;
+      
       issues.push({
         type: 'security',
         message: 'SQL injection risk: Use parameterized queries instead of string concatenation',
@@ -1502,40 +1529,54 @@ function detectSecurityVulnerabilities(content, filePath) {
   lines.forEach((line, index) => {
     var lineNum = index + 1;
     
-    // SQL Injection Detection
-    if (/\$\{.*\}.*query|query.*\$\{|\+.*query|query.*\+/i.test(line) && /sql|select|insert|update|delete/i.test(line)) {
-      issues.push({
-        type: 'security',
-        message: 'Potential SQL injection: Query uses string concatenation instead of parameterized queries',
-        line: lineNum,
-        severity: 'critical',
-        code: line.trim(),
-        pattern: 'sql_injection'
-      });
+    // SQL Injection Detection - more precise
+    var hasSQLContext = /\.(query|execute)\s*\(|sql\s*=|query\s*=|executeQuery|createStatement/i.test(line);
+    var hasStringConcatenation = /\$\{.*\}|\+.*["']|["'].*\+/i.test(line);
+    var hasSQLKeywords = /select\s+.*from|insert\s+into|update\s+.*set|delete\s+from/i.test(line);
+    
+    if ((hasSQLContext || hasSQLKeywords) && hasStringConcatenation) {
+      // Skip console.log, error messages, and UI strings
+      if (!/console\.|log\(|error\(|message\s*[:=]|text\s*[:=]|chalk\.|theme`/i.test(line)) {
+        issues.push({
+          type: 'security',
+          message: 'Potential SQL injection: Query uses string concatenation instead of parameterized queries',
+          line: lineNum,
+          severity: 'critical',
+          code: line.trim(),
+          pattern: 'sql_injection'
+        });
+      }
     }
     
-    // XSS Detection
-    if (/innerHTML|outerHTML|document\.write/i.test(line) && !/sanitize|escape|encode/i.test(line)) {
-      issues.push({
-        type: 'security', 
-        message: 'Potential XSS: Dynamic HTML insertion without sanitization',
-        line: lineNum,
-        severity: 'high',
-        code: line.trim(),
-        pattern: 'xss_vulnerability'
-      });
+    // XSS Detection - more precise
+    if ((/\.innerHTML\s*=|\.outerHTML\s*=|document\.write\s*\(/i.test(line)) && 
+        (/\+.*["']|["'].*\+|\$\{.*\}|\`.*\$\{/i.test(line))) {
+      // Skip safe patterns and type definitions
+      if (!/sanitize|escape|encode|textContent|innerText|get\s+innerHTML|set\s+innerHTML.*string|TrustedHTML|interface\s|type\s|declare\s/i.test(line)) {
+        issues.push({
+          type: 'security', 
+          message: 'Potential XSS: Dynamic HTML insertion without sanitization',
+          line: lineNum,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'xss_vulnerability'
+        });
+      }
     }
     
-    // Command Injection Detection
-    if (/exec|spawn|system/i.test(line) && /\$\{|\+|concat/i.test(line)) {
-      issues.push({
-        type: 'security',
-        message: 'Potential command injection: System command uses unsanitized input',
-        line: lineNum,
-        severity: 'critical', 
-        code: line.trim(),
-        pattern: 'command_injection'
-      });
+    // Command Injection Detection - more precise
+    if (/exec\s*\(|spawn\s*\(|system\s*\(/i.test(line) && /\+.*["']|["'].*\+|\$\{.*\}|\`.*\$\{/i.test(line)) {
+      // Skip console.log, error messages, and alias declarations
+      if (!/console\.|log\(|error\(|alias\s|deploy\s|now\s+deploy/i.test(line)) {
+        issues.push({
+          type: 'security',
+          message: 'Potential command injection: System command uses unsanitized input',
+          line: lineNum,
+          severity: 'critical', 
+          code: line.trim(),
+          pattern: 'command_injection'
+        });
+      }
     }
     
     // Hardcoded Secrets Detection
@@ -1792,6 +1833,768 @@ Rules:
     console.error(`❌ AI analysis failed for ${filePath}:`, error.message);
     return performBasicAnalysis(content, filePath);
   }
+}
+
+// 🚀 NEW ENHANCED ANALYSIS ENGINE - Combines best patterns from AWS version
+// 🗺️ REPOSITORY MAP GENERATOR - Creates intelligent repo structure
+function createRepositoryMap(allFiles) {
+  const repoMap = {
+    structure: {},
+    folders: {},
+    fileStats: {
+      total: allFiles.length,
+      byType: {},
+      byFolder: {}
+    }
+  };
+  
+  // Build folder structure with file counts and types
+  allFiles.forEach(filePath => {
+    const parts = filePath.split('/');
+    const fileName = parts[parts.length - 1];
+    const folderPath = parts.slice(0, -1).join('/') || 'root';
+    const fileType = getFileTypeFromPath(filePath);
+    
+    // Track folder contents
+    if (!repoMap.folders[folderPath]) {
+      repoMap.folders[folderPath] = {
+        files: [],
+        types: {},
+        importance: 'unknown'
+      };
+    }
+    
+    repoMap.folders[folderPath].files.push(fileName);
+    repoMap.folders[folderPath].types[fileType] = (repoMap.folders[folderPath].types[fileType] || 0) + 1;
+    
+    // Track file type stats
+    repoMap.fileStats.byType[fileType] = (repoMap.fileStats.byType[fileType] || 0) + 1;
+    repoMap.fileStats.byFolder[folderPath] = (repoMap.fileStats.byFolder[folderPath] || 0) + 1;
+  });
+  
+  return repoMap;
+}
+
+// 🎭 AI REPOSITORY STRATEGIST - Analyzes repo map for intelligent decisions
+async function createAnalysisStrategy(allFiles) {
+  console.log('🎭 AI Repository Strategist: Analyzing repository structure...');
+  
+  if (!OPENAI_API_KEY || allFiles.length < 20) {
+    return {
+      highPriority: allFiles.slice(0, Math.min(50, allFiles.length)),
+      skipFiles: [],
+      analysisStrategy: 'comprehensive'
+    };
+  }
+  
+  try {
+    // Create intelligent repository map
+    const repoMap = createRepositoryMap(allFiles);
+    
+    // Create folder summary for AI analysis
+    const folderSummary = Object.entries(repoMap.folders)
+      .map(([folder, info]) => {
+        const mainTypes = Object.entries(info.types)
+          .sort(([,a], [,b]) => b - a)
+          .slice(0, 3)
+          .map(([type, count]) => `${count} ${type}`)
+          .join(', ');
+        return `${folder}/ (${info.files.length} files: ${mainTypes})`;
+      })
+      .slice(0, 30); // Limit to top 30 folders
+    
+    const strategyPrompt = `You are an AI Repository Strategist. Analyze this repository structure and create an intelligent analysis plan.
+
+REPOSITORY OVERVIEW:
+- Total files: ${repoMap.fileStats.total}
+- File types: ${Object.entries(repoMap.fileStats.byType).map(([type, count]) => `${count} ${type}`).join(', ')}
+
+FOLDER STRUCTURE:
+${folderSummary.join('\n')}
+
+SAMPLE FILES (showing structure):
+${allFiles.slice(0, 50).join('\n')}
+
+Create analysis strategy with different priorities:
+
+CRITICAL: Files that MUST be analyzed (auth, payment, admin, core business logic)
+HIGH: Important files likely to have issues (API endpoints, components, services)  
+MEDIUM: Standard files (utilities, helpers, regular components)
+SKIP: Files to completely skip (tests, docs, configs, assets)
+LIGHT: Files to check only for secrets/leaks (README, configs, env files)
+
+Return ONLY JSON:
+{
+  "strategy": "detected-tech-stack",
+  "critical": ["path1", "path2"],
+  "high": ["path3", "path4"], 
+  "medium": ["path5", "path6"],
+  "light": ["README.md", "config.js"],
+  "skip": ["test1.js", "docs/"],
+  "reasoning": "Brief explanation of decisions"
+}`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: strategyPrompt }],
+        temperature: 0.1,
+        max_tokens: 2000
+      })
+    });
+    
+    if (!response.ok) {
+      console.warn('⚠️ AI strategy planning failed, using default strategy');
+      return { highPriority: allFiles.slice(0, 50), skipFiles: [], analysisStrategy: 'comprehensive' };
+    }
+    
+    const data = await response.json();
+    const aiResponse = data.choices[0].message.content.trim();
+    
+    // Parse AI response
+    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const strategy = JSON.parse(jsonMatch[0]);
+      console.log(`🎯 AI Repository Strategy: ${strategy.strategy}`);
+      console.log(`📊 Analysis Plan: ${strategy.critical?.length || 0} critical, ${strategy.high?.length || 0} high, ${strategy.medium?.length || 0} medium, ${strategy.light?.length || 0} light, ${strategy.skip?.length || 0} skip`);
+      console.log(`💡 Reasoning: ${strategy.reasoning}`);
+      
+      // Convert to our expected format
+      return {
+        critical: strategy.critical || [],
+        high: strategy.high || [],
+        medium: strategy.medium || [],
+        light: strategy.light || [],
+        skip: strategy.skip || [],
+        analysisStrategy: strategy.strategy,
+        reasoning: strategy.reasoning
+      };
+    }
+    
+  } catch (error) {
+    console.warn('⚠️ AI strategy planning error:', error.message);
+  }
+  
+  // Fallback strategy
+  return {
+    critical: allFiles.filter(f => f.includes('auth') || f.includes('payment') || f.includes('admin')).slice(0, 10),
+    high: allFiles.filter(f => !f.includes('test') && !f.includes('spec') && (f.includes('api') || f.includes('component'))).slice(0, 30),
+    medium: allFiles.filter(f => !f.includes('test') && !f.includes('spec')).slice(0, 50),
+    light: allFiles.filter(f => f.includes('README') || f.includes('config')).slice(0, 20),
+    skip: allFiles.filter(f => f.includes('test') || f.includes('spec') || f.includes('.d.ts')),
+    analysisStrategy: 'comprehensive'
+  };
+}
+
+// Helper function to detect file type from path
+function getFileTypeFromPath(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const fileName = path.basename(filePath).toLowerCase();
+  
+  if (['.js', '.jsx', '.ts', '.tsx'].includes(ext)) {
+    if (filePath.includes('react') || filePath.includes('component')) return 'react';
+    if (filePath.includes('server') || filePath.includes('api')) return 'server';
+    return 'javascript';
+  }
+  if (['.py'].includes(ext)) return 'python';
+  if (['.java'].includes(ext)) return 'java';
+  if (fileName.includes('docker')) return 'docker';
+  if (fileName.includes('package.json')) return 'config';
+  if (ext === '.md') return 'docs';
+  return 'other';
+}
+
+// 🚀 SMART PATTERN SELECTION - File Type Based (Super Fast!)
+function selectPatternsForBatch(fileBatch, analysisStrategy) {
+  // Skip AI for pattern selection - use smart file-type mapping instead
+  // This is MUCH faster and almost as effective
+  
+  const patternMap = {};
+  
+  for (const file of fileBatch) {
+    const fileType = getFileTypeFromPath(file.path);
+    const fileName = path.basename(file.path).toLowerCase();
+    
+    // Smart pattern selection based on file type and name
+    if (fileType === 'react') {
+      patternMap[file.path] = ['security', 'react_hooks', 'memory_leaks'];
+    } else if (fileType === 'server' || fileName.includes('api') || fileName.includes('server')) {
+      patternMap[file.path] = ['security', 'async_patterns', 'logic_errors'];
+    } else if (fileName.includes('auth') || fileName.includes('login')) {
+      patternMap[file.path] = ['security', 'async_patterns'];
+    } else if (fileName.includes('config') || fileName.includes('env')) {
+      patternMap[file.path] = ['security'];
+    } else if (fileType === 'javascript' || fileType === 'python') {
+      patternMap[file.path] = ['security', 'async_patterns', 'logic_errors'];
+    } else {
+      patternMap[file.path] = ['security']; // Default to security for all files
+    }
+  }
+  
+  console.log(`🚀 Smart pattern selection for batch of ${fileBatch.length} files (no AI delay)`);
+  return patternMap;
+}
+
+// 🎼 AI PATTERN CONDUCTOR - ONLY for complex repos (Optional Enhancement)
+async function selectPatternsForBatchAI(fileBatch, analysisStrategy) {
+  // Only use AI for pattern selection if:
+  // 1. Repo is very large (100+ priority files)
+  // 2. Mixed tech stack (React + Python + Go)
+  // 3. User specifically requests AI pattern selection
+  
+  if (!OPENAI_API_KEY || fileBatch.length < 50) {
+    return selectPatternsForBatch(fileBatch, analysisStrategy);
+  }
+  
+  // AI implementation for complex cases...
+  // (keeping the AI code but making it optional)
+}
+
+// 🎯 PRIORITY-BASED ANALYSIS - Different analysis depth based on file importance
+async function analyzeFileByPriority(content, filePath, priority = 'medium', analysisStrategy = null) {
+  console.log(`🎯 ${priority.toUpperCase()} priority analysis for: ${filePath}`);
+  
+  switch (priority) {
+    case 'critical':
+      return await analyzeCriticalFile(content, filePath);
+    case 'high':
+      return await analyzeHighPriorityFile(content, filePath);
+    case 'medium':
+      return await analyzeMediumPriorityFile(content, filePath);
+    case 'light':
+      return await analyzeLightFile(content, filePath);
+    default:
+      return await analyzeMediumPriorityFile(content, filePath);
+  }
+}
+
+// 🔥 CRITICAL FILES - Full comprehensive analysis
+async function analyzeCriticalFile(content, filePath) {
+  console.log(`🔥 CRITICAL analysis: ${filePath}`);
+  var allIssues = [];
+  
+  // Run ALL security patterns - no shortcuts for critical files
+  allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkSQLInjectionEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkXSSVulnerabilitiesEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkCommandInjectionEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkResourceLeaksEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkMemoryLeaksEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkPerformanceIssuesEnhanced(content, filePath));
+  
+  // Return ALL issues including low severity for critical files
+  return allIssues;
+}
+
+// ⚡ HIGH PRIORITY FILES - Security + Logic focus
+async function analyzeHighPriorityFile(content, filePath) {
+  console.log(`⚡ HIGH priority analysis: ${filePath}`);
+  var allIssues = [];
+  
+  // Focus on security and logic issues
+  allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkSQLInjectionEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkXSSVulnerabilitiesEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
+  
+  // Return medium+ severity issues
+  return allIssues.filter(issue => 
+    issue.severity === 'critical' || issue.severity === 'high' || issue.severity === 'medium'
+  );
+}
+
+// 📋 MEDIUM PRIORITY FILES - Security focus only
+async function analyzeMediumPriorityFile(content, filePath) {
+  console.log(`📋 MEDIUM priority analysis: ${filePath}`);
+  var allIssues = [];
+  
+  // Basic security checks
+  allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
+  allIssues = allIssues.concat(checkSQLInjectionEnhanced(content, filePath));
+  
+  // Return high+ severity issues only
+  return allIssues.filter(issue => 
+    issue.severity === 'critical' || issue.severity === 'high'
+  );
+}
+
+// 🔍 LIGHT FILES - Secrets/leaks only (README, configs, etc.)
+async function analyzeLightFile(content, filePath) {
+  console.log(`🔍 LIGHT analysis (secrets only): ${filePath}`);
+  var allIssues = [];
+  
+  // Only check for hardcoded secrets and basic leaks
+  allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
+  
+  // Return only critical issues
+  return allIssues.filter(issue => issue.severity === 'critical');
+}
+
+async function analyzeFileWithNewEngine(content, filePath, tempDir, analysisStrategy = null, selectedPatterns = 'all') {
+  console.log(`🎯 Enhanced analysis for: ${filePath}`);
+  
+  var ext = path.extname(filePath).toLowerCase();
+  var fileName = path.basename(filePath).toLowerCase();
+  
+  // selectedPatterns now passed from batch processing
+  
+  // Skip non-code files
+  var skipExtensions = ['.css', '.scss', '.sass', '.less', '.svg', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.woff', '.woff2', '.ttf', '.eot', '.map'];
+  var skipPatterns = [
+    /test/i, /spec/i, /__tests__/i, /\.test\./i, /\.spec\./i,
+    /config/i, /\.config\./i, /webpack/i, /babel/i, /eslint/i,
+    /readme/i, /changelog/i, /license/i, /\.md$/i,
+    /fixture/i, /mock/i, /example/i, /demo/i,
+    /node_modules/i, /dist/i, /build/i, /coverage/i
+  ];
+  
+  if (skipExtensions.includes(ext)) {
+    console.log(`⏭️ Skipping ${ext} file: ${filePath}`);
+    return [];
+  }
+  
+  if (skipPatterns.some(pattern => pattern.test(filePath))) {
+    console.log(`⏭️ Skipping: ${filePath} (test/config/docs)`);
+    return [];
+  }
+  
+  var allIssues = [];
+  
+  // 🎼 AI-DRIVEN PATTERN EXECUTION - Only run selected patterns
+  if (selectedPatterns === 'all') {
+    // Run all patterns (fallback)
+    allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
+    allIssues = allIssues.concat(checkSQLInjectionEnhanced(content, filePath));
+    allIssues = allIssues.concat(checkXSSVulnerabilitiesEnhanced(content, filePath));
+    allIssues = allIssues.concat(checkCommandInjectionEnhanced(content, filePath));
+    allIssues = allIssues.concat(checkResourceLeaksEnhanced(content, filePath));
+    allIssues = allIssues.concat(checkMemoryLeaksEnhanced(content, filePath));
+    allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
+    allIssues = allIssues.concat(checkPerformanceIssuesEnhanced(content, filePath));
+  } else {
+    // Run only AI-selected patterns
+    if (selectedPatterns.includes('security')) {
+      allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
+      allIssues = allIssues.concat(checkSQLInjectionEnhanced(content, filePath));
+      allIssues = allIssues.concat(checkXSSVulnerabilitiesEnhanced(content, filePath));
+      allIssues = allIssues.concat(checkCommandInjectionEnhanced(content, filePath));
+    }
+    
+    if (selectedPatterns.includes('memory_leaks')) {
+      allIssues = allIssues.concat(checkMemoryLeaksEnhanced(content, filePath));
+      allIssues = allIssues.concat(checkResourceLeaksEnhanced(content, filePath));
+    }
+    
+    if (selectedPatterns.includes('async_patterns')) {
+      allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
+    }
+    
+    if (selectedPatterns.includes('performance')) {
+      allIssues = allIssues.concat(checkPerformanceIssuesEnhanced(content, filePath));
+    }
+    
+    // If no patterns selected or unknown patterns, run security by default
+    if (!selectedPatterns.length) {
+      allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
+    }
+  }
+  
+  // Filter to only critical/high/medium issues
+  var criticalIssues = allIssues.filter(issue => 
+    issue.severity === 'critical' || issue.severity === 'high' || issue.severity === 'medium'
+  );
+  
+  console.log(`🎯 Enhanced analysis found ${criticalIssues.length} issues in ${filePath}`);
+  return criticalIssues;
+}
+
+// 🤖 EXPERIMENTAL: AI-POWERED ANALYSIS FUNCTIONS
+async function checkHardcodedSecretsAI(content, filePath, fileContext = {}) {
+  // If no AI key, fallback to static analysis
+  if (!OPENAI_API_KEY) {
+    return checkHardcodedSecretsEnhanced(content, filePath);
+  }
+  
+  try {
+    const contextInfo = {
+      language: path.extname(filePath).substring(1),
+      type: fileContext.type || 'unknown',
+      framework: fileContext.framework || 'unknown'
+    };
+    
+    const aiPrompt = `You are a security expert analyzing ${contextInfo.language} code for hardcoded secrets.
+
+CONTEXT: ${filePath} - ${contextInfo.type} file in ${contextInfo.framework} project
+CODE (first 1500 chars):
+${content.substring(0, 1500)}
+
+Find hardcoded secrets with HIGH PRECISION (avoid false positives):
+- API keys, passwords, tokens, connection strings
+- Consider context: test files have different risk than production code
+- Consider patterns: environment variables are OK, hardcoded values are NOT
+
+Return ONLY JSON array (empty if no issues):
+[{"line": 15, "severity": "critical", "issue": "Hardcoded API key", "code": "const key = 'sk-123'", "suggestion": "Use environment variable"}]`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: aiPrompt }],
+        temperature: 0.1,
+        max_tokens: 1000
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      const aiResponse = data.choices[0].message.content.trim();
+      const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const aiIssues = JSON.parse(jsonMatch[0]);
+        console.log(`🤖 AI found ${aiIssues.length} hardcoded secret issues in ${path.basename(filePath)}`);
+        return aiIssues.map(issue => ({
+          type: 'Hardcoded Secret (AI)',
+          severity: issue.severity || 'high',
+          line: issue.line || 1,
+          column: 1,
+          message: issue.issue,
+          code: issue.code,
+          suggestion: issue.suggestion,
+          file: filePath
+        }));
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ AI security analysis failed, using static analysis:', error.message);
+  }
+  
+  // Fallback to static analysis
+  return checkHardcodedSecretsEnhanced(content, filePath);
+}
+
+// 🔒 ENHANCED SECURITY PATTERNS (Static Fallback)
+function checkHardcodedSecretsEnhanced(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  var secretPatterns = [
+    { pattern: /(password|pwd|pass)\s*[:=]\s*["'][^"']{3,}["']/i, message: 'Hardcoded password detected' },
+    { pattern: /(api_?key|apikey)\s*[:=]\s*["'][^"']{10,}["']/i, message: 'Hardcoded API key detected' },
+    { pattern: /(secret|token)\s*[:=]\s*["'][^"']{8,}["']/i, message: 'Hardcoded secret/token detected' },
+    { pattern: /sk-[a-zA-Z0-9]{48}/i, message: 'OpenAI API key detected' },
+    { pattern: /ghp_[a-zA-Z0-9]{36}/i, message: 'GitHub token detected' },
+    { pattern: /AKIA[0-9A-Z]{16}/i, message: 'AWS access key detected' },
+    { pattern: /mongodb:\/\/[^:]+:[^@]+@/i, message: 'MongoDB connection string with credentials' },
+    { pattern: /postgres:\/\/[^:]+:[^@]+@/i, message: 'PostgreSQL connection string with credentials' }
+  ];
+  
+  lines.forEach((line, index) => {
+    // Skip if using environment variables (safe pattern)
+    if (/os\.getenv|process\.env|config\.get/i.test(line)) return;
+    
+    secretPatterns.forEach(({ pattern, message }) => {
+      if (pattern.test(line)) {
+        issues.push({
+          type: 'security',
+          message: message + ' - use environment variables',
+          line: index + 1,
+          severity: 'critical',
+          code: line.replace(/["'][^"']*["']/, '"***REDACTED***"'),
+          pattern: 'hardcoded_secret'
+        });
+      }
+    });
+  });
+  
+  return issues;
+}
+
+function checkSQLInjectionEnhanced(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // More precise SQL injection detection - must have SQL context AND string concatenation
+    var hasSQLContext = /\.(query|execute)\s*\(|sql\s*=|query\s*=|executeQuery|createStatement/i.test(line);
+    var hasStringConcatenation = /\+.*["']|["'].*\+|\$\{.*\}|\`.*\$\{/i.test(line);
+    var hasSQLKeywords = /select\s+.*from|insert\s+into|update\s+.*set|delete\s+from/i.test(line);
+    
+    // Only flag if we have actual SQL context AND string concatenation
+    if ((hasSQLContext || hasSQLKeywords) && hasStringConcatenation) {
+      // Skip if using parameterized queries (safe patterns)
+      if (/parameterize|prepare|execute.*,\s*\[|\?\s*,|\$[0-9]+|bind.*param/i.test(line)) return;
+      // Skip console.log, error messages, and UI strings
+      if (/console\.|log\(|error\(|message\s*[:=]|text\s*[:=]|\.innerHTML|chalk\.|theme`/i.test(line)) return;
+      
+      issues.push({
+        type: 'security',
+        message: 'SQL injection risk: Use parameterized queries instead of string concatenation',
+        line: index + 1,
+        severity: 'critical',
+        code: line.trim(),
+        pattern: 'sql_injection'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+function checkXSSVulnerabilitiesEnhanced(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // More precise XSS detection - only flag actual assignments with user input
+    if ((/\.innerHTML\s*=|\.outerHTML\s*=|\.insertAdjacentHTML\s*\(/i.test(line)) && 
+        (/\+.*["']|["'].*\+|\$\{.*\}|\`.*\$\{/i.test(line))) {
+      // Skip safe methods and type definitions
+      if (/sanitize|escape|encode|textContent|innerText|DOMPurify|get\s+innerHTML|set\s+innerHTML.*string|TrustedHTML/i.test(line)) return;
+      // Skip Flow/TypeScript type definitions and interfaces
+      if (/:\s*string|interface\s|type\s|declare\s|get\s+innerHTML\(\)|set\s+innerHTML\(/i.test(line)) return;
+      
+      issues.push({
+        type: 'security',
+        message: 'XSS vulnerability: HTML insertion without sanitization',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'xss_vulnerability'
+      });
+    }
+    
+    // React-specific XSS - only flag actual usage, not type definitions
+    if (/dangerouslySetInnerHTML\s*[:=]/i.test(line) && 
+        !/case\s|interface\s|type\s|declare\s|sanitize/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'React XSS risk: dangerouslySetInnerHTML without sanitization',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'react_xss'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+function checkCommandInjectionEnhanced(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  var commandAPIs = ['exec(', 'spawn(', 'system(', 'popen(', 'subprocess.', 'os.system'];
+  
+  lines.forEach((line, index) => {
+    commandAPIs.forEach(api => {
+      if (line.includes(api) && (/\+.*["']|["'].*\+|\$\{.*\}|\`.*\$\{/i.test(line))) {
+        // Skip if using safe execution methods
+        if (/shell\s*=\s*False|shlex\.quote|subprocess\.run.*args/i.test(line)) return;
+        // Skip console.log, error messages, and alias declarations
+        if (/console\.|log\(|error\(|alias\s|deploy\s|now\s+deploy/i.test(line)) return;
+        
+        issues.push({
+          type: 'security',
+          message: 'Command injection risk: User input in system commands - use parameterized execution',
+          line: index + 1,
+          severity: 'critical',
+          code: line.trim(),
+          pattern: 'command_injection'
+        });
+      }
+    });
+  });
+  
+  return issues;
+}
+
+function checkResourceLeaksEnhanced(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var trimmed = line.trim();
+    
+    // Skip type definitions and declarations
+    if (/^(declare\s+|interface\s+|type\s+|\*\s|\/\*\*)/i.test(trimmed)) return;
+    
+    // File operations without proper cleanup - only flag actual function calls, not type definitions
+    if (/open\s*\(|createReadStream|createWriteStream|fs\.open/i.test(line)) {
+      // Skip if it's just a type definition
+      if (/:\s*(string|void|Promise|Function|\(\))/i.test(line)) return;
+      
+      var nextLines = lines.slice(index, index + 15).join('\n');
+      if (!/close\s*\(\)|\.end\s*\(\)|finally|with\s+/i.test(nextLines)) {
+        issues.push({
+          type: 'logic',
+          message: 'Resource leak: File/stream opened but not properly closed',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'resource_leak'
+        });
+      }
+    }
+    
+    // Database connections without cleanup - only actual calls, not type definitions or error messages
+    if (/\w+\s*=\s*.*connect\s*\(|\.connect\s*\(|createConnection\s*\(|getConnection\s*\(/i.test(line)) {
+      // Skip type definitions, error messages, and import statements
+      if (/:\s*(string|void|Promise|Function|\(\))/i.test(line) ||
+          /console\.|log\(|error\(|message|import\s|require\(/i.test(line)) return;
+      
+      var nextLines = lines.slice(index, index + 20).join('\n');
+      if (!/disconnect|close|end|release|finally/i.test(nextLines)) {
+        issues.push({
+          type: 'logic',
+          message: 'Database connection leak: Connection not properly closed',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'connection_leak'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+function checkMemoryLeaksEnhanced(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var trimmed = line.trim();
+    
+    // Skip type definitions, function declarations, comments, method signatures, and string literals
+    if (/^(declare\s+|interface\s+|type\s+|\*\s|\/\*\*|\/\/|function\s+\w+\s*\(|export\s+function|\w+\s*:\s*\w+|\w+\(\)\s*:\s*\w+|['"`].*['"`])/i.test(trimmed)) return;
+    
+    // Event listeners without cleanup - but skip function declarations and type definitions
+    if (/addEventListener|on\s*\(/i.test(line)) {
+      // Skip method signatures, type definitions, function declarations, and variable assignments
+      if (/:\s*(Function|\(\)|\w+\s*=>)/i.test(line) || 
+          /^(function\s+|export\s+function|\w+\s*:\s*|\w+\(\)\s*:\s*|const\s+\w+\s*=|let\s+\w+\s*=|var\s+\w+\s*=)/i.test(trimmed) ||
+          /toJSON\(\)|toString\(\)|valueOf\(\)|timestampToPosition|formatDuration/i.test(line)) return;
+      
+      if (!/removeEventListener|off\s*\(|cleanup|unmount/i.test(content)) {
+        issues.push({
+          type: 'performance',
+          message: 'Memory leak: Event listener added but never removed',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'memory_leak'
+        });
+      }
+    }
+    
+    // Timers without cleanup - but skip function declarations and Promise constructors
+    if (/setInterval|setTimeout/i.test(line) && !/clearInterval|clearTimeout/i.test(content)) {
+      // Skip function signatures, type definitions, Promise constructors, resolve callbacks, and variable assignments
+      if (/:\s*(Function|\(\)|\w+\s*=>)/i.test(line) || 
+          /^(function\s+|export\s+function|\w+\s*:\s*|const\s+\w+\s*=|let\s+\w+\s*=|var\s+\w+\s*=)/i.test(trimmed) ||
+          /new Promise|resolve\)|setTimeout\(resolve|timestampToPosition|formatDuration/i.test(line)) return;
+      
+      issues.push({
+        type: 'performance',
+        message: 'Memory leak: Timer created but never cleared',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'timer_leak'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+function checkErrorHandlingEnhanced(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Empty catch blocks
+    if (/catch\s*\(\s*\w*\s*\)\s*\{[\s]*\}/i.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Empty catch block: Handle errors properly or add explanatory comment',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'empty_catch'
+      });
+    }
+    
+    // Unhandled async operations - skip string literals and comments
+    if (/await\s+\w+\(/i.test(line) && !/^[\s]*['"`\/]/.test(trimmed)) {
+      var surroundingCode = lines.slice(Math.max(0, index - 5), index + 5).join('\n');
+      if (!/try|catch|\.catch\(/i.test(surroundingCode)) {
+        issues.push({
+          type: 'logic',
+          message: 'Unhandled async operation: Add try-catch or .catch() for error handling',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'unhandled_promise'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+function checkPerformanceIssuesEnhanced(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // N+1 queries
+    if (/for\s*\(|while\s*\(|\.forEach|\.map/i.test(line)) {
+      var nextLines = lines.slice(index, index + 15).join('\n');
+      var queryPatterns = ['query\\s*\\(', 'find\\s*\\(', 'findOne\\s*\\(', 'select\\s*\\(', 'fetch\\s*\\('];
+      
+      queryPatterns.forEach(pattern => {
+        if (new RegExp(pattern, 'i').test(nextLines)) {
+          issues.push({
+            type: 'performance',
+            message: 'N+1 query problem: Database/API query inside loop - use batch operations',
+            line: index + 1,
+            severity: 'high',
+            code: line.trim(),
+            pattern: 'n_plus_one'
+          });
+        }
+      });
+    }
+    
+    // React-specific performance issues
+    if (/useEffect\s*\(\s*[^,]+\s*\)(?!\s*,\s*\[)/i.test(line)) {
+      issues.push({
+        type: 'performance',
+        message: 'useEffect missing dependencies - may cause infinite re-renders',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'react_effect_deps'
+      });
+    }
+  });
+  
+  return issues;
 }
 
 // 🚀 ULTIMATE FILE-SPECIFIC ANALYSIS ENGINE
@@ -2129,6 +2932,50 @@ function analyzeDataFile(content, filePath, fileType) {
 }
 
 // 🎯 SPECIALIZED HELPER FUNCTIONS
+
+// Check if content is primarily type definitions (should be skipped)
+function isPureTypeDefinitionContent(content, filePath) {
+  try {
+    // Skip flow-typed directories entirely
+    if (/flow-typed/i.test(filePath)) {
+      return true;
+    }
+    
+    var lines = content.split('\n').filter(line => line.trim() && !line.trim().startsWith('//'));
+    if (lines.length === 0) return false;
+    
+    var typeDefinitionLines = 0;
+    var implementationLines = 0;
+    
+    lines.forEach(line => {
+      var trimmed = line.trim();
+      
+      // Count type definition patterns
+      if (/^(declare\s+|interface\s+|type\s+\w+\s*=|export\s+interface|export\s+type)/.test(trimmed) ||
+          /:\s*(string|number|boolean|void|Promise<|Function|\(\)|\{)/.test(trimmed) ||
+          /^\/\*\*|\*\/|\*\s/.test(trimmed)) { // JSDoc comments
+        typeDefinitionLines++;
+      }
+      // Count implementation patterns
+      else if (/^(function\s+|const\s+\w+\s*=|let\s+|var\s+|class\s+|if\s*\(|for\s*\(|while\s*\(|return\s+|throw\s+)/.test(trimmed) ||
+               /\w+\s*\([^)]*\)\s*\{/.test(trimmed)) {
+        implementationLines++;
+      }
+    });
+    
+    // If >80% type definitions and <20% implementation, consider it pure type definitions
+    var totalSignificantLines = typeDefinitionLines + implementationLines;
+    if (totalSignificantLines > 0) {
+      var typeRatio = typeDefinitionLines / totalSignificantLines;
+      return typeRatio > 0.8;
+    }
+    
+    return false;
+  } catch (error) {
+    console.warn('Error checking type definition content:', error);
+    return false;
+  }
+}
 
 // Get code patterns for specific subtypes
 function getCodePatterns(subtype) {
@@ -2685,8 +3532,8 @@ export const handler = async (event) => {
         var content = await fs.readFile(file, 'utf-8');
         var relativePath = path.relative(tempDir, file);
         
-        // 🎯 SEMANTIC BUG DETECTION: Targeted analysis like real Greptile
-        var issues = await performSemanticBugDetection(content, relativePath, tempDir);
+        // 🎯 NEW ENHANCED ANALYSIS: Using our improved analysis functions
+        var issues = await analyzeFileWithNewEngine(content, relativePath, tempDir);
         
         processedFiles++;
         
@@ -2708,7 +3555,7 @@ export const handler = async (event) => {
     console.log(`   📁 Files with issues: ${results.length}`);
     console.log(`   🚨 Total issues found: ${totalIssues}`);
     
-    // Note: AI filtering now happens in frontend API layer for better performance
+    // Note: AI filtering will happen in frontend API layer to prevent Lambda timeouts
     
     var returnData = {
       success: true,

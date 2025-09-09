@@ -352,13 +352,13 @@ export default function EnterpriseAnalysisPage() {
 
     // Process files in batches (no directory filtering - analyze ALL files)
     while (true) {
-      // Dynamic progress calculation based on estimated batches
-      const batchProgress = Math.min((batchNumber / estimatedTotalBatches) * 100, 95) // Never show 100% until complete
+      // Dynamic progress calculation - slower progression as we don't know exact total
+      const batchProgress = Math.min((batchNumber / (batchNumber + 5)) * 90, 95) // Slower, asymptotic approach to 95%
       
       setStatus(prev => ({
         ...prev,
         progress: Math.round(batchProgress),
-        currentFile: `Processing file batch ${batchNumber} of ~${estimatedTotalBatches}...`
+        currentFile: `Analyzing repository files...`
       }))
 
       console.log(`🔄 Processing file batch ${batchNumber}`)

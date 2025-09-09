@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 AI Code Analyzer - Single File Testing</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .input-section {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .result-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f8f9fa;
+        }
+
+        .file-name {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .risk-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .risk-high { background: #ffe6e6; color: #d63031; }
+        .risk-medium { background: #fff3cd; color: #f39c12; }
+        .risk-low { background: #d4edda; color: #00b894; }
+
+        .bug-item {
+            background: #f8f9fa;
+            border-left: 4px solid #ff6b6b;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 0 10px 10px 0;
+        }
+
+        .bug-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .bug-type {
+            background: #ff6b6b;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .bug-severity {
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .severity-critical { background: #d63031; color: white; }
+        .severity-high { background: #e17055; color: white; }
+
+        .bug-details {
+            margin-top: 15px;
+        }
+
+        .bug-details h4 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .bug-details p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .code-snippet {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .no-issues {
+            text-align: center;
+            padding: 40px;
+            color: #00b894;
+        }
+
+        .no-issues h3 {
+            margin-bottom: 10px;
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            color: #d63031;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .example-paths {
+            background: #e8f4fd;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .example-paths h4 {
+            color: #0984e3;
+            margin-bottom: 10px;
+        }
+
+        .example-paths code {
+            display: block;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            margin: 5px 0;
+            font-family: 'Courier New', monospace;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 AI Code Analyzer</h1>
+            <p>Single File Analysis with ChatGPT - Find Critical Bugs Only</p>
+        </div>
+
+        <div class="main-content">
+            <div class="input-section">
+                <div class="form-group">
+                    <label for="filePath">📁 File Path to Analyze:</label>
+                    <input 
+                        type="text" 
+                        id="filePath" 
+                        placeholder="C:\Users\Rishi\Downloads\Greptile Clone\lambda-function-enhanced.js"
+                        value=""
+                    >
+                </div>
+                
+                <button class="btn" onclick="analyzeFile()">
+                    🔍 Analyze File with ChatGPT
+                </button>
+
+                <div class="example-paths">
+                    <h4>🔥 Large Files to Download & Test (2000+ lines):</h4>
+                    
+                    <h5>📁 React - Large Complex Files:</h5>
+                    <code>Download: https://raw.githubusercontent.com/facebook/react/main/packages/react-reconciler/src/ReactFiberWorkLoop.js</code>
+                    <code>Save as: C:\temp\ReactFiberWorkLoop.js (~3000 lines)</code>
+                    
+                    <code>Download: https://raw.githubusercontent.com/facebook/react/main/packages/react-reconciler/src/ReactFiberCommitWork.js</code>
+                    <code>Save as: C:\temp\ReactFiberCommitWork.js (~4000 lines)</code>
+                    
+                    <h5>📁 VS Code - TypeScript Files:</h5>
+                    <code>Download: https://raw.githubusercontent.com/microsoft/vscode/main/src/vs/editor/common/model/textModel.ts</code>
+                    <code>Save as: C:\temp\textModel.ts (~2800 lines)</code>
+                    
+                    <h5>📁 Next.js - Large Components:</h5>
+                    <code>Download: https://raw.githubusercontent.com/vercel/next.js/canary/packages/next/src/server/base-server.ts</code>
+                    <code>Save as: C:\temp\base-server.ts (~2500 lines)</code>
+                    
+                    <h5>📁 TensorFlow.js - ML Code:</h5>
+                    <code>Download: https://raw.githubusercontent.com/tensorflow/tfjs/master/tfjs-core/src/ops/array_ops.ts</code>
+                    <code>Save as: C:\temp\array_ops.ts (~2200 lines)</code>
+                    
+                    <h5>📁 Your Current Project:</h5>
+                    <code>C:\Users\Rishi\Downloads\Greptile Clone\lambda-function-enhanced.js</code>
+                    <code>C:\Users\Rishi\Downloads\Greptile Clone\app\dashboard\enterprise-analysis\page.tsx</code>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                <h3>🧠 Analyzing with ChatGPT...</h3>
+                <p>This may take 10-30 seconds depending on file complexity</p>
+            </div>
+
+            <div class="results" id="results">
+                <!-- Results will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function analyzeFile() {
+            const filePath = document.getElementById('filePath').value.trim();
+            
+            if (!filePath) {
+                alert('Please enter a file path');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('results').classList.remove('show');
+            document.querySelector('.btn').disabled = true;
+
+            try {
+                const response = await fetch('/api/analyze-file', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filePath })
+                });
+
+                const result = await response.json();
+                displayResults(result);
+
+            } catch (error) {
+                displayError(`Network error: ${error.message}`);
+            } finally {
+                // Hide loading
+                document.getElementById('loading').classList.remove('show');
+                document.querySelector('.btn').disabled = false;
+            }
+        }
+
+        function displayResults(result) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (result.status === 'error') {
+                resultsDiv.innerHTML = `
+                    <div class="error-message">
+                        <h3>❌ Analysis Error</h3>
+                        <p><strong>File:</strong> ${result.fileName}</p>
+                        <p><strong>Error:</strong> ${result.message}</p>
+                        ${result.rawResponse ? `
+                            <details style="margin-top: 15px;">
+                                <summary>Raw ChatGPT Response</summary>
+                                <pre style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px; overflow-x: auto;">${result.rawResponse}</pre>
+                            </details>
+                        ` : ''}
+                    </div>
+                `;
+            } else if (result.status === 'skipped') {
+                resultsDiv.innerHTML = `
+                    <div class="result-card">
+                        <div class="result-header">
+                            <div class="file-name">📄 ${result.fileName}</div>
+                            <div class="risk-badge risk-low">Skipped</div>
+                        </div>
+                        <p><strong>Reason:</strong> ${result.message}</p>
+                    </div>
+                `;
+            } else {
+                // Success - display analysis
+                const riskLevel = result.riskLevel || 'low';
+                const analysis = result.analysis || {};
+                
+                let bugsHtml = '';
+                
+                // Check for issues based on the markers
+                const hasIssues = result.analysis?.rawResponse?.includes('=== CRITICAL ISSUES START ===');
+                const hasNoIssues = result.analysis?.rawResponse?.includes('=== NO CRITICAL ISSUES START ===');
+
+                // Extract issues section first
+                const response = result.analysis?.rawResponse || '';
+                const issuesMatch = response.match(/=== CRITICAL ISSUES START ===([\s\S]*?)=== CRITICAL ISSUES END ===/);
+                const hasRealIssues = !!issuesMatch;
+
+                if (!hasRealIssues) {
+                    bugsHtml = `
+                        <div class="no-issues">
+                            <h3>✅ No Critical Issues Found!</h3>
+                            <div class="analysis-sections">
+                                <!-- Analysis Section -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #2980b9; margin-bottom: 15px;">🔍 Analysis Methodology:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('ANALYSIS METHODOLOGY:')[1]?.split('DETAILED FINDINGS:')[0];
+                                            return section || 'No analysis provided';
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <!-- Findings Section -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #27ae60; margin-bottom: 15px;">📊 Detailed Findings:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('DETAILED FINDINGS:')[1]?.split('FINAL RESULTS:')[0];
+                                            return section || 'No findings provided';
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <!-- Results Section -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #8e44ad; margin-bottom: 15px;">🎯 Final Results:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('FINAL RESULTS:')[1]?.split('REPLICATION GUIDE:')[0];
+                                            return section || 'No results provided';
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <!-- Replication Guide -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #2c3e50; margin-bottom: 15px;">🔄 Replication Guide:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('REPLICATION GUIDE:')[1]?.split('OPTIMIZATION GUIDE:')[0];
+                                            return section || 'No guide provided';
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <!-- Optimization Guide -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #c0392b; margin-bottom: 15px;">⚡ Optimization Guide:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('OPTIMIZATION GUIDE:')[1];
+                                            return section || 'No guide provided';
+                                        })()}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (hasRealIssues) {
+                    bugsHtml = `
+                        <div class="critical-issues">
+                            <h3>⚠️ Critical Issues Found!</h3>
+                            <div class="analysis-sections">
+                                <!-- Critical Issues Section -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #fff3cd; border-radius: 10px; border-left: 4px solid #f39c12;">
+                                    <h4 style="color: #d35400; margin-bottom: 15px;">🚨 Critical Issues:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            const issuesMatch = response.match(/=== CRITICAL ISSUES START ===([\s\S]*?)=== CRITICAL ISSUES END ===/);
+                                            return issuesMatch ? issuesMatch[1].trim() : 'No issues found';
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <!-- Analysis Section -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #2980b9; margin-bottom: 15px;">🔍 Analysis Methodology:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('ANALYSIS METHODOLOGY:')[1]?.split('DETAILED FINDINGS:')[0];
+                                            return section || 'No analysis provided';
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <!-- Findings Section -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #27ae60; margin-bottom: 15px;">📊 Detailed Findings:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('DETAILED FINDINGS:')[1]?.split('FINAL RESULTS:')[0];
+                                            return section || 'No findings provided';
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <!-- Results Section -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #8e44ad; margin-bottom: 15px;">🎯 Final Results:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('FINAL RESULTS:')[1]?.split('REPLICATION GUIDE:')[0];
+                                            return section || 'No results provided';
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <!-- Replication Guide -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #2c3e50; margin-bottom: 15px;">🔄 Replication Guide:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('REPLICATION GUIDE:')[1]?.split('OPTIMIZATION GUIDE:')[0];
+                                            return section || 'No guide provided';
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <!-- Optimization Guide -->
+                                <div style="margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                                    <h4 style="color: #c0392b; margin-bottom: 15px;">⚡ Optimization Guide:</h4>
+                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                        ${(() => {
+                                            const response = result.analysis?.rawResponse || '';
+                                            // First combine all chunks
+                                            const fullResponse = response.split(/=== NEXT CHUNK ===/).join('\n');
+                                            // Then extract the section
+                                            const section = fullResponse.split('OPTIMIZATION GUIDE:')[1];
+                                            return section || 'No guide provided';
+                                        })()}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    bugsHtml = `
+                        <div class="error-message">
+                            <h3>⚠️ Analysis Format Error</h3>
+                            <p>ChatGPT's response did not follow the required format. Please try again.</p>
+                                <div style="margin-top: 15px;">
+                                    <!-- Critical Issues Section -->
+                                    ${(() => {
+                                        const response = result.analysis?.rawResponse || '';
+                                        const issuesMatch = response.match(/=== CRITICAL ISSUES START ===([\s\S]*?)=== CRITICAL ISSUES END ===/);
+                                        const issues = issuesMatch ? issuesMatch[1].trim() : null;
+                                        
+                                        if (issues) {
+                                            return `
+                                                <div style="padding: 20px; background: #fff3cd; border-radius: 10px; border-left: 4px solid #f39c12; margin-bottom: 30px;">
+                                                    <h4 style="color: #d35400; margin-bottom: 15px;">🚨 Critical Issues Found:</h4>
+                                                    <div style="white-space: pre-wrap; font-family: monospace;">
+                                                        ${issues}
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }
+                                        return '';
+                                    })()}
+
+                                    <!-- Analysis Section -->
+                                    ${(() => {
+                                        const response = result.analysis?.rawResponse || '';
+                                        const sections = response.split(/=== NEXT CHUNK ===/).map(chunk => {
+                                            // Remove the issues section from each chunk
+                                            return chunk.replace(/=== CRITICAL ISSUES START ===([\s\S]*?)=== CRITICAL ISSUES END ===/, '').trim();
+                                        }).filter(Boolean);
+
+                                        return sections.map((section, index) => `
+                                            <div style="padding: 20px; background: white; border-radius: 10px; margin-bottom: 20px;">
+                                                ${sections.length > 1 ? `<h4 style="color: #2980b9; margin-bottom: 15px;">Chunk ${index + 1}/${sections.length}:</h4>` : ''}
+                                                <div style="white-space: pre-wrap; font-family: monospace;">
+                                                    ${section}
+                                                </div>
+                                            </div>
+                                        `).join('');
+                                    })()}
+                                </div>
+                        </div>
+                    `;
+                }
+
+                resultsDiv.innerHTML = `
+                    <div class="result-card">
+                        <div class="result-header">
+                            <div class="file-name">📄 ${result.fileName}</div>
+                            <div class="risk-badge risk-${hasRealIssues ? 'high' : 'low'}">${hasRealIssues ? 'HIGH' : 'LOW'} RISK</div>
+                        </div>
+                        
+                        <div style="margin-bottom: 20px; color: #666;">
+                            <p><strong>File Size:</strong> ${result.fileSize} characters</p>
+                            <p><strong>Analyzed:</strong> ${new Date(result.analyzedAt).toLocaleString()}</p>
+                        </div>
+                        
+                        ${bugsHtml}
+                    </div>
+                `;
+            }
+            
+            resultsDiv.classList.add('show');
+        }
+
+        function displayError(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <div class="error-message">
+                    <h3>❌ Error</h3>
+                    <p>${message}</p>
+                </div>
+            `;
+            resultsDiv.classList.add('show');
+        }
+
+        // Allow Enter key to trigger analysis
+        document.getElementById('filePath').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                analyzeFile();
+            }
+        });
+    </script>
+</body>
+</html>
