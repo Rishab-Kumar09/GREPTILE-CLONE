@@ -2244,22 +2244,30 @@ function checkLogicErrors(content, filePath) {
   lines.forEach((line, index) => {
     var trimmed = line.trim();
     
-    // 1. DISABLED: Assignment in if condition check (too many false positives)
-    // The pattern was flagging valid "== null" checks as bugs
-    // Facebook React intentionally uses "== null" to check both null and undefined
-    // This is NOT a bug - it's a deliberate and correct pattern
-    /*
-    if (/if\s*\([^)]*=\s*[^=]/.test(line) && !/===|!==|<=|>=/.test(line)) {
+    // 1. REAL ASSIGNMENT BUGS: Only flag actual assignment (=) not equality (==)
+    // Fixed: Now only catches real bugs like "if (x = 5)" not valid "if (x == null)"
+    if (/if\s*\([^)]*[^=!<>]\s*=\s*[^=]/.test(line) && !/===|!==|==|!=|<=|>=/.test(line)) {
       issues.push({
         type: 'logic',
-        message: 'Assignment in if condition - did you mean == or ===?',
+        message: 'Assignment in if condition - did you mean ==?',
         line: index + 1,
-        severity: 'high',
+        severity: 'medium',
         code: trimmed,
         pattern: 'assignment_in_condition'
       });
     }
-    */
+    
+    // 2. REAL LOGIC ISSUES: Missing null checks before property access
+    if (/\w+\.\w+/.test(line) && !/if\s*\(.*!=\s*null\)|if\s*\(.*==\s*null\)/.test(line) && /\.length|\.push|\.map|\.filter/.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Potential null reference - consider null check before property access',
+        line: index + 1,
+        severity: 'medium',
+        code: trimmed,
+        pattern: 'missing_null_check'
+      });
+    }
     
     // 2. Array.length in loop condition (performance issue)
     if (/for\s*\([^;]*;\s*\w+\s*<\s*\w+\.length/.test(line)) {
@@ -2279,9 +2287,45 @@ function checkLogicErrors(content, filePath) {
         type: 'logic',
         message: 'Comparison with NaN always returns false - use isNaN() or Number.isNaN()',
         line: index + 1,
-        severity: 'high',
+        severity: 'medium',
         code: trimmed,
         pattern: 'nan_comparison'
+      });
+    }
+    
+    // 4. REAL REACT ISSUES: Missing dependency in useEffect
+    if (/useEffect\s*\(\s*\(\s*\)\s*=>\s*{/.test(line) && !content.includes('[]')) {
+      issues.push({
+        type: 'react',
+        message: 'useEffect missing dependency array - may cause infinite re-renders',
+        line: index + 1,
+        severity: 'medium',
+        code: trimmed,
+        pattern: 'missing_useeffect_deps'
+      });
+    }
+    
+    // 5. REAL PERFORMANCE ISSUE: Multiple DOM queries
+    if (/(document\.getElementById|document\.querySelector)/.test(line) && /\./.test(line)) {
+      issues.push({
+        type: 'performance',
+        message: 'DOM query in loop or multiple times - consider caching',
+        line: index + 1,
+        severity: 'medium',
+        code: trimmed,
+        pattern: 'inefficient_dom_query'
+      });
+    }
+    
+    // 6. REAL ASYNC ISSUES: Unhandled promise rejections
+    if (/\.then\s*\(/.test(line) && !/\.catch\s*\(/.test(line) && !content.includes('.catch(')) {
+      issues.push({
+        type: 'async',
+        message: 'Promise without .catch() - unhandled rejections can crash app',
+        line: index + 1,
+        severity: 'medium',
+        code: trimmed,
+        pattern: 'unhandled_promise'
       });
     }
     
