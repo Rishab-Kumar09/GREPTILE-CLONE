@@ -3475,8 +3475,37 @@ export const handler = async (event) => {
     var allFiles = await findCodeFiles(tempDir);
     console.log(`📊 CRITICAL: Found ${allFiles.length} total code files in repository`);
     
+    // 🎭 STEP 2.5: AI ORCHESTRA MANAGER - Create intelligent analysis strategy
+    console.log('🎭 AI Orchestra Manager: Creating analysis strategy...');
+    var analysisStrategy = await createAnalysisStrategy(allFiles);
+    
+    // Apply AI strategy to filter files by priority
+    var prioritizedFiles = [];
+    if (analysisStrategy.critical) {
+      prioritizedFiles = prioritizedFiles.concat(analysisStrategy.critical.map(f => ({path: f, priority: 'critical'})));
+    }
+    if (analysisStrategy.high) {
+      prioritizedFiles = prioritizedFiles.concat(analysisStrategy.high.map(f => ({path: f, priority: 'high'})));
+    }
+    if (analysisStrategy.medium) {
+      prioritizedFiles = prioritizedFiles.concat(analysisStrategy.medium.map(f => ({path: f, priority: 'medium'})));
+    }
+    if (analysisStrategy.light) {
+      prioritizedFiles = prioritizedFiles.concat(analysisStrategy.light.map(f => ({path: f, priority: 'light'})));
+    }
+    
+    // If no strategy returned, use fallback
+    var filesToProcess;
+    if (prioritizedFiles.length === 0) {
+      filesToProcess = allFiles.slice(0, 100);
+      console.log('⚠️ Using fallback strategy: analyzing first 100 files');
+    } else {
+      filesToProcess = prioritizedFiles.map(f => f.path);
+      console.log(`🎯 AI Strategy applied: ${filesToProcess.length} files prioritized for analysis`);
+      console.log(`📊 Priority breakdown: ${analysisStrategy.critical?.length || 0} critical, ${analysisStrategy.high?.length || 0} high, ${analysisStrategy.medium?.length || 0} medium, ${analysisStrategy.light?.length || 0} light`);
+    }
+    
     // Step 3: Handle file-based batching
-    var filesToProcess = allFiles;
     var isLastBatch = true;
     
     if (isFileBatched) {
@@ -3532,8 +3561,9 @@ export const handler = async (event) => {
         var content = await fs.readFile(file, 'utf-8');
         var relativePath = path.relative(tempDir, file);
         
-        // 🎯 NEW ENHANCED ANALYSIS: Using our improved analysis functions
-        var issues = await analyzeFileWithNewEngine(content, relativePath, tempDir);
+        // 🎯 AI ORCHESTRA MANAGER: Priority-based analysis
+        var filePriority = prioritizedFiles.find(f => f.path === relativePath)?.priority || 'medium';
+        var issues = await analyzeFileByPriority(content, relativePath, filePriority, analysisStrategy);
         
         processedFiles++;
         
