@@ -362,7 +362,7 @@ export default function EnterpriseAnalysisPage() {
       setStatus(prev => ({
         ...prev,
         progress: Math.round(batchProgress),
-        currentFile: `Processing batch ${batchNumber}... (${totalFilesProcessed}${totalFilesInRepo > 0 ? `/${totalFilesInRepo}` : ''} files analyzed)`
+        currentFile: `Analyzing repository files... (${totalFilesProcessed}${totalFilesInRepo > 0 ? `/${totalFilesInRepo}` : ''} files analyzed)`
       }))
 
       console.log(`🔄 Processing file batch ${batchNumber}`)
