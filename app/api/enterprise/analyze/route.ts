@@ -68,9 +68,9 @@ export async function POST(req: NextRequest) {
                 lowCount: groupedIssues.low.length
             },
             patterns: {
-                security: Object.keys(analyzer.security_patterns),
-                resource: Object.keys(analyzer.resource_patterns),
-                framework: Object.keys(analyzer.framework_patterns)
+                security: ['hardcoded_secrets', 'sql_injection', 'xss_vulnerabilities', 'command_injection'],
+                resource: ['memory_leaks', 'resource_leaks', 'performance_issues'],
+                framework: ['react_hooks', 'async_patterns', 'error_handling']
             },
             analysis: {
                 methodology: `
