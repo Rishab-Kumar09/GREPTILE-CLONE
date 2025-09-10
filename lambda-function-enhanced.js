@@ -763,7 +763,7 @@ function checkCommandInjection(content, filePath) {
   var issues = [];
   var lines = content.split('\n');
   
-  var commandAPIs = ['exec(', 'spawn(', 'system(', 'popen(', 'subprocess.'];
+  var commandAPIs = ['cp.exec(', 'child_process.exec(', 'childProcess.exec(', 'spawn(', 'system(', 'popen(', 'subprocess.'];
   
   lines.forEach((line, index) => {
     commandAPIs.forEach(api => {
@@ -1564,8 +1564,8 @@ function detectSecurityVulnerabilities(content, filePath) {
       }
     }
     
-    // Command Injection Detection - more precise
-    if (/exec\s*\(|spawn\s*\(|system\s*\(/i.test(line) && /\+.*["']|["'].*\+|\$\{.*\}|\`.*\$\{/i.test(line)) {
+    // Command Injection Detection - more precise (avoid regex .exec() false positives)
+    if (/\b(cp|child_process|childProcess)\.exec\s*\(|\bspawn\s*\(|\bsystem\s*\(/i.test(line) && /\+.*["']|["'].*\+|\$\{.*\}|\`.*\$\{/i.test(line)) {
       // Skip console.log, error messages, and alias declarations
       if (!/console\.|log\(|error\(|alias\s|deploy\s|now\s+deploy/i.test(line)) {
         issues.push({
@@ -2886,7 +2886,7 @@ function checkHardcodedSecretsEnhanced(content, filePath) {
     // 🛡️ ADDITIONAL SECURITY PATTERNS
     { pattern: /document\.write\s*\(/i, message: 'Potential XSS risk: Avoid document.write()' },
     { pattern: /innerHTML\s*=.*\+|innerHTML\s*\+=|outerHTML\s*=/i, message: 'Potential XSS: Sanitize before setting innerHTML' },
-    { pattern: /exec\s*\(|spawn\s*\(|system\s*\(/i, message: 'Command execution: Validate input to prevent injection' },
+    { pattern: /\b(cp|child_process|childProcess)\.exec\s*\(|\bspawn\s*\(|\bsystem\s*\(/i, message: 'Command execution: Validate input to prevent injection' },
     { pattern: /md5\s*\(|sha1\s*\(/i, message: 'Weak hashing algorithm: Use SHA-256 or bcrypt' },
     { pattern: /ssl.*false|verify.*false|rejectUnauthorized.*false/i, message: 'SSL verification disabled: Security risk' }
   ];
@@ -2987,7 +2987,7 @@ function checkCommandInjectionEnhanced(content, filePath) {
   var issues = [];
   var lines = content.split('\n');
   
-  var commandAPIs = ['exec(', 'spawn(', 'system(', 'popen(', 'subprocess.', 'os.system'];
+  var commandAPIs = ['cp.exec(', 'child_process.exec(', 'childProcess.exec(', 'spawn(', 'system(', 'popen(', 'subprocess.', 'os.system'];
   
   lines.forEach((line, index) => {
     commandAPIs.forEach(api => {
