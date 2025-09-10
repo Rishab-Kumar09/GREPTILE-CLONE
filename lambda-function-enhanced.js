@@ -2584,6 +2584,104 @@ Return ONLY JSON array (empty if no issues):
   return checkHardcodedSecretsEnhanced(content, filePath);
 }
 
+// 🧠 TIER 2: AI DEEP ANALYSIS - Analyze 1-15 critical files with ChatGPT/Claude
+async function performAIDeepAnalysis(criticalFiles, analysisStrategy) {
+  console.log(`🧠 AI DEEP ANALYSIS: Starting analysis of ${criticalFiles.length} critical files`);
+  
+  if (!OPENAI_API_KEY || criticalFiles.length === 0) {
+    console.log(`⚠️ AI Deep Analysis skipped: ${!OPENAI_API_KEY ? 'No API key' : 'No critical files'}`);
+    return [];
+  }
+  
+  try {
+    // Prepare batch of critical files for AI analysis
+    var fileBatch = criticalFiles.slice(0, 15).map(file => ({
+      path: file.path,
+      content: file.content.substring(0, 8000), // Limit content for API
+      priority: file.priority || 'critical'
+    }));
+    
+    var aiPrompt = `You are a senior code security analyst. Analyze these ${fileBatch.length} critical code files for:
+
+🔍 FOCUS AREAS:
+1. Security vulnerabilities (SQL injection, XSS, hardcoded secrets)
+2. Logic errors and potential bugs
+3. Performance issues and anti-patterns
+4. Architecture and design flaws
+5. Error handling problems
+
+📁 FILES TO ANALYZE:
+${fileBatch.map(f => `${f.path} (${f.content.length} chars)`).join('\n')}
+
+CODE CONTENT:
+${fileBatch.map(f => `\n=== ${f.path} ===\n${f.content}`).join('\n')}
+
+🎯 REQUIREMENTS:
+- Focus on HIGH and CRITICAL severity issues only
+- Provide specific line references when possible
+- Explain the impact and fix for each issue
+- Skip minor style/formatting issues
+- Be concise but thorough
+
+FORMAT: Return JSON array of issues:
+[{"file": "path", "line": 123, "severity": "critical|high", "type": "security|logic|performance", "message": "description", "impact": "explanation", "fix": "solution"}]`;
+
+    var response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini', // Fast and cost-effective
+        messages: [{ role: 'user', content: aiPrompt }],
+        max_tokens: 4000,
+        temperature: 0.1 // Low temperature for consistent analysis
+      })
+    });
+    
+    if (!response.ok) {
+      console.log(`❌ AI Deep Analysis failed: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    
+    var data = await response.json();
+    var aiAnalysis = data.choices[0].message.content;
+    
+    console.log(`✅ AI Deep Analysis completed: ${aiAnalysis.length} chars response`);
+    
+    // Parse AI response (try JSON, fallback to text parsing)
+    try {
+      var aiIssues = JSON.parse(aiAnalysis);
+      return aiIssues.map(issue => ({
+        ...issue,
+        pattern: 'ai_deep_analysis',
+        code: `AI Analysis: ${issue.message}`,
+        aiGenerated: true
+      }));
+    } catch (parseError) {
+      // Fallback: Extract issues from text response
+      console.log(`📝 AI returned text format, parsing manually...`);
+      return [{
+        file: 'AI Analysis Summary',
+        line: 1,
+        severity: 'high',
+        type: 'analysis',
+        message: 'AI Deep Analysis Results',
+        impact: aiAnalysis.substring(0, 500) + '...',
+        fix: 'See full AI analysis in impact field',
+        pattern: 'ai_deep_analysis',
+        code: 'AI Generated Analysis',
+        aiGenerated: true
+      }];
+    }
+    
+  } catch (error) {
+    console.log(`❌ AI Deep Analysis error: ${error.message}`);
+    return [];
+  }
+}
+
 // 🔒 ENHANCED SECURITY PATTERNS (Static Fallback)
 function checkHardcodedSecretsEnhanced(content, filePath) {
   var issues = [];
@@ -3949,10 +4047,57 @@ export const handler = async (event) => {
       }
     }
     
-    console.log(`✅ ANALYSIS COMPLETE FOR BATCH ${batchNumber || 'N/A'}:`);
+    console.log(`✅ TIER 1 ANALYSIS COMPLETE FOR BATCH ${batchNumber || 'N/A'}:`);
     console.log(`   📊 Files processed: ${processedFiles}`);
     console.log(`   📁 Files with issues: ${results.length}`);
     console.log(`   🚨 Total issues found: ${totalIssues}`);
+    
+    // 🧠 TIER 2: AI DEEP ANALYSIS - Analyze critical files with ChatGPT
+    var aiDeepIssues = [];
+    if (analysisStrategy.critical && analysisStrategy.critical.length > 0 && !isFileBatched) {
+      console.log(`🧠 Starting TIER 2: AI Deep Analysis of ${analysisStrategy.critical.length} critical files...`);
+      
+      try {
+        // Prepare critical files with content for AI analysis
+        var criticalFilesWithContent = [];
+        for (var criticalFile of analysisStrategy.critical.slice(0, 15)) { // Limit to 15 files
+          try {
+            var fullPath = path.join(tempDir, criticalFile);
+            var content = await fs.readFile(fullPath, 'utf-8');
+            criticalFilesWithContent.push({
+              path: criticalFile,
+              content: content,
+              priority: 'critical'
+            });
+          } catch (readError) {
+            console.warn(`⚠️ Could not read critical file ${criticalFile}:`, readError.message);
+          }
+        }
+        
+        if (criticalFilesWithContent.length > 0) {
+          aiDeepIssues = await performAIDeepAnalysis(criticalFilesWithContent, analysisStrategy);
+          console.log(`🧠 AI Deep Analysis found ${aiDeepIssues.length} additional insights`);
+          
+          // Add AI issues to results
+          if (aiDeepIssues.length > 0) {
+            results.push({
+              file: '🧠 AI Deep Analysis',
+              issues: aiDeepIssues
+            });
+            totalIssues += aiDeepIssues.length;
+          }
+        }
+      } catch (aiError) {
+        console.warn(`⚠️ AI Deep Analysis failed:`, aiError.message);
+      }
+    } else {
+      console.log(`⚠️ Skipping AI Deep Analysis: ${!analysisStrategy.critical ? 'No critical files' : isFileBatched ? 'Batched mode' : 'Unknown reason'}`);
+    }
+    
+    console.log(`✅ COMPLETE TWO-TIER ANALYSIS:`);
+    console.log(`   📊 Tier 1 (Fast): ${processedFiles} files, ${totalIssues - aiDeepIssues.length} issues`);
+    console.log(`   🧠 Tier 2 (AI): ${aiDeepIssues.length} deep insights`);
+    console.log(`   🎯 Total: ${totalIssues} issues found`);
     
     // Note: AI filtering will happen in frontend API layer to prevent Lambda timeouts
     
