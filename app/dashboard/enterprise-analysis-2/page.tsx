@@ -259,7 +259,7 @@ export default function EnterpriseAnalysis2Page() {
   }
 
   const getTypeIcon = (type: string) => {
-    const icons = {
+    const icons: { [key: string]: string } = {
       'security': '🔒', 'function': '⚡', 'component': '🧩', 'import': '📦',
       'api': '🌐', 'database': '🗄️', 'config': '⚙️', 'performance': '🚀',
       'type': '📝', 'react-hooks': '⚛️', 'memory-leaks': '🔍',
