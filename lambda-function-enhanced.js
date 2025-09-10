@@ -1879,11 +1879,23 @@ function createRepositoryMap(allFiles) {
 async function createAnalysisStrategy(allFiles) {
   console.log('🎭 AI Repository Strategist: Analyzing repository structure...');
   
-  if (!OPENAI_API_KEY || allFiles.length < 20) {
+  if (!OPENAI_API_KEY) {
     return {
       highPriority: allFiles.slice(0, Math.min(50, allFiles.length)),
       skipFiles: [],
       analysisStrategy: 'comprehensive'
+    };
+  }
+  
+  // For small repos (< 20 files), treat ALL files as potentially critical for AI analysis
+  if (allFiles.length < 20) {
+    return {
+      critical: allFiles.slice(0, Math.min(15, allFiles.length)), // All files are critical in small repos
+      high: [],
+      medium: [],
+      light: [],
+      skip: [],
+      analysisStrategy: 'small_repo_comprehensive'
     };
   }
   
