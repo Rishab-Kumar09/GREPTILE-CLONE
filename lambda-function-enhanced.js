@@ -2149,14 +2149,20 @@ async function analyzeMediumPriorityFile(content, filePath) {
 
 // 🔍 LIGHT FILES - Secrets/leaks only (README, configs, etc.)
 async function analyzeLightFile(content, filePath) {
-  console.log(`🔍 LIGHT analysis (secrets only): ${filePath}`);
+  console.log(`🔍 LIGHT analysis (secrets + strict low priority): ${filePath}`);
   var allIssues = [];
   
   // Only check for hardcoded secrets and basic leaks
   allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
   
-  // Return only critical issues
-  return allIssues.filter(issue => issue.severity === 'critical');
+  // 🔍 VERY STRICT LOW PRIORITY ISSUES (zero false positives)
+  allIssues = allIssues.concat(checkStrictLowPriorityIssues(content, filePath));
+  
+  // Return critical + strict low priority issues
+  return allIssues.filter(issue => 
+    issue.severity === 'critical' || 
+    (issue.severity === 'low' && issue.strictPattern === true)
+  );
 }
 
 // 🎯 ENHANCED MEDIUM PRIORITY DETECTION - React Performance & Logic Issues
@@ -4508,6 +4514,150 @@ function checkConfigurationIssues(content, filePath) {
         severity: 'low',
         code: line.trim(),
         pattern: 'dev_dependency_in_prod'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 🔍 VERY STRICT LOW PRIORITY ISSUES - Ultra-precise patterns with ZERO false positives
+function checkStrictLowPriorityIssues(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var trimmed = line.trim();
+    
+    // Skip comments, strings, imports, and type definitions
+    if (/^\/\/|^\/\*|\*\/|^import|^export|^declare|^interface|^type\s|^enum\s|["'`].*["'`]$/.test(trimmed)) return;
+    
+    // 1. 🚨 ULTRA STRICT: Unused variables (very specific pattern)
+    // Only flag if: const/let variable = value; and never used again in next 20 lines
+    if (/^(const|let)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*[^;]+;?\s*$/.test(trimmed)) {
+      var varMatch = trimmed.match(/^(const|let)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=/);
+      if (varMatch) {
+        var varName = varMatch[2];
+        var nextLines = lines.slice(index + 1, index + 21).join('\n');
+        
+        // Very strict: Only flag if variable name appears nowhere in next 20 lines
+        // AND it's not a common pattern (destructuring, exports, etc.)
+        if (!nextLines.includes(varName) && 
+            !trimmed.includes('{') && // Not destructuring
+            !trimmed.includes('export') && // Not export
+            varName.length > 3 && // Not short variable names
+            !/^(i|j|k|x|y|z|_)$/.test(varName)) { // Not common loop vars
+          
+          issues.push({
+            type: 'maintenance',
+            message: 'Unused variable: Variable declared but never used',
+            line: index + 1,
+            severity: 'low',
+            code: line.trim(),
+            pattern: 'unused_variable',
+            strictPattern: true
+          });
+        }
+      }
+    }
+    
+    // 2. 🚨 ULTRA STRICT: Commented out code (very specific)
+    // Only flag multi-line commented code blocks that look like actual code
+    if (/^\/\/\s*(function|const|let|var|if\s*\(|for\s*\(|while\s*\(|class\s+\w+)/.test(trimmed)) {
+      // Check if next 2-3 lines are also commented code
+      var nextCommentedLines = 0;
+      for (var i = index + 1; i < Math.min(index + 4, lines.length); i++) {
+        if (/^\/\/\s*(}|{|\w+\s*\(|\w+\s*=)/.test(lines[i].trim())) {
+          nextCommentedLines++;
+        }
+      }
+      
+      // Only flag if it's clearly a block of commented code (3+ lines)
+      if (nextCommentedLines >= 2) {
+        issues.push({
+          type: 'maintenance',
+          message: 'Commented code block: Remove dead code instead of commenting',
+          line: index + 1,
+          severity: 'low',
+          code: line.trim(),
+          pattern: 'commented_code_block',
+          strictPattern: true
+        });
+      }
+    }
+    
+    // 3. 🚨 ULTRA STRICT: Redundant type annotations (TypeScript specific)
+    // Only in .ts/.tsx files with obvious redundant types
+    if (/\.(ts|tsx)$/i.test(filePath)) {
+      if (/:\s*string\s*=\s*["']|:\s*number\s*=\s*\d+|:\s*boolean\s*=\s*(true|false)/.test(line)) {
+        issues.push({
+          type: 'maintenance',
+          message: 'Redundant type annotation: TypeScript can infer this type',
+          line: index + 1,
+          severity: 'low',
+          code: line.trim(),
+          pattern: 'redundant_type_annotation',
+          strictPattern: true
+        });
+      }
+    }
+    
+    // 4. 🚨 ULTRA STRICT: Unnecessary semicolons (JavaScript/TypeScript)
+    // Only flag obvious cases like double semicolons or after braces
+    if (/;;|}\s*;/.test(line) && !/for\s*\(/i.test(line)) {
+      issues.push({
+        type: 'style',
+        message: 'Unnecessary semicolon: Remove redundant semicolon',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'unnecessary_semicolon',
+        strictPattern: true
+      });
+    }
+    
+    // 5. 🚨 ULTRA STRICT: Empty functions (very specific)
+    // Only flag functions that are completely empty (not just whitespace/comments)
+    if (/function\s+\w+\s*\([^)]*\)\s*\{\s*\}|=>\s*\{\s*\}/.test(line)) {
+      // Make sure it's not a placeholder or interface method
+      if (!/TODO|FIXME|placeholder|abstract|interface/i.test(line)) {
+        issues.push({
+          type: 'maintenance',
+          message: 'Empty function: Implement function body or remove if not needed',
+          line: index + 1,
+          severity: 'low',
+          code: line.trim(),
+          pattern: 'empty_function',
+          strictPattern: true
+        });
+      }
+    }
+    
+    // 6. 🚨 ULTRA STRICT: Inconsistent indentation (very obvious cases)
+    // Only flag lines that are clearly misaligned (mixed tabs/spaces)
+    if (/^\t+ +|^ +\t/.test(line)) {
+      issues.push({
+        type: 'style',
+        message: 'Mixed indentation: Use consistent tabs or spaces',
+        line: index + 1,
+        severity: 'low',
+        code: 'Mixed tabs and spaces detected',
+        pattern: 'mixed_indentation',
+        strictPattern: true
+      });
+    }
+    
+    // 7. 🚨 ULTRA STRICT: Trailing whitespace (only if significant)
+    // Only flag lines with 3+ trailing spaces (not just 1-2)
+    if (/   +$/.test(line)) {
+      issues.push({
+        type: 'style',
+        message: 'Trailing whitespace: Remove unnecessary spaces at end of line',
+        line: index + 1,
+        severity: 'low',
+        code: 'Trailing whitespace detected',
+        pattern: 'trailing_whitespace',
+        strictPattern: true
       });
     }
   });
