@@ -4863,8 +4863,13 @@ export const handler = async (event) => {
         
         for (var criticalFile of analysisStrategy.critical) {
           try {
-            var sourcePath = path.join(tempDir, criticalFile);
-            var destPath = path.join(criticalTempDir, criticalFile);
+            // Convert absolute path to relative if needed
+            var relativePath = criticalFile.startsWith(tempDir) 
+              ? path.relative(tempDir, criticalFile)
+              : criticalFile;
+            
+            var sourcePath = path.join(tempDir, relativePath);
+            var destPath = path.join(criticalTempDir, relativePath);
             
             // Create directory structure
             var destDir = path.dirname(destPath);
@@ -4875,7 +4880,7 @@ export const handler = async (event) => {
             await fs.writeFile(destPath, content);
             
             criticalFilesWithContent.push({
-              path: criticalFile,
+              path: relativePath,
               content: content,
               priority: 'critical',
               size: content.length
