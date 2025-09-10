@@ -362,7 +362,7 @@ export default function EnterpriseAnalysisPage() {
       setStatus(prev => ({
         ...prev,
         progress: Math.round(batchProgress),
-        currentFile: `Analyzing repository files... (${totalFilesProcessed}${totalFilesInRepo > 0 ? `/${totalFilesInRepo}` : ''} files analyzed)`
+        currentFile: `Analyzing repository files...`
       }))
 
       console.log(`🔄 Processing file batch ${batchNumber}`)
@@ -910,7 +910,7 @@ export default function EnterpriseAnalysisPage() {
             </h3>
             <p className="text-gray-700">
               This analysis identified <strong>{status.results.length} issues</strong> across <strong>{groupResultsByFile(status.results).length} files</strong> in the repository. 
-              The AI Orchestra Manager analyzed <strong>{status.totalFilesAnalyzed || 'thousands of'} files</strong> and intelligently prioritized critical issues.
+              The AI Orchestra Manager intelligently analyzed the repository and prioritized critical issues.
               Key areas requiring attention include potential security vulnerabilities, performance optimizations, 
               and code quality improvements that could enhance application stability and maintainability.
             </p>
