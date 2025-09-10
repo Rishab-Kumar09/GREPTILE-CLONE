@@ -2088,10 +2088,12 @@ async function analyzeCriticalFile(content, filePath) {
   allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
   allIssues = allIssues.concat(checkPerformanceIssuesEnhanced(content, filePath));
   
-  // 🎯 NEW: Add comprehensive medium priority detection for critical files
-  allIssues = allIssues.concat(checkReactPerformanceIssues(content, filePath));
-  allIssues = allIssues.concat(checkLogicErrors(content, filePath));
-  allIssues = allIssues.concat(checkAsyncPatternIssues(content, filePath));
+  // 🎯 DISABLED: Medium priority detection for speed optimization
+  // These patterns were causing 5-10x slowdown due to multiple line-by-line processing
+  // TODO: Implement more efficient single-pass analysis
+  // allIssues = allIssues.concat(checkReactPerformanceIssues(content, filePath));
+  // allIssues = allIssues.concat(checkLogicErrors(content, filePath));
+  // allIssues = allIssues.concat(checkAsyncPatternIssues(content, filePath));
   
   // Return ALL issues including low severity for critical files
   return allIssues;
@@ -2108,10 +2110,10 @@ async function analyzeHighPriorityFile(content, filePath) {
   allIssues = allIssues.concat(checkXSSVulnerabilitiesEnhanced(content, filePath));
   allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
   
-  // 🎯 NEW: Add medium priority detection
-  allIssues = allIssues.concat(checkReactPerformanceIssues(content, filePath));
-  allIssues = allIssues.concat(checkLogicErrors(content, filePath));
-  allIssues = allIssues.concat(checkAsyncPatternIssues(content, filePath));
+  // 🎯 DISABLED: Medium priority detection for speed optimization
+  // allIssues = allIssues.concat(checkReactPerformanceIssues(content, filePath));
+  // allIssues = allIssues.concat(checkLogicErrors(content, filePath));
+  // allIssues = allIssues.concat(checkAsyncPatternIssues(content, filePath));
   
   // Return medium+ severity issues
   return allIssues.filter(issue => 
@@ -2128,8 +2130,8 @@ async function analyzeMediumPriorityFile(content, filePath) {
   allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
   allIssues = allIssues.concat(checkSQLInjectionEnhanced(content, filePath));
   
-  // 🎯 NEW: Add selective medium priority detection for medium files
-  allIssues = allIssues.concat(checkLogicErrors(content, filePath));
+  // 🎯 DISABLED: Medium priority detection for speed optimization
+  // allIssues = allIssues.concat(checkLogicErrors(content, filePath));
   
   // Return high+ severity issues + some medium
   return allIssues.filter(issue => 
