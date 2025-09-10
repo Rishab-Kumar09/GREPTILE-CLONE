@@ -2110,6 +2110,13 @@ async function analyzeHighPriorityFile(content, filePath) {
   allIssues = allIssues.concat(checkXSSVulnerabilitiesEnhanced(content, filePath));
   allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
   
+  // 🆕 NEW ISSUE TYPES FOR HIGH PRIORITY FILES
+  allIssues = allIssues.concat(checkCodeQualityIssues(content, filePath));
+  allIssues = allIssues.concat(checkAccessibilityIssues(content, filePath));
+  allIssues = allIssues.concat(checkDataValidationIssues(content, filePath));
+  allIssues = allIssues.concat(checkConcurrencyIssues(content, filePath));
+  allIssues = allIssues.concat(checkConfigurationIssues(content, filePath));
+  
   // 🎯 DISABLED: Medium priority detection for speed optimization
   // allIssues = allIssues.concat(checkReactPerformanceIssues(content, filePath));
   // allIssues = allIssues.concat(checkLogicErrors(content, filePath));
@@ -2856,7 +2863,26 @@ function checkHardcodedSecretsEnhanced(content, filePath) {
     
     // 🚨 CRITICAL LOGIC ERRORS (added to existing function for speed)
     { pattern: /catch\s*\(\s*\w*\s*\)\s*\{\s*\}/i, message: 'Empty catch block - handle errors properly' },
-    { pattern: /console\.log.*password|console\.log.*secret|console\.log.*token/i, message: 'Logging sensitive data in console' }
+    { pattern: /console\.log.*password|console\.log.*secret|console\.log.*token/i, message: 'Logging sensitive data in console' },
+    
+    // 🔍 MORE COMPREHENSIVE SECURITY PATTERNS FOR NON-CRITICAL FILES
+    { pattern: /jwt_secret\s*[:=]\s*["'][^"']+["']/i, message: 'Hardcoded JWT secret detected' },
+    { pattern: /private_key\s*[:=]\s*["'][^"']+["']/i, message: 'Hardcoded private key detected' },
+    { pattern: /client_secret\s*[:=]\s*["'][^"']+["']/i, message: 'Hardcoded OAuth client secret detected' },
+    { pattern: /encryption_key\s*[:=]\s*["'][^"']+["']/i, message: 'Hardcoded encryption key detected' },
+    { pattern: /admin_password\s*[:=]\s*["'][^"']+["']/i, message: 'Hardcoded admin password detected' },
+    { pattern: /db_password\s*[:=]\s*["'][^"']+["']/i, message: 'Hardcoded database password detected' },
+    { pattern: /auth_token\s*[:=]\s*["'][^"']+["']/i, message: 'Hardcoded auth token detected' },
+    { pattern: /bearer\s+[a-zA-Z0-9_-]{20,}/i, message: 'Hardcoded Bearer token detected' },
+    { pattern: /Basic\s+[A-Za-z0-9+\/=]{10,}/i, message: 'Hardcoded Basic auth credentials detected' },
+    { pattern: /x-api-key\s*[:=]\s*["'][^"']+["']/i, message: 'Hardcoded API key header detected' },
+    
+    // 🛡️ ADDITIONAL SECURITY PATTERNS
+    { pattern: /document\.write\s*\(/i, message: 'Potential XSS risk: Avoid document.write()' },
+    { pattern: /innerHTML\s*=.*\+|innerHTML\s*\+=|outerHTML\s*=/i, message: 'Potential XSS: Sanitize before setting innerHTML' },
+    { pattern: /exec\s*\(|spawn\s*\(|system\s*\(/i, message: 'Command execution: Validate input to prevent injection' },
+    { pattern: /md5\s*\(|sha1\s*\(/i, message: 'Weak hashing algorithm: Use SHA-256 or bcrypt' },
+    { pattern: /ssl.*false|verify.*false|rejectUnauthorized.*false/i, message: 'SSL verification disabled: Security risk' }
   ];
   
   lines.forEach((line, index) => {
@@ -3125,6 +3151,92 @@ function checkErrorHandlingEnhanced(content, filePath) {
       });
     }
     
+    // 🔍 MORE COMPREHENSIVE PATTERNS FOR NON-CRITICAL FILES
+    
+    // Hardcoded URLs and endpoints
+    if (/https?:\/\/[^"'\s]+|api\/[^"'\s]+|\/v\d+\/[^"'\s]+/i.test(line) && !/localhost|127\.0\.0\.1|example\.com/.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Hardcoded URL/endpoint: Consider using environment variables',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'hardcoded_url'
+      });
+    }
+    
+    // TODO/FIXME/HACK comments (potential technical debt)
+    if (/\/\/.*\b(TODO|FIXME|HACK|XXX|BUG)\b/i.test(line)) {
+      issues.push({
+        type: 'maintenance',
+        message: 'Technical debt marker: Review and address this comment',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'technical_debt'
+      });
+    }
+    
+    // Potential SQL injection in string concatenation
+    if (/SELECT|INSERT|UPDATE|DELETE/i.test(line) && /\+.*["']|["'].*\+|\$\{.*\}/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Potential SQL injection: Use parameterized queries',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'sql_injection_risk'
+      });
+    }
+    
+    // Weak random number generation
+    if (/Math\.random\(\)/i.test(line) && !/test|mock|demo/i.test(filePath)) {
+      issues.push({
+        type: 'security',
+        message: 'Weak random number generation: Use crypto.randomBytes() for security',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'weak_random'
+      });
+    }
+    
+    // Debug/console statements in production code
+    if (/console\.(log|debug|info|warn|error|trace)/i.test(line) && !/test|spec|debug/i.test(filePath)) {
+      issues.push({
+        type: 'maintenance',
+        message: 'Debug statement: Remove console logs from production code',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'debug_statement'
+      });
+    }
+    
+    // Eval usage (security risk)
+    if (/\beval\s*\(|new\s+Function\s*\(/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Code injection risk: Avoid eval() and Function() constructor',
+        line: index + 1,
+        severity: 'critical',
+        code: line.trim(),
+        pattern: 'code_injection'
+      });
+    }
+    
+    // Insecure HTTP usage
+    if (/http:\/\/(?!localhost|127\.0\.0\.1)/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Insecure HTTP: Use HTTPS for external communications',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'insecure_http'
+      });
+    }
+    
     // Unhandled async operations - skip string literals and comments
     if (/await\s+\w+\(/i.test(line) && !/^[\s]*['"`\/]/.test(trimmed)) {
       var surroundingCode = lines.slice(Math.max(0, index - 5), index + 5).join('\n');
@@ -3208,6 +3320,74 @@ function checkPerformanceIssuesEnhanced(content, filePath) {
           severity: 'high',
           code: line.trim(),
           pattern: 'await_in_loop'
+        });
+      }
+    }
+    
+    // 🚀 MORE PERFORMANCE PATTERNS FOR NON-CRITICAL FILES
+    
+    // Inefficient string concatenation in loops
+    if (/for\s*\(|while\s*\(|\.forEach/i.test(line)) {
+      var nextLines = lines.slice(index, index + 8).join('\n');
+      if (/\w+\s*\+=\s*["']|string\s*\+=|concat\(/i.test(nextLines)) {
+        issues.push({
+          type: 'performance',
+          message: 'Inefficient string concatenation in loop: Use array.join() or StringBuilder',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'string_concat_loop'
+        });
+      }
+    }
+    
+    // Synchronous file operations (blocking)
+    if (/fs\.readFileSync|fs\.writeFileSync|fs\.existsSync/i.test(line) && !/test|spec/i.test(filePath)) {
+      issues.push({
+        type: 'performance',
+        message: 'Blocking file operation: Use async version for better performance',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'sync_file_operation'
+      });
+    }
+    
+    // Inefficient array operations
+    if (/\.indexOf\([^)]*\)\s*!=\s*-1|\.indexOf\([^)]*\)\s*>\s*-1/i.test(line)) {
+      issues.push({
+        type: 'performance',
+        message: 'Inefficient array search: Use .includes() instead of indexOf() !== -1',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'inefficient_array_search'
+      });
+    }
+    
+    // Memory-intensive operations without limits
+    if (/\.map\(|\.filter\(|\.reduce\(/i.test(line) && /\.length\s*>\s*\d{4}/i.test(line)) {
+      issues.push({
+        type: 'performance',
+        message: 'Large array operation: Consider pagination or streaming for large datasets',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'large_array_operation'
+      });
+    }
+    
+    // Regex in loops (performance killer)
+    if (/for\s*\(|while\s*\(|\.forEach/i.test(line)) {
+      var nextLines = lines.slice(index, index + 8).join('\n');
+      if (/new\s+RegExp\(|\/.*\/[gim]*\.test\(/i.test(nextLines)) {
+        issues.push({
+          type: 'performance',
+          message: 'Regex in loop: Pre-compile regex outside loop for better performance',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'regex_in_loop'
         });
       }
     }
@@ -4025,6 +4205,314 @@ async function scanDirectory(dir, files, extensions, depth) {
   } catch (error) {
     console.warn(`Failed to read directory ${dir}:`, error.message);
   }
+}
+
+// 🆕 NEW ISSUE TYPES - Completely different categories of problems
+
+// 🎨 CODE QUALITY ISSUES - Clean code violations
+function checkCodeQualityIssues(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    var trimmed = line.trim();
+    
+    // Magic numbers (not constants)
+    if (/\b\d{2,}\b/.test(line) && !/const|let|var|enum|#define/.test(line) && !/test|spec|mock/.test(filePath)) {
+      issues.push({
+        type: 'quality',
+        message: 'Magic number: Consider using named constants for better readability',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'magic_number'
+      });
+    }
+    
+    // Long functions (>50 lines)
+    if (/^function\s+\w+|^\w+\s*\(.*\)\s*\{|^const\s+\w+\s*=.*=>/.test(trimmed)) {
+      var functionLength = 0;
+      for (var i = index; i < Math.min(index + 80, lines.length); i++) {
+        functionLength++;
+        if (lines[i].includes('}') && functionLength > 50) {
+          issues.push({
+            type: 'quality',
+            message: 'Long function: Consider breaking into smaller functions (>50 lines)',
+            line: index + 1,
+            severity: 'medium',
+            code: line.trim(),
+            pattern: 'long_function'
+          });
+          break;
+        }
+      }
+    }
+    
+    // Deeply nested code (>4 levels)
+    var nestingLevel = (line.match(/^\s*/)[0].length / 2);
+    if (nestingLevel > 4 && /if\s*\(|for\s*\(|while\s*\(|switch\s*\(/.test(line)) {
+      issues.push({
+        type: 'quality',
+        message: 'Deep nesting: Consider refactoring to reduce complexity (>4 levels)',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'deep_nesting'
+      });
+    }
+    
+    // Duplicate code patterns
+    if (trimmed.length > 20 && index < lines.length - 5) {
+      var duplicateCount = 0;
+      for (var j = index + 1; j < Math.min(index + 20, lines.length); j++) {
+        if (lines[j].trim() === trimmed) duplicateCount++;
+      }
+      if (duplicateCount >= 2) {
+        issues.push({
+          type: 'quality',
+          message: 'Duplicate code: Consider extracting into a function or constant',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'duplicate_code'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+// ♿ ACCESSIBILITY ISSUES - Web accessibility violations
+function checkAccessibilityIssues(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  // Only check web-related files
+  if (!/\.(html|jsx|tsx|vue|svelte)$/i.test(filePath)) return issues;
+  
+  lines.forEach((line, index) => {
+    // Missing alt text on images
+    if (/<img\s[^>]*>/i.test(line) && !/alt\s*=/i.test(line)) {
+      issues.push({
+        type: 'accessibility',
+        message: 'Missing alt attribute: Add alt text for screen readers',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'missing_alt_text'
+      });
+    }
+    
+    // Missing labels on form inputs
+    if (/<input\s[^>]*>/i.test(line) && !/aria-label|id\s*=.*label/i.test(line)) {
+      issues.push({
+        type: 'accessibility',
+        message: 'Missing label: Associate form inputs with labels',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'missing_form_label'
+      });
+    }
+    
+    // Missing ARIA roles on interactive elements
+    if (/<div\s[^>]*onClick|<span\s[^>]*onClick/i.test(line) && !/role\s*=|tabIndex/i.test(line)) {
+      issues.push({
+        type: 'accessibility',
+        message: 'Interactive element missing ARIA: Add role and tabIndex for keyboard navigation',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'missing_aria_role'
+      });
+    }
+    
+    // Low contrast colors (basic detection)
+    if (/#fff.*#ccc|#000.*#333|color:\s*white.*background:\s*#ccc/i.test(line)) {
+      issues.push({
+        type: 'accessibility',
+        message: 'Potential low contrast: Ensure sufficient color contrast for readability',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'low_contrast'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 🛡️ DATA VALIDATION ISSUES - Input validation problems
+function checkDataValidationIssues(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Direct use of user input without validation
+    if (/req\.(body|query|params)\.\w+/.test(line) && !/validate|sanitize|escape|trim/.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'Unvalidated user input: Validate and sanitize user data',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'unvalidated_input'
+      });
+    }
+    
+    // Missing email validation
+    if (/email/.test(line) && !/\@.*\./.test(line) && !/validator|joi|yup|zod/.test(line)) {
+      issues.push({
+        type: 'validation',
+        message: 'Email validation missing: Use proper email validation library',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'missing_email_validation'
+      });
+    }
+    
+    // Missing length validation on strings
+    if (/\.length\s*<|\.length\s*>/.test(line) && !/password|username|name/.test(line)) {
+      issues.push({
+        type: 'validation',
+        message: 'String length validation: Consider max/min length limits',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'missing_length_validation'
+      });
+    }
+    
+    // File upload without type validation
+    if (/multer|upload|file\./i.test(line) && !/mimetype|extension|size/i.test(line)) {
+      issues.push({
+        type: 'security',
+        message: 'File upload validation: Validate file type, size, and content',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'unsafe_file_upload'
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// ⚡ CONCURRENCY ISSUES - Race conditions and thread safety
+function checkConcurrencyIssues(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Shared variable modification without locks
+    if (/global\.|window\.|this\.\w+\s*=/.test(line) && /\+\+|--|=.*\+|=.*-/.test(line)) {
+      issues.push({
+        type: 'concurrency',
+        message: 'Potential race condition: Shared variable modification needs synchronization',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'race_condition'
+      });
+    }
+    
+    // setTimeout/setInterval without cleanup
+    if (/setTimeout|setInterval/i.test(line)) {
+      var nextLines = lines.slice(index, index + 10).join('\n');
+      if (!/clearTimeout|clearInterval|cleanup|unmount|destroy/.test(nextLines)) {
+        issues.push({
+          type: 'concurrency',
+          message: 'Timer leak: Clear timers to prevent memory leaks',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'timer_leak'
+        });
+      }
+    }
+    
+    // Promise.all without error handling for individual promises
+    if (/Promise\.all\(/i.test(line)) {
+      var nextLines = lines.slice(index, index + 5).join('\n');
+      if (!/catch|allSettled/.test(nextLines)) {
+        issues.push({
+          type: 'concurrency',
+          message: 'Promise.all error handling: One failed promise fails all - consider allSettled',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'promise_all_failure'
+        });
+      }
+    }
+  });
+  
+  return issues;
+}
+
+// ⚙️ CONFIGURATION ISSUES - Configuration and environment problems
+function checkConfigurationIssues(content, filePath) {
+  var issues = [];
+  var lines = content.split('\n');
+  
+  lines.forEach((line, index) => {
+    // Missing environment variable checks
+    if (/process\.env\.\w+/.test(line) && !/\|\||&&|if\s*\(/i.test(line)) {
+      issues.push({
+        type: 'configuration',
+        message: 'Missing env var validation: Check if environment variable exists',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'missing_env_check'
+      });
+    }
+    
+    // Hardcoded port numbers
+    if (/port\s*[:=]\s*\d+|listen\s*\(\s*\d{4}/i.test(line) && !/process\.env|config/i.test(line)) {
+      issues.push({
+        type: 'configuration',
+        message: 'Hardcoded port: Use environment variable for port configuration',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'hardcoded_port'
+      });
+    }
+    
+    // Missing CORS configuration
+    if (/express\(\)|app\s*=/.test(line) && filePath.includes('server')) {
+      var nextLines = lines.slice(index, index + 20).join('\n');
+      if (!/cors|Access-Control-Allow/i.test(nextLines)) {
+        issues.push({
+          type: 'configuration',
+          message: 'Missing CORS configuration: Configure CORS for security',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'missing_cors'
+        });
+      }
+    }
+    
+    // Development dependencies in production
+    if (/require.*dev|import.*dev/i.test(line) && !/NODE_ENV.*dev/i.test(line)) {
+      issues.push({
+        type: 'configuration',
+        message: 'Development dependency: Avoid dev dependencies in production code',
+        line: index + 1,
+        severity: 'low',
+        code: line.trim(),
+        pattern: 'dev_dependency_in_prod'
+      });
+    }
+  });
+  
+  return issues;
 }
 
 export const handler = async (event) => {
