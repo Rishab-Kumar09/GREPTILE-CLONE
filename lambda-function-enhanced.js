@@ -1880,6 +1880,27 @@ async function createAnalysisStrategy(allFiles) {
   console.log('🎭 AI Repository Strategist: Analyzing repository structure...');
   
   if (!OPENAI_API_KEY || allFiles.length < 20) {
+    // 🚨 EDGE CASE DETECTION: Check for massive files in small repos
+    var massiveFiles = [];
+    var normalFiles = [];
+    
+    for (var file of allFiles) {
+      try {
+        var stats = require('fs').statSync(file);
+        var fileSizeKB = stats.size / 1024;
+        
+        if (fileSizeKB > 30) { // Files larger than 30KB are considered "massive"
+          massiveFiles.push(file);
+        } else {
+          normalFiles.push(file);
+        }
+      } catch (err) {
+        normalFiles.push(file); // If can't read size, treat as normal
+      }
+    }
+    
+    console.log(`🔍 EDGE CASE CHECK: ${massiveFiles.length} massive files, ${normalFiles.length} normal files`);
+    
     // For small repos, still run AI analysis on the most important files
     var importantFiles = allFiles.filter(f => 
       /\.(js|ts|jsx|tsx|py|java|go|rs)$/i.test(f) && 
@@ -1888,9 +1909,10 @@ async function createAnalysisStrategy(allFiles) {
     
     return {
       highPriority: allFiles.slice(0, Math.min(50, allFiles.length)),
-      critical: importantFiles, // 🧠 ENSURE AI ANALYSIS FOR SMALL REPOS
+      critical: massiveFiles.length > 0 ? normalFiles.slice(0, 3) : importantFiles, // 🚨 EDGE CASE: Only analyze normal files if massive files present
       skipFiles: [],
-      analysisStrategy: 'comprehensive'
+      analysisStrategy: massiveFiles.length > 0 ? 'edge_case_massive_files' : 'comprehensive',
+      massiveFiles: massiveFiles // 🔥 NEW: Track massive files separately
     };
   }
   
@@ -2604,6 +2626,166 @@ Return ONLY JSON array (empty if no issues):
   return checkHardcodedSecretsEnhanced(content, filePath);
 }
 
+// 🔥 EDGE CASE HANDLER - Special processing for massive files in small repos
+async function handleMassiveFilesEdgeCase(massiveFiles, tempDir) {
+  console.log(`🚨 EDGE CASE: Processing ${massiveFiles.length} massive files with timeout-safe approach`);
+  
+  if (!OPENAI_API_KEY) {
+    console.log('⚠️ No OpenAI API key, skipping edge case AI analysis');
+    return [];
+  }
+  
+  var edgeCaseIssues = [];
+  var processedCount = 0;
+  var maxProcessTime = 15000; // 15 seconds max for edge case processing
+  var startTime = Date.now();
+  
+  for (var massiveFile of massiveFiles.slice(0, 2)) { // Process max 2 massive files
+    // ⏰ Timeout check
+    if (Date.now() - startTime > maxProcessTime) {
+      console.warn(`⏰ Edge case timeout reached, processed ${processedCount}/${massiveFiles.length} massive files`);
+      break;
+    }
+    
+    try {
+      console.log(`🔍 Edge case analysis: ${path.relative(tempDir, massiveFile)}`);
+      
+      // Read file content
+      var content = await fs.readFile(massiveFile, 'utf-8');
+      var relativePath = path.relative(tempDir, massiveFile);
+      
+      // 🔪 SMART SAMPLING: Take strategic samples from massive file
+      var samples = extractStrategicSamples(content, relativePath);
+      
+      // 🧠 AI analysis on samples only (fast and focused)
+      var sampleIssues = await analyzeMassiveFileSamples(samples, relativePath);
+      edgeCaseIssues = edgeCaseIssues.concat(sampleIssues);
+      
+      processedCount++;
+      console.log(`✅ Edge case file processed: ${relativePath} (${sampleIssues.length} issues found)`);
+      
+    } catch (err) {
+      console.warn(`⚠️ Edge case processing failed for ${massiveFile}:`, err.message);
+    }
+  }
+  
+  console.log(`🎯 EDGE CASE COMPLETE: ${edgeCaseIssues.length} issues found from ${processedCount} massive files`);
+  return edgeCaseIssues;
+}
+
+// 🔍 STRATEGIC SAMPLING - Extract key sections from massive files
+function extractStrategicSamples(content, filePath) {
+  var lines = content.split('\n');
+  var samples = [];
+  var sampleSize = 100; // 100 lines per sample
+  
+  // Sample 1: Beginning of file (imports, setup, config)
+  samples.push({
+    section: 'file_start',
+    content: lines.slice(0, sampleSize).join('\n'),
+    description: `Start of ${filePath} (imports, config, setup)`
+  });
+  
+  // Sample 2: Middle section (main logic)
+  var midPoint = Math.floor(lines.length / 2);
+  samples.push({
+    section: 'file_middle', 
+    content: lines.slice(midPoint - sampleSize/2, midPoint + sampleSize/2).join('\n'),
+    description: `Middle section of ${filePath} (main logic)`
+  });
+  
+  // Sample 3: End of file (exports, cleanup)
+  samples.push({
+    section: 'file_end',
+    content: lines.slice(-sampleSize).join('\n'),
+    description: `End of ${filePath} (exports, cleanup)`
+  });
+  
+  // Sample 4: Search for potential issues (API keys, passwords, etc.)
+  var suspiciousLines = lines.filter(line => 
+    /api[_-]?key|password|secret|token|auth|credential/i.test(line)
+  ).slice(0, 20);
+  
+  if (suspiciousLines.length > 0) {
+    samples.push({
+      section: 'suspicious_lines',
+      content: suspiciousLines.join('\n'),
+      description: `Suspicious lines from ${filePath} (potential secrets)`
+    });
+  }
+  
+  console.log(`📄 Extracted ${samples.length} strategic samples from massive file ${filePath} (${lines.length} total lines)`);
+  return samples;
+}
+
+// 🧠 AI ANALYSIS - Analyze strategic samples from massive files
+async function analyzeMassiveFileSamples(samples, filePath) {
+  var samplesText = samples.map(s => 
+    `=== ${s.section.toUpperCase()}: ${s.description} ===\n${s.content}`
+  ).join('\n\n');
+  
+  var aiPrompt = `You are a SECURITY EXPERT analyzing strategic samples from a MASSIVE file: ${filePath}
+
+🎯 MISSION: Find CRITICAL security issues in these key sections of a large codebase file.
+
+🔍 FOCUS ON:
+1. 🚨 Hardcoded secrets, API keys, passwords
+2. 🛡️ Security vulnerabilities (SQL injection, XSS, command injection)
+3. 🔒 Authentication/authorization issues
+4. ⚠️ Dangerous patterns (eval, system calls with user input)
+
+FILE SAMPLES:
+${samplesText}
+
+🎯 Return ONLY JSON array of CRITICAL issues (empty array if none):
+[{"line": 123, "severity": "critical", "type": "security", "issue": "Brief description", "code": "actual code snippet", "fix": "recommended solution"}]`;
+
+  try {
+    var response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: aiPrompt }],
+        max_tokens: 2000, // Reasonable limit for edge case
+        temperature: 0.1
+      })
+    });
+    
+    if (!response.ok) {
+      console.warn(`⚠️ Edge case AI analysis failed: ${response.status}`);
+      return [];
+    }
+    
+    var data = await response.json();
+    var aiResponse = data.choices[0].message.content.trim();
+    
+    // Parse JSON response
+    try {
+      var issues = JSON.parse(aiResponse);
+      console.log(`✅ Edge case AI analysis completed: ${issues.length} critical issues found`);
+      return issues.map(issue => ({
+        type: issue.type || 'security',
+        message: issue.issue || issue.message,
+        line: issue.line || 1,
+        severity: 'critical',
+        code: issue.code || '',
+        pattern: 'massive_file_edge_case'
+      }));
+    } catch (parseError) {
+      console.warn('⚠️ Edge case AI response parsing failed, using fallback');
+      return [];
+    }
+    
+  } catch (error) {
+    console.warn('⚠️ Edge case AI analysis error:', error.message);
+    return [];
+  }
+}
+
 // 🧠 TIER 2: DEDICATED AI ANALYSIS - Thorough analysis of critical files in multiple batches
 // 🔪 SPLIT LARGE FILES - Breaks huge files into manageable chunks for AI analysis
 function splitLargeFile(file, maxSize) {
@@ -2660,8 +2842,7 @@ async function performDedicatedAIAnalysis(criticalFiles, analysisStrategy, criti
   var fileBatches = [];
   var currentBatch = [];
   var currentBatchSize = 0;
-  var maxBatchSize = 20000; // 20K chars per batch (larger batches for fewer API calls)
-  var maxBatches = 4; // CRITICAL: Limit to 4 batches max to prevent timeouts
+  var maxBatchSize = 15000; // 15K chars per batch (safe for OpenAI API)
   
   for (var file of criticalFiles) {
     var fileSize = file.content.length;
@@ -2673,10 +2854,9 @@ async function performDedicatedAIAnalysis(criticalFiles, analysisStrategy, criti
       currentBatchSize = 0;
     }
     
-    // If single file is too large, split it into bigger chunks (fewer chunks = fewer batches)
+    // If single file is too large, split it into chunks
     if (fileSize > maxBatchSize) {
-      var chunkSize = Math.min(maxBatchSize, Math.ceil(fileSize / 2)); // Split large files in half max
-      var chunks = splitLargeFile(file, chunkSize);
+      var chunks = splitLargeFile(file, maxBatchSize);
       for (var chunk of chunks) {
         if (currentBatch.length > 0) {
           fileBatches.push(currentBatch);
@@ -2694,12 +2874,6 @@ async function performDedicatedAIAnalysis(criticalFiles, analysisStrategy, criti
   // Add remaining files
   if (currentBatch.length > 0) {
     fileBatches.push(currentBatch);
-  }
-  
-  // 🚨 TIMEOUT PROTECTION: Limit total batches to prevent Lambda timeout
-  if (fileBatches.length > maxBatches) {
-    console.warn(`⚠️ Too many batches (${fileBatches.length}), limiting to ${maxBatches} for timeout safety`);
-    fileBatches = fileBatches.slice(0, maxBatches);
   }
   
   var totalBatches = fileBatches.length;
@@ -4958,7 +5132,14 @@ export const handler = async (event) => {
     
     // 🧠 TIER 2: DEDICATED AI ANALYSIS - Create special batch of ONLY critical files
     var aiDeepIssues = [];
-    if (analysisStrategy.critical && analysisStrategy.critical.length > 0) {
+    
+    // 🚨 EDGE CASE: Handle massive files separately
+    if (analysisStrategy.analysisStrategy === 'edge_case_massive_files' && analysisStrategy.massiveFiles && analysisStrategy.massiveFiles.length > 0) {
+      console.log(`🔥 EDGE CASE DETECTED: Processing ${analysisStrategy.massiveFiles.length} massive files with special handling...`);
+      aiDeepIssues = await handleMassiveFilesEdgeCase(analysisStrategy.massiveFiles, tempDir);
+    }
+    // 🧠 NORMAL CASE: Standard AI analysis
+    else if (analysisStrategy.critical && analysisStrategy.critical.length > 0) {
       console.log(`🧠 Starting DEDICATED AI ANALYSIS of ${analysisStrategy.critical.length} critical files...`);
       
       try {
