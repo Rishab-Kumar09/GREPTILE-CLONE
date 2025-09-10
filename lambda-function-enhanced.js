@@ -2590,6 +2590,7 @@ function checkHardcodedSecretsEnhanced(content, filePath) {
   var lines = content.split('\n');
   
   var secretPatterns = [
+    // 🔐 SECRETS & CREDENTIALS
     { pattern: /(password|pwd|pass)\s*[:=]\s*["'][^"']{3,}["']/i, message: 'Hardcoded password detected' },
     { pattern: /(api_?key|apikey)\s*[:=]\s*["'][^"']{10,}["']/i, message: 'Hardcoded API key detected' },
     { pattern: /(secret|token)\s*[:=]\s*["'][^"']{8,}["']/i, message: 'Hardcoded secret/token detected' },
@@ -2597,7 +2598,11 @@ function checkHardcodedSecretsEnhanced(content, filePath) {
     { pattern: /ghp_[a-zA-Z0-9]{36}/i, message: 'GitHub token detected' },
     { pattern: /AKIA[0-9A-Z]{16}/i, message: 'AWS access key detected' },
     { pattern: /mongodb:\/\/[^:]+:[^@]+@/i, message: 'MongoDB connection string with credentials' },
-    { pattern: /postgres:\/\/[^:]+:[^@]+@/i, message: 'PostgreSQL connection string with credentials' }
+    { pattern: /postgres:\/\/[^:]+:[^@]+@/i, message: 'PostgreSQL connection string with credentials' },
+    
+    // 🚨 CRITICAL LOGIC ERRORS (added to existing function for speed)
+    { pattern: /catch\s*\(\s*\w*\s*\)\s*\{\s*\}/i, message: 'Empty catch block - handle errors properly' },
+    { pattern: /console\.log.*password|console\.log.*secret|console\.log.*token/i, message: 'Logging sensitive data in console' }
   ];
   
   lines.forEach((line, index) => {
@@ -2827,6 +2832,8 @@ function checkErrorHandlingEnhanced(content, filePath) {
   var lines = content.split('\n');
   
   lines.forEach((line, index) => {
+    var trimmed = line.trim();
+    
     // Empty catch blocks
     if (/catch\s*\(\s*\w*\s*\)\s*\{[\s]*\}/i.test(line)) {
       issues.push({
@@ -2836,6 +2843,31 @@ function checkErrorHandlingEnhanced(content, filePath) {
         severity: 'high',
         code: line.trim(),
         pattern: 'empty_catch'
+      });
+    }
+    
+    // 🚨 CRITICAL LOGIC ERRORS (added for speed)
+    // Assignment in if condition (actual bug pattern)
+    if (/if\s*\([^)]*[^=!<>]=\s*[^=][^)]*\)/.test(line) && !/==|===|!=|!==/.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Assignment in if condition - did you mean == or ===?',
+        line: index + 1,
+        severity: 'high',
+        code: line.trim(),
+        pattern: 'assignment_in_condition'
+      });
+    }
+    
+    // Missing null checks before method calls
+    if (/\w+\.(length|push|pop|map|filter|forEach)/i.test(line) && !/if.*null|&&|\|\|/.test(line)) {
+      issues.push({
+        type: 'logic',
+        message: 'Potential null reference: Add null check before method call',
+        line: index + 1,
+        severity: 'medium',
+        code: line.trim(),
+        pattern: 'missing_null_check'
       });
     }
     
@@ -2882,16 +2914,48 @@ function checkPerformanceIssuesEnhanced(content, filePath) {
       });
     }
     
-    // React-specific performance issues
+    // 🚀 REACT PERFORMANCE ISSUES (added for speed)
+    // useEffect missing dependencies
     if (/useEffect\s*\(\s*[^,]+\s*\)(?!\s*,\s*\[)/i.test(line)) {
       issues.push({
         type: 'performance',
         message: 'useEffect missing dependencies - may cause infinite re-renders',
         line: index + 1,
-        severity: 'high',
+        severity: 'medium',
         code: line.trim(),
-        pattern: 'react_effect_deps'
+        pattern: 'useEffect_missing_deps'
       });
+    }
+    
+    // Multiple DOM queries (should cache)
+    if (/document\.querySelector|document\.getElementById|getElementsBy/i.test(line)) {
+      var nextLines = lines.slice(index, index + 5).join('\n');
+      if ((nextLines.match(/document\.(querySelector|getElementById|getElementsBy)/gi) || []).length > 1) {
+        issues.push({
+          type: 'performance',
+          message: 'Multiple DOM queries: Cache DOM elements for better performance',
+          line: index + 1,
+          severity: 'medium',
+          code: line.trim(),
+          pattern: 'multiple_dom_queries'
+        });
+      }
+    }
+    
+    // 🔄 ASYNC PATTERN ISSUES (added for speed)
+    // await in loop (should use Promise.all)
+    if (/for\s*\(|while\s*\(|\.forEach/i.test(line)) {
+      var nextLines = lines.slice(index, index + 10).join('\n');
+      if (/await\s+/i.test(nextLines)) {
+        issues.push({
+          type: 'performance',
+          message: 'await in loop: Use Promise.all() for parallel execution',
+          line: index + 1,
+          severity: 'high',
+          code: line.trim(),
+          pattern: 'await_in_loop'
+        });
+      }
     }
   });
   
