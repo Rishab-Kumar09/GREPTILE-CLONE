@@ -2605,6 +2605,47 @@ Return ONLY JSON array (empty if no issues):
 }
 
 // 🧠 TIER 2: DEDICATED AI ANALYSIS - Thorough analysis of critical files in multiple batches
+// 🔪 SPLIT LARGE FILES - Breaks huge files into manageable chunks for AI analysis
+function splitLargeFile(file, maxSize) {
+  var chunks = [];
+  var content = file.content;
+  var lines = content.split('\n');
+  var currentChunk = '';
+  var chunkIndex = 0;
+  
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    
+    // If adding this line would exceed limit, create new chunk
+    if (currentChunk.length + line.length > maxSize && currentChunk.length > 0) {
+      chunks.push({
+        path: `${file.path} (chunk ${chunkIndex + 1})`,
+        content: currentChunk,
+        priority: file.priority,
+        size: currentChunk.length
+      });
+      
+      currentChunk = '';
+      chunkIndex++;
+    }
+    
+    currentChunk += line + '\n';
+  }
+  
+  // Add remaining content
+  if (currentChunk.length > 0) {
+    chunks.push({
+      path: `${file.path} (chunk ${chunkIndex + 1})`,
+      content: currentChunk,
+      priority: file.priority,
+      size: currentChunk.length
+    });
+  }
+  
+  console.log(`📄 Split large file ${file.path} (${file.size} chars) → ${chunks.length} chunks`);
+  return chunks;
+}
+
 async function performDedicatedAIAnalysis(criticalFiles, analysisStrategy, criticalTempDir) {
   console.log(`🧠 DEDICATED AI ANALYSIS: Starting thorough analysis of ${criticalFiles.length} critical files`);
   
@@ -2614,18 +2655,55 @@ async function performDedicatedAIAnalysis(criticalFiles, analysisStrategy, criti
   }
   
   var allAIIssues = [];
-  var batchSize = 7; // Optimal batch size for thorough analysis
-  var totalBatches = Math.ceil(criticalFiles.length / batchSize);
   
-  console.log(`📊 AI Analysis Plan: ${criticalFiles.length} files → ${totalBatches} batches (${batchSize} files each)`);
+  // 🚀 SMART FILE BATCHING: Split by content size, not just file count
+  var fileBatches = [];
+  var currentBatch = [];
+  var currentBatchSize = 0;
+  var maxBatchSize = 15000; // 15K chars per batch (safe for OpenAI API)
+  
+  for (var file of criticalFiles) {
+    var fileSize = file.content.length;
+    
+    // If adding this file would exceed limit, start new batch
+    if (currentBatchSize + fileSize > maxBatchSize && currentBatch.length > 0) {
+      fileBatches.push(currentBatch);
+      currentBatch = [];
+      currentBatchSize = 0;
+    }
+    
+    // If single file is too large, split it into chunks
+    if (fileSize > maxBatchSize) {
+      var chunks = splitLargeFile(file, maxBatchSize);
+      for (var chunk of chunks) {
+        if (currentBatch.length > 0) {
+          fileBatches.push(currentBatch);
+          currentBatch = [];
+          currentBatchSize = 0;
+        }
+        fileBatches.push([chunk]);
+      }
+    } else {
+      currentBatch.push(file);
+      currentBatchSize += fileSize;
+    }
+  }
+  
+  // Add remaining files
+  if (currentBatch.length > 0) {
+    fileBatches.push(currentBatch);
+  }
+  
+  var totalBatches = fileBatches.length;
+  
+  console.log(`📊 AI Analysis Plan: ${criticalFiles.length} files → ${totalBatches} smart batches (size-based)`);
   
   // Process critical files in multiple batches for thorough analysis
   for (var batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-    var startIdx = batchIndex * batchSize;
-    var endIdx = Math.min(startIdx + batchSize, criticalFiles.length);
-    var batchFiles = criticalFiles.slice(startIdx, endIdx);
+    var batchFiles = fileBatches[batchIndex];
+    var batchTotalSize = batchFiles.reduce((sum, f) => sum + f.content.length, 0);
     
-    console.log(`🧠 Processing AI Batch ${batchIndex + 1}/${totalBatches}: ${batchFiles.length} files`);
+    console.log(`🧠 Processing AI Batch ${batchIndex + 1}/${totalBatches}: ${batchFiles.length} files (${batchTotalSize} chars)`);
     
     try {
       var batchIssues = await performSingleAIBatch(batchFiles, batchIndex + 1, totalBatches, analysisStrategy);
@@ -4822,8 +4900,15 @@ export const handler = async (event) => {
     var processedFiles = 0;
     var totalIssues = 0;
     var batchStartTime = Date.now();
+    var timeoutLimit = 25000; // 25 seconds timeout (AWS Lambda has 30s limit)
     
     for (var i = 0; i < filesToProcess.length; i++) {
+      // 🚨 TIMEOUT SAFETY: Check if we're approaching Lambda timeout
+      if (Date.now() - batchStartTime > timeoutLimit) {
+        console.warn(`⏰ Approaching timeout limit, stopping analysis at ${i}/${filesToProcess.length} files`);
+        break;
+      }
+      
       var file = filesToProcess[i];
       try {
         var content = await fs.readFile(file, 'utf-8');
@@ -4832,12 +4917,13 @@ export const handler = async (event) => {
         // 🎯 AI ORCHESTRA MANAGER: Priority-based analysis
         var filePriority = prioritizedFiles.find(f => f.path === relativePath)?.priority || 'medium';
         
-        // 🧠 SMALL REPO ENHANCEMENT: Give more comprehensive analysis to small repos
+        // 🧠 SMALL REPO ENHANCEMENT: Give more comprehensive analysis to small repos (but limit to prevent timeouts)
         if (analysisStrategy.analysisStrategy === 'comprehensive' && allFiles.length < 20) {
-          // For small repos, upgrade important files to critical analysis
-          if (/\.(js|ts|jsx|tsx|py|java|go|rs)$/i.test(relativePath) && 
-              !/test|spec|\.test\.|\.spec\./i.test(relativePath)) {
-            filePriority = 'critical'; // 🔥 More thorough analysis for small repos
+          // For small repos, upgrade ONLY the most important files to critical analysis
+          if (/\.(js|ts|jsx|tsx)$/i.test(relativePath) && 
+              !/test|spec|\.test\.|\.spec\.|node_modules/i.test(relativePath) &&
+              i < 3) { // 🚀 LIMIT: Only first 3 files get critical analysis to prevent timeouts
+            filePriority = 'critical'; // 🔥 More thorough analysis for key files only
           }
         }
         var issues = await analyzeFileByPriority(content, relativePath, filePriority, analysisStrategy);
