@@ -2660,7 +2660,8 @@ async function performDedicatedAIAnalysis(criticalFiles, analysisStrategy, criti
   var fileBatches = [];
   var currentBatch = [];
   var currentBatchSize = 0;
-  var maxBatchSize = 15000; // 15K chars per batch (safe for OpenAI API)
+  var maxBatchSize = 20000; // 20K chars per batch (larger batches for fewer API calls)
+  var maxBatches = 4; // CRITICAL: Limit to 4 batches max to prevent timeouts
   
   for (var file of criticalFiles) {
     var fileSize = file.content.length;
@@ -2672,9 +2673,10 @@ async function performDedicatedAIAnalysis(criticalFiles, analysisStrategy, criti
       currentBatchSize = 0;
     }
     
-    // If single file is too large, split it into chunks
+    // If single file is too large, split it into bigger chunks (fewer chunks = fewer batches)
     if (fileSize > maxBatchSize) {
-      var chunks = splitLargeFile(file, maxBatchSize);
+      var chunkSize = Math.min(maxBatchSize, Math.ceil(fileSize / 2)); // Split large files in half max
+      var chunks = splitLargeFile(file, chunkSize);
       for (var chunk of chunks) {
         if (currentBatch.length > 0) {
           fileBatches.push(currentBatch);
@@ -2692,6 +2694,12 @@ async function performDedicatedAIAnalysis(criticalFiles, analysisStrategy, criti
   // Add remaining files
   if (currentBatch.length > 0) {
     fileBatches.push(currentBatch);
+  }
+  
+  // 🚨 TIMEOUT PROTECTION: Limit total batches to prevent Lambda timeout
+  if (fileBatches.length > maxBatches) {
+    console.warn(`⚠️ Too many batches (${fileBatches.length}), limiting to ${maxBatches} for timeout safety`);
+    fileBatches = fileBatches.slice(0, maxBatches);
   }
   
   var totalBatches = fileBatches.length;
