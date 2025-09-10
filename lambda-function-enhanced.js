@@ -4052,9 +4052,9 @@ export const handler = async (event) => {
     console.log(`   📁 Files with issues: ${results.length}`);
     console.log(`   🚨 Total issues found: ${totalIssues}`);
     
-    // 🧠 TIER 2: AI DEEP ANALYSIS - Analyze critical files with ChatGPT
+    // 🧠 TIER 2: AI DEEP ANALYSIS - Analyze ONLY critical files as a batch
     var aiDeepIssues = [];
-    if (analysisStrategy.critical && analysisStrategy.critical.length > 0 && !isFileBatched) {
+    if (analysisStrategy.critical && analysisStrategy.critical.length > 0) {
       console.log(`🧠 Starting TIER 2: AI Deep Analysis of ${analysisStrategy.critical.length} critical files...`);
       
       try {
@@ -4091,7 +4091,7 @@ export const handler = async (event) => {
         console.warn(`⚠️ AI Deep Analysis failed:`, aiError.message);
       }
     } else {
-      console.log(`⚠️ Skipping AI Deep Analysis: ${!analysisStrategy.critical ? 'No critical files' : isFileBatched ? 'Batched mode' : 'Unknown reason'}`);
+      console.log(`⚠️ Skipping AI Deep Analysis: No critical files found`);
     }
     
     console.log(`✅ COMPLETE TWO-TIER ANALYSIS:`);
