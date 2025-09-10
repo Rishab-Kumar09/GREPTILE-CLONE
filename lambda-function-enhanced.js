@@ -2584,7 +2584,163 @@ Return ONLY JSON array (empty if no issues):
   return checkHardcodedSecretsEnhanced(content, filePath);
 }
 
-// 🧠 TIER 2: AI DEEP ANALYSIS - Analyze 1-15 critical files with ChatGPT/Claude
+// 🧠 TIER 2: DEDICATED AI ANALYSIS - Thorough analysis of critical files in multiple batches
+async function performDedicatedAIAnalysis(criticalFiles, analysisStrategy, criticalTempDir) {
+  console.log(`🧠 DEDICATED AI ANALYSIS: Starting thorough analysis of ${criticalFiles.length} critical files`);
+  
+  if (!OPENAI_API_KEY || criticalFiles.length === 0) {
+    console.log(`⚠️ Dedicated AI Analysis skipped: ${!OPENAI_API_KEY ? 'No API key' : 'No critical files'}`);
+    return [];
+  }
+  
+  var allAIIssues = [];
+  var batchSize = 7; // Optimal batch size for thorough analysis
+  var totalBatches = Math.ceil(criticalFiles.length / batchSize);
+  
+  console.log(`📊 AI Analysis Plan: ${criticalFiles.length} files → ${totalBatches} batches (${batchSize} files each)`);
+  
+  // Process critical files in multiple batches for thorough analysis
+  for (var batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    var startIdx = batchIndex * batchSize;
+    var endIdx = Math.min(startIdx + batchSize, criticalFiles.length);
+    var batchFiles = criticalFiles.slice(startIdx, endIdx);
+    
+    console.log(`🧠 Processing AI Batch ${batchIndex + 1}/${totalBatches}: ${batchFiles.length} files`);
+    
+    try {
+      var batchIssues = await performSingleAIBatch(batchFiles, batchIndex + 1, totalBatches, analysisStrategy);
+      allAIIssues = allAIIssues.concat(batchIssues);
+      console.log(`✅ AI Batch ${batchIndex + 1} completed: ${batchIssues.length} insights found`);
+      
+      // Small delay between batches to avoid rate limiting
+      if (batchIndex < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+    } catch (batchError) {
+      console.warn(`⚠️ AI Batch ${batchIndex + 1} failed:`, batchError.message);
+    }
+  }
+  
+  console.log(`🎯 DEDICATED AI ANALYSIS COMPLETE: ${allAIIssues.length} total insights from ${totalBatches} batches`);
+  return allAIIssues;
+}
+
+// 🧠 Single AI Batch Analysis - Thorough analysis of 5-7 critical files
+async function performSingleAIBatch(batchFiles, batchNum, totalBatches, analysisStrategy) {
+  console.log(`🧠 AI Batch ${batchNum}/${totalBatches}: Analyzing ${batchFiles.length} critical files...`);
+  
+  try {
+    // Prepare files for AI with size limits
+    var fileBatch = batchFiles.map(file => ({
+      path: file.path,
+      content: file.content.substring(0, 12000), // More content per file for thorough analysis
+      priority: file.priority,
+      originalSize: file.size
+    }));
+    
+    var aiPrompt = `You are a SENIOR SECURITY ARCHITECT conducting a thorough code review of ${fileBatch.length} CRITICAL files from a production codebase.
+
+🎯 MISSION: Find ALL significant issues in these critical files - this is batch ${batchNum}/${totalBatches} of the most important code.
+
+🔍 ANALYSIS FOCUS (in priority order):
+1. 🚨 CRITICAL SECURITY VULNERABILITIES
+   - SQL injection, XSS, command injection
+   - Hardcoded secrets, weak authentication
+   - Insecure data handling, path traversal
+   
+2. 🐛 LOGIC ERRORS & BUGS  
+   - Race conditions, null pointer exceptions
+   - Incorrect business logic, data corruption risks
+   - Memory leaks, resource management issues
+   
+3. 🏗️ ARCHITECTURE & DESIGN FLAWS
+   - Security by design violations
+   - Performance bottlenecks, scalability issues
+   - Code maintainability problems
+
+4. ⚡ PERFORMANCE & RELIABILITY
+   - N+1 queries, inefficient algorithms
+   - Missing error handling, timeout issues
+   - Resource exhaustion vulnerabilities
+
+📁 CRITICAL FILES TO ANALYZE:
+${fileBatch.map(f => `${f.path} (${f.originalSize} chars, analyzing ${f.content.length} chars)`).join('\n')}
+
+💻 CODE CONTENT:
+${fileBatch.map(f => `\n=== CRITICAL FILE: ${f.path} ===\n${f.content}`).join('\n')}
+
+🎯 REQUIREMENTS:
+- Focus ONLY on HIGH and CRITICAL severity issues
+- Provide specific line references when possible
+- Explain the BUSINESS IMPACT and security implications
+- Suggest concrete fixes with code examples
+- Skip minor style/formatting issues
+- Be thorough but concise
+
+📋 OUTPUT FORMAT: Return JSON array:
+[{"file": "exact_file_path", "line": 123, "severity": "critical|high", "type": "security|logic|performance|architecture", "title": "Brief issue title", "description": "Detailed explanation", "impact": "Business/security impact", "fix": "Concrete solution with code example", "confidence": "high|medium"}]`;
+
+    var response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini', // Fast and cost-effective for batch analysis
+        messages: [{ role: 'user', content: aiPrompt }],
+        max_tokens: 6000, // More tokens for thorough analysis
+        temperature: 0.1 // Low temperature for consistent analysis
+      })
+    });
+    
+    if (!response.ok) {
+      console.log(`❌ AI Batch ${batchNum} failed: ${response.status} ${response.statusText}`);
+      return [];
+    }
+    
+    var data = await response.json();
+    var aiAnalysis = data.choices[0].message.content;
+    
+    console.log(`✅ AI Batch ${batchNum} completed: ${aiAnalysis.length} chars response`);
+    
+    // Parse AI response (try JSON, fallback to text parsing)
+    try {
+      var aiIssues = JSON.parse(aiAnalysis);
+      return aiIssues.map(issue => ({
+        ...issue,
+        pattern: 'dedicated_ai_analysis',
+        code: `AI Batch ${batchNum}: ${issue.title}`,
+        aiGenerated: true,
+        batchNumber: batchNum
+      }));
+    } catch (parseError) {
+      // Fallback: Extract issues from text response
+      console.log(`📝 AI Batch ${batchNum} returned text format, parsing manually...`);
+      return [{
+        file: `AI Batch ${batchNum} Summary`,
+        line: 1,
+        severity: 'high',
+        type: 'analysis',
+        title: `Critical Files Analysis - Batch ${batchNum}`,
+        description: aiAnalysis.substring(0, 800) + '...',
+        impact: 'See full analysis in description field',
+        fix: 'Review detailed AI analysis above',
+        pattern: 'dedicated_ai_analysis',
+        code: `AI Batch ${batchNum} Generated Analysis`,
+        aiGenerated: true,
+        batchNumber: batchNum
+      }];
+    }
+    
+  } catch (error) {
+    console.log(`❌ AI Batch ${batchNum} error: ${error.message}`);
+    return [];
+  }
+}
+
+// 🧠 LEGACY: AI DEEP ANALYSIS - Analyze 1-15 critical files with ChatGPT/Claude
 async function performAIDeepAnalysis(criticalFiles, analysisStrategy) {
   console.log(`🧠 AI DEEP ANALYSIS: Starting analysis of ${criticalFiles.length} critical files`);
   
@@ -4052,43 +4208,75 @@ export const handler = async (event) => {
     console.log(`   📁 Files with issues: ${results.length}`);
     console.log(`   🚨 Total issues found: ${totalIssues}`);
     
-    // 🧠 TIER 2: AI DEEP ANALYSIS - Analyze ONLY critical files as a batch
+    // 🧠 TIER 2: DEDICATED AI ANALYSIS - Create special batch of ONLY critical files
     var aiDeepIssues = [];
     if (analysisStrategy.critical && analysisStrategy.critical.length > 0) {
-      console.log(`🧠 Starting TIER 2: AI Deep Analysis of ${analysisStrategy.critical.length} critical files...`);
+      console.log(`🧠 Starting DEDICATED AI ANALYSIS of ${analysisStrategy.critical.length} critical files...`);
       
       try {
-        // Prepare critical files with content for AI analysis
+        // 📁 STEP 1: Create special temp folder for ONLY critical files
+        var criticalTempDir = path.join('/tmp', `ai-critical-${Date.now()}`);
+        await fs.mkdir(criticalTempDir, { recursive: true });
+        console.log(`📁 Created dedicated AI analysis folder: ${criticalTempDir}`);
+        
+        // 📋 STEP 2: Copy ONLY critical files to dedicated folder
         var criticalFilesWithContent = [];
-        for (var criticalFile of analysisStrategy.critical.slice(0, 15)) { // Limit to 15 files
+        var copiedFiles = 0;
+        
+        for (var criticalFile of analysisStrategy.critical) {
           try {
-            var fullPath = path.join(tempDir, criticalFile);
-            var content = await fs.readFile(fullPath, 'utf-8');
+            var sourcePath = path.join(tempDir, criticalFile);
+            var destPath = path.join(criticalTempDir, criticalFile);
+            
+            // Create directory structure
+            var destDir = path.dirname(destPath);
+            await fs.mkdir(destDir, { recursive: true });
+            
+            // Copy file
+            var content = await fs.readFile(sourcePath, 'utf-8');
+            await fs.writeFile(destPath, content);
+            
             criticalFilesWithContent.push({
               path: criticalFile,
               content: content,
-              priority: 'critical'
+              priority: 'critical',
+              size: content.length
             });
-          } catch (readError) {
-            console.warn(`⚠️ Could not read critical file ${criticalFile}:`, readError.message);
+            copiedFiles++;
+            
+            console.log(`📄 Copied critical file: ${criticalFile} (${content.length} chars)`);
+          } catch (copyError) {
+            console.warn(`⚠️ Could not copy critical file ${criticalFile}:`, copyError.message);
           }
         }
         
+        console.log(`✅ Successfully copied ${copiedFiles} critical files for AI analysis`);
+        
+        // 🧠 STEP 3: AI analyzes dedicated critical files batch (multiple batches if needed)
         if (criticalFilesWithContent.length > 0) {
-          aiDeepIssues = await performAIDeepAnalysis(criticalFilesWithContent, analysisStrategy);
-          console.log(`🧠 AI Deep Analysis found ${aiDeepIssues.length} additional insights`);
+          aiDeepIssues = await performDedicatedAIAnalysis(criticalFilesWithContent, analysisStrategy, criticalTempDir);
+          console.log(`🧠 Dedicated AI Analysis found ${aiDeepIssues.length} deep insights`);
           
           // Add AI issues to results
           if (aiDeepIssues.length > 0) {
             results.push({
-              file: '🧠 AI Deep Analysis',
+              file: '🧠 Dedicated AI Analysis',
               issues: aiDeepIssues
             });
             totalIssues += aiDeepIssues.length;
           }
         }
+        
+        // Cleanup AI temp folder
+        try {
+          execSync(`rm -rf "${criticalTempDir}"`, { stdio: 'ignore' });
+          console.log(`🗑️ Cleaned up AI analysis folder`);
+        } catch (cleanupError) {
+          console.warn(`⚠️ AI folder cleanup failed:`, cleanupError.message);
+        }
+        
       } catch (aiError) {
-        console.warn(`⚠️ AI Deep Analysis failed:`, aiError.message);
+        console.warn(`⚠️ Dedicated AI Analysis failed:`, aiError.message);
       }
     } else {
       console.log(`⚠️ Skipping AI Deep Analysis: No critical files found`);
