@@ -1879,23 +1879,18 @@ function createRepositoryMap(allFiles) {
 async function createAnalysisStrategy(allFiles) {
   console.log('🎭 AI Repository Strategist: Analyzing repository structure...');
   
-  if (!OPENAI_API_KEY) {
+  if (!OPENAI_API_KEY || allFiles.length < 20) {
+    // For small repos, still run AI analysis on the most important files
+    var importantFiles = allFiles.filter(f => 
+      /\.(js|ts|jsx|tsx|py|java|go|rs)$/i.test(f) && 
+      !/test|spec|\.test\.|\.spec\./i.test(f)
+    ).slice(0, 5); // Top 5 most important files for AI analysis
+    
     return {
       highPriority: allFiles.slice(0, Math.min(50, allFiles.length)),
+      critical: importantFiles, // 🧠 ENSURE AI ANALYSIS FOR SMALL REPOS
       skipFiles: [],
       analysisStrategy: 'comprehensive'
-    };
-  }
-  
-  // For small repos (< 20 files), treat ALL files as potentially critical for AI analysis
-  if (allFiles.length < 20) {
-    return {
-      critical: allFiles.slice(0, Math.min(15, allFiles.length)), // All files are critical in small repos
-      high: [],
-      medium: [],
-      light: [],
-      skip: [],
-      analysisStrategy: 'small_repo_comprehensive'
     };
   }
   
@@ -4836,6 +4831,15 @@ export const handler = async (event) => {
         
         // 🎯 AI ORCHESTRA MANAGER: Priority-based analysis
         var filePriority = prioritizedFiles.find(f => f.path === relativePath)?.priority || 'medium';
+        
+        // 🧠 SMALL REPO ENHANCEMENT: Give more comprehensive analysis to small repos
+        if (analysisStrategy.analysisStrategy === 'comprehensive' && allFiles.length < 20) {
+          // For small repos, upgrade important files to critical analysis
+          if (/\.(js|ts|jsx|tsx|py|java|go|rs)$/i.test(relativePath) && 
+              !/test|spec|\.test\.|\.spec\./i.test(relativePath)) {
+            filePriority = 'critical'; // 🔥 More thorough analysis for small repos
+          }
+        }
         var issues = await analyzeFileByPriority(content, relativePath, filePriority, analysisStrategy);
         
         processedFiles++;
