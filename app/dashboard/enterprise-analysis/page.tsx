@@ -320,13 +320,15 @@ export default function EnterpriseAnalysisPage() {
         'apache', 'nodejs', 'rust-lang', 'golang', 'dotnet'
       ].some(org => `${owner}/${repo}`.toLowerCase().includes(org))
 
-      const shouldBatch = sizeThreshold || (popularRepo && knownLargeLanguages) || knownMassive
+      // 🎯 FORCE ALL REPOS TO USE BATCHED ANALYSIS (the working process)
+      const shouldBatch = true // Always use the proven batched analysis process
       
-      console.log(`🤖 Batching decision:`, {
+      console.log(`🤖 Batching decision: FORCED TRUE (all repos use batched analysis)`, {
         sizeThreshold,
         popularRepo,
         knownLargeLanguages,
         knownMassive,
+        originalDecision: sizeThreshold || (popularRepo && knownLargeLanguages) || knownMassive,
         finalDecision: shouldBatch
       })
 
@@ -334,8 +336,8 @@ export default function EnterpriseAnalysisPage() {
 
     } catch (error) {
       console.error('❌ Size check failed:', error)
-      // Default to full analysis if size check fails
-      return false
+      // 🎯 FORCE BATCHED ANALYSIS even if size check fails (the working process)
+      return true
     }
   }
 
@@ -640,11 +642,12 @@ export default function EnterpriseAnalysisPage() {
       const needsBatching = await shouldUseBatching(owner, repo)
 
       if (needsBatching) {
-        console.log('🔄 LARGE REPO - Using batching strategy')
+        console.log('🔄 ALL REPOS - Using proven batched analysis strategy')
         await startBatchedAnalysis(owner, repo)
       } else {
-        console.log('🔄 NORMAL REPO - Using full analysis')
-        await startSimpleAnalysis(owner, repo)
+        // This should never happen now, but keeping as fallback
+        console.log('🔄 FALLBACK - Using batched analysis (forced)')
+        await startBatchedAnalysis(owner, repo)
       }
       
     } catch (error) {
