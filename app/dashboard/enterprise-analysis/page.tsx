@@ -343,6 +343,98 @@ export default function EnterpriseAnalysisPage() {
 
 
 
+  // 🔄 BATCH SPLITTING STRATEGY: Retry failed batches with smaller chunks
+  const retryWithSmallerBatches = async (
+    owner: string, 
+    repo: string, 
+    originalBatchNumber: number, 
+    allResults: AnalysisResult[], 
+    setTotalIssues: (callback: (prev: number) => number) => void
+  ): Promise<boolean> => {
+    console.log(`🔄 Attempting to split batch ${originalBatchNumber} into smaller chunks...`);
+    
+    try {
+      // Calculate the file range for the original batch (200 files per batch)
+      const filesPerBatch = 200;
+      const startFile = (originalBatchNumber - 1) * filesPerBatch;
+      
+      // Split into 2 smaller batches (100 files each)
+      const smallerBatchSize = Math.floor(filesPerBatch / 2);
+      const subBatches = [
+        { start: startFile, size: smallerBatchSize },
+        { start: startFile + smallerBatchSize, size: smallerBatchSize }
+      ];
+      
+      console.log(`📦 Splitting batch ${originalBatchNumber} into ${subBatches.length} smaller batches of ${smallerBatchSize} files each`);
+      
+      let overallSuccess = false;
+      
+      for (let i = 0; i < subBatches.length; i++) {
+        const subBatch = subBatches[i];
+        console.log(`🔄 Processing sub-batch ${i + 1}/${subBatches.length} (files ${subBatch.start}-${subBatch.start + subBatch.size})`);
+        
+        try {
+          // Use a special batch number to indicate this is a sub-batch
+          // Format: originalBatch.subBatch (e.g., 5.1, 5.2)
+          const subBatchNumber = parseFloat(`${originalBatchNumber}.${i + 1}`);
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout for smaller batches
+          
+          const response = await fetch('/api/enterprise-analysis/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              owner, 
+              repo, 
+              batchNumber: subBatchNumber,
+              fullRepoAnalysis: true,
+              customBatchSize: smallerBatchSize, // Tell Lambda to use smaller batch size
+              customStartIndex: subBatch.start    // Tell Lambda where to start
+            }),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              console.log(`✅ Sub-batch ${i + 1} successful: ${data.results?.length || 0} issues found`);
+              
+              // Add results to main collection
+              if (data.results && data.results.length > 0) {
+                allResults.push(...data.results);
+                setTotalIssues(prev => prev + data.results.length);
+              }
+              
+              overallSuccess = true;
+            } else {
+              console.warn(`⚠️ Sub-batch ${i + 1} failed:`, data.error);
+            }
+          } else {
+            console.warn(`⚠️ Sub-batch ${i + 1} HTTP error: ${response.status}`);
+          }
+          
+          // Small delay between sub-batches
+          if (i < subBatches.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          
+        } catch (subBatchError) {
+          console.error(`❌ Sub-batch ${i + 1} error:`, subBatchError);
+          // Continue with next sub-batch even if this one fails
+        }
+      }
+      
+      return overallSuccess;
+      
+    } catch (error) {
+      console.error(`❌ Batch splitting failed for batch ${originalBatchNumber}:`, error);
+      return false;
+    }
+  };
+
   const startBatchedAnalysis = async (owner: string, repo: string) => {
     console.log('🚀 Starting FILE-BASED BATCHED analysis (full repo, process in chunks)')
     
@@ -474,55 +566,52 @@ export default function EnterpriseAnalysisPage() {
                
                // Handle specific error types
                if (error.name === 'AbortError') {
-                 console.warn(`⏰ Batch ${batchNumber} timed out after 5 minutes`);
+                 console.warn(`⏰ Batch ${batchNumber} timed out after 5 minutes - attempting batch splitting...`);
+                 
+                 // 🔄 BATCH SPLITTING STRATEGY: Split the timed-out batch into smaller chunks
+                 const success = await retryWithSmallerBatches(owner, repo, batchNumber, allResults, (callback) => {
+                   totalIssues = callback(totalIssues);
+                 });
+                 
+                 if (success) {
+                   console.log(`✅ Batch ${batchNumber} successfully processed with smaller chunks`);
+                 } else {
+                   console.warn(`⚠️ Batch ${batchNumber} failed even with smaller chunks - skipping`);
+                 }
+                 
                  setStatus(prev => ({
                    ...prev,
-                   currentFile: `Batch ${batchNumber} timed out - continuing with next batch...`
+                   currentFile: success ? `Batch ${batchNumber} completed with smaller chunks` : `Batch ${batchNumber} skipped after splitting attempts`
                  }));
-                 // Continue to next batch instead of breaking
+                 
                  batchNumber++;
                  continue;
                }
                
                if ((error instanceof Error && error.message.includes('504')) || (error instanceof Error && error.message.includes('Gateway'))) {
-                 console.warn(`🌐 Gateway timeout for batch ${batchNumber} - retrying once...`);
+                 console.warn(`🌐 Gateway timeout for batch ${batchNumber} - trying batch splitting...`);
                  
-                 // Single retry for gateway timeouts
-                 try {
-                   await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-                   
-                   const retryResponse = await fetch('/api/enterprise-analysis/start', {
-                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({ 
-                       owner, 
-                       repo, 
-                       batchNumber,
-                       fullRepoAnalysis: true
-                     })
-                   });
-                   
-                   if (retryResponse.ok) {
-                     const retryData = await retryResponse.json();
-                     console.log(`✅ Retry successful for batch ${batchNumber}`);
-                     
-                     // Process the retry data (same logic as successful batch)
-                     if (retryData.success && retryData.results && retryData.results.length > 0) {
-                       allResults.push(...retryData.results);
-                       totalIssues += retryData.results.length;
-                     }
-                     
-                     if (retryData.isLastBatch) {
-                       console.log(`🏁 Retry batch ${batchNumber} was final batch`);
-                       break;
-                     }
-                     
-                     batchNumber++;
-                     continue;
-                   }
-                 } catch (retryError) {
-                   console.error(`❌ Retry failed for batch ${batchNumber}:`, retryError);
+                 // 🔄 BATCH SPLITTING STRATEGY: Try splitting the batch instead of simple retry
+                 const success = await retryWithSmallerBatches(owner, repo, batchNumber, allResults, (callback) => {
+                   totalIssues = callback(totalIssues);
+                 });
+                 
+                 if (success) {
+                   console.log(`✅ Batch ${batchNumber} successfully processed with smaller chunks after gateway timeout`);
+                   setStatus(prev => ({
+                     ...prev,
+                     currentFile: `Batch ${batchNumber} completed with smaller chunks`
+                   }));
+                 } else {
+                   console.warn(`⚠️ Batch ${batchNumber} failed even with smaller chunks after gateway timeout`);
+                   setStatus(prev => ({
+                     ...prev,
+                     currentFile: `Batch ${batchNumber} skipped after splitting attempts`
+                   }));
                  }
+                 
+                 batchNumber++;
+                 continue;
                }
                
                // For other errors, continue to next batch
