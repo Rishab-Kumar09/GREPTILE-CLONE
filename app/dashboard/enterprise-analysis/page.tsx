@@ -756,11 +756,12 @@ export default function EnterpriseAnalysisPage() {
       const response = await fetch('/api/enterprise-analysis/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          owner, 
-          repo,
-          analysisId: uuid() // Regular analysis ID
-        }),
+      body: JSON.stringify({ 
+        owner, 
+        repo,
+        analysisId: uuid(), // Regular analysis ID
+        regexOnly: true // 🎯 REGEX-ONLY FLAG: Skip AI analysis for small repos
+      }),
         signal: controller.signal
       });
       

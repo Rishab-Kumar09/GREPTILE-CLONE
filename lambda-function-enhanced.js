@@ -4935,7 +4935,7 @@ function checkStrictLowPriorityIssues(content, filePath) {
 export const handler = async (event) => {
   console.log('🤖 CLEAN Lambda analyzer started:', JSON.stringify(event));
   
-  var { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false } = JSON.parse(event.body || '{}');
+  var { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false, regexOnly = false } = JSON.parse(event.body || '{}');
   
   if (!repoUrl || !analysisId) {
     return {
@@ -5138,8 +5138,8 @@ export const handler = async (event) => {
       console.log(`🔥 EDGE CASE DETECTED: Processing ${analysisStrategy.massiveFiles.length} massive files with special handling...`);
       aiDeepIssues = await handleMassiveFilesEdgeCase(analysisStrategy.massiveFiles, tempDir);
     }
-    // 🧠 NORMAL CASE: Standard AI analysis
-    else if (analysisStrategy.critical && analysisStrategy.critical.length > 0) {
+    // 🧠 NORMAL CASE: Standard AI analysis (skip if regexOnly flag is set)
+    else if (analysisStrategy.critical && analysisStrategy.critical.length > 0 && !regexOnly) {
       console.log(`🧠 Starting DEDICATED AI ANALYSIS of ${analysisStrategy.critical.length} critical files...`);
       
       try {
@@ -5212,7 +5212,12 @@ export const handler = async (event) => {
       } catch (aiError) {
         console.warn(`⚠️ Dedicated AI Analysis failed:`, aiError.message);
       }
-    } else {
+    } 
+    // 🎯 REGEX-ONLY MODE: Skip AI analysis for small repos
+    else if (regexOnly && analysisStrategy.critical && analysisStrategy.critical.length > 0) {
+      console.log(`🎯 REGEX-ONLY MODE: Skipping AI analysis for ${analysisStrategy.critical.length} critical files (small repo optimization)`);
+    }
+    else {
       console.log(`⚠️ Skipping AI Deep Analysis: No critical files found`);
     }
     
