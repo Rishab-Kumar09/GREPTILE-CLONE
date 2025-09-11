@@ -373,20 +373,19 @@ export default function EnterpriseAnalysisPage() {
       let subBatches;
       
       if (isVibeCodedRepo) {
-        // 🎯 VIBE-CODED STRATEGY: Split into MICRO batches for massive files
-        console.log(`🧠 Detected vibe-coded repo - using MICRO batch strategy`);
-        const microBatchSize = Math.max(Math.floor(filesPerBatch / 8), 10); // 25 files max, minimum 10
-        subBatches = [
-          { start: startFile, size: microBatchSize, type: 'micro' },
-          { start: startFile + microBatchSize, size: microBatchSize, type: 'micro' },
-          { start: startFile + (microBatchSize * 2), size: microBatchSize, type: 'micro' },
-          { start: startFile + (microBatchSize * 3), size: microBatchSize, type: 'micro' },
-          { start: startFile + (microBatchSize * 4), size: microBatchSize, type: 'micro' },
-          { start: startFile + (microBatchSize * 5), size: microBatchSize, type: 'micro' },
-          { start: startFile + (microBatchSize * 6), size: microBatchSize, type: 'micro' },
-          { start: startFile + (microBatchSize * 7), size: microBatchSize, type: 'micro' }
-        ];
-        console.log(`📦 MICRO BATCHING: Splitting into ${subBatches.length} micro-batches of ${microBatchSize} files each`);
+        // 🎯 VIBE-CODED STRATEGY: Split into ULTRA-MICRO batches for massive files
+        console.log(`🧠 Detected vibe-coded repo - using ULTRA-MICRO batch strategy`);
+        const microBatchSize = Math.max(Math.floor(filesPerBatch / 16), 5); // 12-13 files max, minimum 5
+        // Create 16 ultra-micro batches for extreme cases
+        subBatches = [];
+        for (let j = 0; j < 16; j++) {
+          subBatches.push({
+            start: startFile + (j * microBatchSize),
+            size: microBatchSize,
+            type: 'ultra-micro'
+          });
+        }
+        console.log(`📦 ULTRA-MICRO BATCHING: Splitting into ${subBatches.length} ultra-micro-batches of ${microBatchSize} files each`);
       } else {
         // 🎯 NORMAL STRATEGY: Split into smaller batches for regular repos
         console.log(`📊 Regular repo - using standard batch splitting`);
@@ -400,7 +399,7 @@ export default function EnterpriseAnalysisPage() {
       
       console.log(`🔧 Batch splitting strategy:`, {
         originalBatch: originalBatchNumber,
-        strategy: isVibeCodedRepo ? 'MICRO (vibe-coded)' : 'STANDARD (normal)',
+        strategy: isVibeCodedRepo ? 'ULTRA-MICRO (vibe-coded)' : 'STANDARD (normal)',
         subBatches: subBatches.length,
         filesPerSubBatch: subBatches[0]?.size
       });
@@ -419,8 +418,8 @@ export default function EnterpriseAnalysisPage() {
           const subBatchNumber = parseFloat(`${originalBatchNumber}.${i + 1}`);
           
           const controller = new AbortController();
-          // 🎯 ADAPTIVE TIMEOUTS: Longer timeouts for vibe-coded repos with massive files
-          const timeoutDuration = batchType === 'micro' ? 180000 : 120000; // 3 minutes for micro, 2 minutes for standard
+          // 🎯 MOLECULAR STRATEGY: Keep timeouts SHORT but batches TINY for massive files
+          const timeoutDuration = batchType === 'ultra-micro' ? 28000 : 120000; // 28s for ultra-micro, 2min for standard
           const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
           
           console.log(`⏱️ Using ${timeoutDuration / 1000}s timeout for ${batchType} batch`);
@@ -428,8 +427,8 @@ export default function EnterpriseAnalysisPage() {
           // 🎯 UPDATE UI STATUS for different batch types
           setStatus(prev => ({
             ...prev,
-            currentFile: batchType === 'micro' ? 
-              `Processing micro-batch ${i + 1}/${subBatches.length} (handling massive files)...` :
+            currentFile: batchType === 'ultra-micro' ? 
+              `Processing molecular batch ${i + 1}/${subBatches.length} (${subBatch.size} files, 28s timeout)...` :
               `Processing sub-batch ${i + 1}/${subBatches.length} (${subBatch.size} files)...`
           }));
           
@@ -466,8 +465,8 @@ export default function EnterpriseAnalysisPage() {
               // 🎯 UPDATE UI STATUS with success message
               setStatus(prev => ({
                 ...prev,
-                currentFile: batchType === 'micro' ? 
-                  `✅ Micro-batch ${i + 1}/${subBatches.length} complete: ${issueCount} issues (massive files handled)` :
+                currentFile: batchType === 'ultra-micro' ? 
+                  `✅ Molecular batch ${i + 1}/${subBatches.length} complete: ${issueCount} issues (28s)` :
                   `✅ Sub-batch ${i + 1}/${subBatches.length} complete: ${issueCount} issues`
               }));
               
@@ -475,20 +474,20 @@ export default function EnterpriseAnalysisPage() {
               console.warn(`⚠️ ${batchType.toUpperCase()} sub-batch ${i + 1} failed:`, data.error);
               setStatus(prev => ({
                 ...prev,
-                currentFile: `⚠️ ${batchType === 'micro' ? 'Micro-batch' : 'Sub-batch'} ${i + 1} failed: ${data.error}`
+                currentFile: `⚠️ ${batchType === 'ultra-micro' ? 'Molecular batch' : 'Sub-batch'} ${i + 1} failed: ${data.error}`
               }));
             }
           } else {
             console.warn(`⚠️ ${batchType.toUpperCase()} sub-batch ${i + 1} HTTP error: ${response.status}`);
             setStatus(prev => ({
               ...prev,
-              currentFile: `⚠️ ${batchType === 'micro' ? 'Micro-batch' : 'Sub-batch'} ${i + 1} HTTP error: ${response.status}`
+              currentFile: `⚠️ ${batchType === 'ultra-micro' ? 'Molecular batch' : 'Sub-batch'} ${i + 1} HTTP error: ${response.status}`
             }));
           }
           
-          // 🎯 ADAPTIVE DELAYS: Longer delays for massive file processing
+          // 🎯 MOLECULAR DELAYS: Short delays for rapid processing
           if (i < subBatches.length - 1) {
-            const delayTime = batchType === 'micro' ? 3000 : 2000; // 3s for micro, 2s for standard
+            const delayTime = batchType === 'ultra-micro' ? 1000 : 2000; // 1s for molecular, 2s for standard
             console.log(`⏳ Waiting ${delayTime / 1000}s before next ${batchType} batch...`);
             await new Promise(resolve => setTimeout(resolve, delayTime));
           }
@@ -500,7 +499,7 @@ export default function EnterpriseAnalysisPage() {
       }
       
       const successMessage = isVibeCodedRepo ? 
-        `${overallSuccess ? '✅' : '❌'} MICRO batch splitting complete for vibe-coded repo` :
+        `${overallSuccess ? '✅' : '❌'} MOLECULAR batch splitting complete for vibe-coded repo` :
         `${overallSuccess ? '✅' : '❌'} Standard batch splitting complete`;
       
       console.log(successMessage);
@@ -509,8 +508,8 @@ export default function EnterpriseAnalysisPage() {
       setStatus(prev => ({
         ...prev,
         currentFile: overallSuccess ? 
-          `✅ Batch ${originalBatchNumber} completed with ${isVibeCodedRepo ? 'micro' : 'standard'} splitting strategy` :
-          `⚠️ Batch ${originalBatchNumber} failed even with ${isVibeCodedRepo ? 'micro' : 'standard'} splitting`
+          `✅ Batch ${originalBatchNumber} completed with ${isVibeCodedRepo ? 'molecular' : 'standard'} splitting strategy` :
+          `⚠️ Batch ${originalBatchNumber} failed even with ${isVibeCodedRepo ? 'molecular' : 'standard'} splitting`
       }));
       
       return overallSuccess;
