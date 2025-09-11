@@ -320,24 +320,24 @@ export default function EnterpriseAnalysisPage() {
         'apache', 'nodejs', 'rust-lang', 'golang', 'dotnet'
       ].some(org => `${owner}/${repo}`.toLowerCase().includes(org))
 
-      // 🎯 FORCE ALL REPOS TO USE BATCHED ANALYSIS (the working process)
-      const shouldBatch = true // Always use the proven batched analysis process
+      // 🎯 SMART BATCHING: Only batch truly large repos, let small repos use fast regex-only processing
+      const shouldBatch = sizeThreshold || (popularRepo && knownLargeLanguages) || knownMassive
       
-      console.log(`🤖 Batching decision: FORCED TRUE (all repos use batched analysis)`, {
+      console.log(`🤖 Batching decision: SMART ROUTING`, {
         sizeThreshold,
         popularRepo,
         knownLargeLanguages,
         knownMassive,
-        originalDecision: sizeThreshold || (popularRepo && knownLargeLanguages) || knownMassive,
-        finalDecision: shouldBatch
+        finalDecision: shouldBatch,
+        reasoning: shouldBatch ? 'LARGE REPO → Batched analysis' : 'SMALL REPO → Simple regex-only analysis'
       })
 
       return shouldBatch
 
     } catch (error) {
       console.error('❌ Size check failed:', error)
-      // 🎯 FORCE BATCHED ANALYSIS even if size check fails (the working process)
-      return true
+      // Default to simple analysis for unknown repos (fast regex-only)
+      return false
     }
   }
 
@@ -373,19 +373,19 @@ export default function EnterpriseAnalysisPage() {
       let subBatches;
       
       if (isVibeCodedRepo) {
-        // 🎯 VIBE-CODED STRATEGY: Split into ULTRA-MICRO batches for massive files
-        console.log(`🧠 Detected vibe-coded repo - using ULTRA-MICRO batch strategy`);
-        const microBatchSize = Math.max(Math.floor(filesPerBatch / 16), 5); // 12-13 files max, minimum 5
-        // Create 16 ultra-micro batches for extreme cases
+        // 🎯 VIBE-CODED STRATEGY: Split into NANO batches for massive files
+        console.log(`🧠 Detected vibe-coded repo - using NANO batch strategy`);
+        const nanoBatchSize = 1; // NANO: Only 1 file per batch for extreme cases
+        // Create batches for each individual file
         subBatches = [];
-        for (let j = 0; j < 16; j++) {
+        for (let j = 0; j < Math.min(filesPerBatch, 50); j++) { // Max 50 nano batches
           subBatches.push({
-            start: startFile + (j * microBatchSize),
-            size: microBatchSize,
-            type: 'ultra-micro'
+            start: startFile + j,
+            size: nanoBatchSize,
+            type: 'nano'
           });
         }
-        console.log(`📦 ULTRA-MICRO BATCHING: Splitting into ${subBatches.length} ultra-micro-batches of ${microBatchSize} files each`);
+        console.log(`📦 NANO BATCHING: Splitting into ${subBatches.length} nano-batches of ${nanoBatchSize} file each`);
       } else {
         // 🎯 NORMAL STRATEGY: Split into smaller batches for regular repos
         console.log(`📊 Regular repo - using standard batch splitting`);
@@ -399,7 +399,7 @@ export default function EnterpriseAnalysisPage() {
       
       console.log(`🔧 Batch splitting strategy:`, {
         originalBatch: originalBatchNumber,
-        strategy: isVibeCodedRepo ? 'ULTRA-MICRO (vibe-coded)' : 'STANDARD (normal)',
+        strategy: isVibeCodedRepo ? 'NANO (vibe-coded)' : 'STANDARD (normal)',
         subBatches: subBatches.length,
         filesPerSubBatch: subBatches[0]?.size
       });
@@ -418,8 +418,8 @@ export default function EnterpriseAnalysisPage() {
           const subBatchNumber = parseFloat(`${originalBatchNumber}.${i + 1}`);
           
           const controller = new AbortController();
-          // 🎯 MOLECULAR STRATEGY: Keep timeouts SHORT but batches TINY for massive files
-          const timeoutDuration = batchType === 'ultra-micro' ? 28000 : 120000; // 28s for ultra-micro, 2min for standard
+          // 🎯 NANO STRATEGY: Super short timeouts for single-file batches
+          const timeoutDuration = batchType === 'nano' ? 20000 : 120000; // 20s for nano, 2min for standard
           const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
           
           console.log(`⏱️ Using ${timeoutDuration / 1000}s timeout for ${batchType} batch`);
@@ -820,12 +820,11 @@ export default function EnterpriseAnalysisPage() {
       const needsBatching = await shouldUseBatching(owner, repo)
 
       if (needsBatching) {
-        console.log('🔄 ALL REPOS - Using proven batched analysis strategy')
+        console.log('🔄 LARGE REPO - Using batched analysis strategy')
         await startBatchedAnalysis(owner, repo)
       } else {
-        // This should never happen now, but keeping as fallback
-        console.log('🔄 FALLBACK - Using batched analysis (forced)')
-        await startBatchedAnalysis(owner, repo)
+        console.log('🔄 SMALL REPO - Using fast regex-only analysis')
+        await startSimpleAnalysis(owner, repo)
       }
       
     } catch (error) {
