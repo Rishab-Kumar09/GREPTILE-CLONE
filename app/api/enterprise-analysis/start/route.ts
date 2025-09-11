@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json()
-    const { owner, repo, batchNumber, fullRepoAnalysis } = body
+    const { owner, repo, batchNumber, fullRepoAnalysis, regexOnly } = body
     
     if (!owner || !repo) {
       return NextResponse.json(
@@ -151,13 +151,13 @@ export async function POST(request: NextRequest) {
     const repoUrl = `https://github.com/${owner}/${repo}.git`
     
     console.log('🚀 Calling Lambda with file batching:', lambdaUrl)
-    console.log('📦 Payload:', { repoUrl, analysisId, batchNumber, fullRepoAnalysis })
+    console.log('📦 Payload:', { repoUrl, analysisId, batchNumber, fullRepoAnalysis, regexOnly })
     
     try {
       const response = await fetch(lambdaUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repoUrl, analysisId, batchNumber, fullRepoAnalysis })
+        body: JSON.stringify({ repoUrl, analysisId, batchNumber, fullRepoAnalysis, regexOnly })
       })
       
       console.log(`📡 Lambda response status: ${response.status}`)

@@ -1,0 +1,38 @@
+[1mdiff --git a/lambda-function-enhanced.js b/lambda-function-enhanced.js[m
+[1mindex 9eebcc3..555c36d 100644[m
+[1m--- a/lambda-function-enhanced.js[m
+[1m+++ b/lambda-function-enhanced.js[m
+[36m@@ -4935,7 +4935,7 @@[m [mfunction checkStrictLowPriorityIssues(content, filePath) {[m
+ export const handler = async (event) => {[m
+   console.log('🤖 CLEAN Lambda analyzer started:', JSON.stringify(event));[m
+   [m
+[31m-  var { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false } = JSON.parse(event.body || '{}');[m
+[32m+[m[32m  var { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false, regexOnly = false } = JSON.parse(event.body || '{}');[m
+   [m
+   if (!repoUrl || !analysisId) {[m
+     return {[m
+[36m@@ -5138,8 +5138,8 @@[m [mexport const handler = async (event) => {[m
+       console.log(`🔥 EDGE CASE DETECTED: Processing ${analysisStrategy.massiveFiles.length} massive files with special handling...`);[m
+       aiDeepIssues = await handleMassiveFilesEdgeCase(analysisStrategy.massiveFiles, tempDir);[m
+     }[m
+[31m-    // 🧠 NORMAL CASE: Standard AI analysis[m
+[31m-    else if (analysisStrategy.critical && analysisStrategy.critical.length > 0) {[m
+[32m+[m[32m    // 🧠 NORMAL CASE: Standard AI analysis (skip if regexOnly flag is set)[m
+[32m+[m[32m    else if (analysisStrategy.critical && analysisStrategy.critical.length > 0 && !regexOnly) {[m
+       console.log(`🧠 Starting DEDICATED AI ANALYSIS of ${analysisStrategy.critical.length} critical files...`);[m
+       [m
+       try {[m
+[36m@@ -5212,7 +5212,12 @@[m [mexport const handler = async (event) => {[m
+       } catch (aiError) {[m
+         console.warn(`⚠️ Dedicated AI Analysis failed:`, aiError.message);[m
+       }[m
+[31m-    } else {[m
+[32m+[m[32m    }[m[41m [m
+[32m+[m[32m    // 🎯 REGEX-ONLY MODE: Skip AI analysis for small repos[m
+[32m+[m[32m    else if (regexOnly && analysisStrategy.critical && analysisStrategy.critical.length > 0) {[m
+[32m+[m[32m      console.log(`🎯 REGEX-ONLY MODE: Skipping AI analysis for ${analysisStrategy.critical.length} critical files (small repo optimization)`);[m
+[32m+[m[32m    }[m
+[32m+[m[32m    else {[m
+       console.log(`⚠️ Skipping AI Deep Analysis: No critical files found`);[m
+     }[m
+     [m
