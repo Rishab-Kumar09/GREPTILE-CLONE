@@ -343,7 +343,7 @@ export default function EnterpriseAnalysisPage() {
 
 
 
-  // 🔄 BATCH SPLITTING STRATEGY: Retry failed batches with smaller chunks
+  // 🔄 ADAPTIVE BATCH SPLITTING STRATEGY: Handle both normal repos AND massive-file repos
   const retryWithSmallerBatches = async (
     owner: string, 
     repo: string, 
@@ -351,27 +351,67 @@ export default function EnterpriseAnalysisPage() {
     allResults: AnalysisResult[], 
     setTotalIssues: (callback: (prev: number) => number) => void
   ): Promise<boolean> => {
-    console.log(`🔄 Attempting to split batch ${originalBatchNumber} into smaller chunks...`);
+    console.log(`🔄 Attempting ADAPTIVE batch splitting for batch ${originalBatchNumber}...`);
     
     try {
-      // Calculate the file range for the original batch (200 files per batch)
+      // 🧠 DETECT REPO TYPE: Check if this is a "vibe-coded" repo (few files, massive content)
+      const repoInfo = await fetch(`https://api.github.com/repos/${owner}/${repo}`).then(r => r.json()).catch(() => ({}));
+      const isVibeCodedRepo = repoInfo.size && repoInfo.size < 10000 && // Small repo size (<10MB)
+                              (repo.toLowerCase().includes('jarvis') || 
+                               repo.toLowerCase().includes('monolith') ||
+                               repo.toLowerCase().includes('single'));
+      
+      console.log(`🎯 Repo analysis:`, {
+        repoSize: `${Math.round((repoInfo.size || 0) / 1024)}MB`,
+        isVibeCodedRepo,
+        repoName: `${owner}/${repo}`
+      });
+      
       const filesPerBatch = 200;
       const startFile = (originalBatchNumber - 1) * filesPerBatch;
       
-      // Split into 2 smaller batches (100 files each)
-      const smallerBatchSize = Math.floor(filesPerBatch / 2);
-      const subBatches = [
-        { start: startFile, size: smallerBatchSize },
-        { start: startFile + smallerBatchSize, size: smallerBatchSize }
-      ];
+      let subBatches;
       
-      console.log(`📦 Splitting batch ${originalBatchNumber} into ${subBatches.length} smaller batches of ${smallerBatchSize} files each`);
+      if (isVibeCodedRepo) {
+        // 🎯 VIBE-CODED STRATEGY: Split into MICRO batches for massive files
+        console.log(`🧠 Detected vibe-coded repo - using MICRO batch strategy`);
+        const microBatchSize = Math.max(Math.floor(filesPerBatch / 8), 10); // 25 files max, minimum 10
+        subBatches = [
+          { start: startFile, size: microBatchSize, type: 'micro' },
+          { start: startFile + microBatchSize, size: microBatchSize, type: 'micro' },
+          { start: startFile + (microBatchSize * 2), size: microBatchSize, type: 'micro' },
+          { start: startFile + (microBatchSize * 3), size: microBatchSize, type: 'micro' },
+          { start: startFile + (microBatchSize * 4), size: microBatchSize, type: 'micro' },
+          { start: startFile + (microBatchSize * 5), size: microBatchSize, type: 'micro' },
+          { start: startFile + (microBatchSize * 6), size: microBatchSize, type: 'micro' },
+          { start: startFile + (microBatchSize * 7), size: microBatchSize, type: 'micro' }
+        ];
+        console.log(`📦 MICRO BATCHING: Splitting into ${subBatches.length} micro-batches of ${microBatchSize} files each`);
+      } else {
+        // 🎯 NORMAL STRATEGY: Split into smaller batches for regular repos
+        console.log(`📊 Regular repo - using standard batch splitting`);
+        const smallerBatchSize = Math.floor(filesPerBatch / 2);
+        subBatches = [
+          { start: startFile, size: smallerBatchSize, type: 'standard' },
+          { start: startFile + smallerBatchSize, size: smallerBatchSize, type: 'standard' }
+        ];
+        console.log(`📦 STANDARD SPLITTING: Splitting into ${subBatches.length} smaller batches of ${smallerBatchSize} files each`);
+      }
+      
+      console.log(`🔧 Batch splitting strategy:`, {
+        originalBatch: originalBatchNumber,
+        strategy: isVibeCodedRepo ? 'MICRO (vibe-coded)' : 'STANDARD (normal)',
+        subBatches: subBatches.length,
+        filesPerSubBatch: subBatches[0]?.size
+      });
       
       let overallSuccess = false;
       
       for (let i = 0; i < subBatches.length; i++) {
         const subBatch = subBatches[i];
-        console.log(`🔄 Processing sub-batch ${i + 1}/${subBatches.length} (files ${subBatch.start}-${subBatch.start + subBatch.size})`);
+        const batchType = subBatch.type || 'standard';
+        
+        console.log(`🔄 Processing ${batchType} sub-batch ${i + 1}/${subBatches.length} (files ${subBatch.start}-${subBatch.start + subBatch.size})`);
         
         try {
           // Use a special batch number to indicate this is a sub-batch
@@ -379,7 +419,19 @@ export default function EnterpriseAnalysisPage() {
           const subBatchNumber = parseFloat(`${originalBatchNumber}.${i + 1}`);
           
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout for smaller batches
+          // 🎯 ADAPTIVE TIMEOUTS: Longer timeouts for vibe-coded repos with massive files
+          const timeoutDuration = batchType === 'micro' ? 180000 : 120000; // 3 minutes for micro, 2 minutes for standard
+          const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
+          
+          console.log(`⏱️ Using ${timeoutDuration / 1000}s timeout for ${batchType} batch`);
+          
+          // 🎯 UPDATE UI STATUS for different batch types
+          setStatus(prev => ({
+            ...prev,
+            currentFile: batchType === 'micro' ? 
+              `Processing micro-batch ${i + 1}/${subBatches.length} (handling massive files)...` :
+              `Processing sub-batch ${i + 1}/${subBatches.length} (${subBatch.size} files)...`
+          }));
           
           const response = await fetch('/api/enterprise-analysis/start', {
             method: 'POST',
@@ -389,7 +441,7 @@ export default function EnterpriseAnalysisPage() {
               repo, 
               batchNumber: subBatchNumber,
               fullRepoAnalysis: true,
-              customBatchSize: smallerBatchSize, // Tell Lambda to use smaller batch size
+              customBatchSize: subBatch.size, // Tell Lambda to use smaller batch size
               customStartIndex: subBatch.start    // Tell Lambda where to start
             }),
             signal: controller.signal
@@ -400,7 +452,8 @@ export default function EnterpriseAnalysisPage() {
           if (response.ok) {
             const data = await response.json();
             if (data.success) {
-              console.log(`✅ Sub-batch ${i + 1} successful: ${data.results?.length || 0} issues found`);
+              const issueCount = data.results?.length || 0;
+              console.log(`✅ ${batchType.toUpperCase()} sub-batch ${i + 1} successful: ${issueCount} issues found`);
               
               // Add results to main collection
               if (data.results && data.results.length > 0) {
@@ -409,16 +462,35 @@ export default function EnterpriseAnalysisPage() {
               }
               
               overallSuccess = true;
+              
+              // 🎯 UPDATE UI STATUS with success message
+              setStatus(prev => ({
+                ...prev,
+                currentFile: batchType === 'micro' ? 
+                  `✅ Micro-batch ${i + 1}/${subBatches.length} complete: ${issueCount} issues (massive files handled)` :
+                  `✅ Sub-batch ${i + 1}/${subBatches.length} complete: ${issueCount} issues`
+              }));
+              
             } else {
-              console.warn(`⚠️ Sub-batch ${i + 1} failed:`, data.error);
+              console.warn(`⚠️ ${batchType.toUpperCase()} sub-batch ${i + 1} failed:`, data.error);
+              setStatus(prev => ({
+                ...prev,
+                currentFile: `⚠️ ${batchType === 'micro' ? 'Micro-batch' : 'Sub-batch'} ${i + 1} failed: ${data.error}`
+              }));
             }
           } else {
-            console.warn(`⚠️ Sub-batch ${i + 1} HTTP error: ${response.status}`);
+            console.warn(`⚠️ ${batchType.toUpperCase()} sub-batch ${i + 1} HTTP error: ${response.status}`);
+            setStatus(prev => ({
+              ...prev,
+              currentFile: `⚠️ ${batchType === 'micro' ? 'Micro-batch' : 'Sub-batch'} ${i + 1} HTTP error: ${response.status}`
+            }));
           }
           
-          // Small delay between sub-batches
+          // 🎯 ADAPTIVE DELAYS: Longer delays for massive file processing
           if (i < subBatches.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            const delayTime = batchType === 'micro' ? 3000 : 2000; // 3s for micro, 2s for standard
+            console.log(`⏳ Waiting ${delayTime / 1000}s before next ${batchType} batch...`);
+            await new Promise(resolve => setTimeout(resolve, delayTime));
           }
           
         } catch (subBatchError) {
@@ -427,10 +499,28 @@ export default function EnterpriseAnalysisPage() {
         }
       }
       
+      const successMessage = isVibeCodedRepo ? 
+        `${overallSuccess ? '✅' : '❌'} MICRO batch splitting complete for vibe-coded repo` :
+        `${overallSuccess ? '✅' : '❌'} Standard batch splitting complete`;
+      
+      console.log(successMessage);
+      
+      // 🎯 FINAL UI STATUS UPDATE
+      setStatus(prev => ({
+        ...prev,
+        currentFile: overallSuccess ? 
+          `✅ Batch ${originalBatchNumber} completed with ${isVibeCodedRepo ? 'micro' : 'standard'} splitting strategy` :
+          `⚠️ Batch ${originalBatchNumber} failed even with ${isVibeCodedRepo ? 'micro' : 'standard'} splitting`
+      }));
+      
       return overallSuccess;
       
     } catch (error) {
-      console.error(`❌ Batch splitting failed for batch ${originalBatchNumber}:`, error);
+      console.error(`❌ ADAPTIVE batch splitting failed for batch ${originalBatchNumber}:`, error);
+      setStatus(prev => ({
+        ...prev,
+        currentFile: `❌ Batch ${originalBatchNumber} splitting failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }));
       return false;
     }
   };
