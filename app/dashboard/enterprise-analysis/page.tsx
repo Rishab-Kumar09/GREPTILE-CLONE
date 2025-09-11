@@ -746,15 +746,28 @@ export default function EnterpriseAnalysisPage() {
       currentFile: 'Analyzing repository...'
     }))
 
-    console.log('🔄 Making simple analysis API request...')
-    const response = await fetch('/api/enterprise-analysis/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ owner, repo })
-    })
+    try {
+      console.log('🔄 Making simple REGEX-ONLY analysis API request with timeout...')
+      
+      // 🎯 UI-ONLY TIMEOUT: Give up after 25 seconds for small repos
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+      
+      const response = await fetch('/api/enterprise-analysis/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          owner, 
+          repo,
+          analysisId: uuid() // Regular analysis ID
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
 
-    const data = await response.json()
-    console.log('📡 Simple analysis response:', data)
+      const data = await response.json()
+      console.log('📡 Simple analysis response:', data)
 
     if (data.success) {
       setAnalysisId(data.analysisId)
@@ -793,6 +806,25 @@ export default function EnterpriseAnalysisPage() {
         currentFile: `Error: ${data.error}`,
         results: []
       })
+    }
+    
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.warn('⏰ Simple analysis timed out after 25 seconds - this indicates Lambda is doing AI analysis even for small repos');
+        setStatus({
+          status: 'failed',
+          progress: 0,
+          currentFile: 'Analysis timed out - Lambda is doing unnecessary AI analysis for small repo. Regex patterns should be sufficient for repos like this.',
+          results: []
+        })
+      } else {
+        setStatus({
+          status: 'failed',
+          progress: 0,
+          currentFile: `Error: ${error.message}`,
+          results: []
+        })
+      }
     }
     
     setIsAnalyzing(false)
