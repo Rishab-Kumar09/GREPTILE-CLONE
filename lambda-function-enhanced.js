@@ -5467,7 +5467,7 @@ async function sendContextToSession(sessionContext) {
   if (!sessionContext) return;
   
   try {
-    const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/chat/session-context`, {
+    const response = await fetch(`${process.env.NEXTAUTH_URL || 'https://master.d3dp89x98knsw0.amplifyapp.com'}/api/chat/session-context`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sessionContext),
