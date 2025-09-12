@@ -84,7 +84,6 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
     if (pathname === '/dashboard') return 'dashboard'
     if (pathname.startsWith('/dashboard/repositories')) return 'repositories'
     if (pathname.startsWith('/dashboard/reviews')) return 'reviews'
-    if (pathname.startsWith('/dashboard/enterprise-analysis-2')) return 'enterprise-analysis-2'
     if (pathname.startsWith('/dashboard/enterprise-analysis')) return 'enterprise-analysis'
     if (pathname.startsWith('/dashboard/settings')) return 'settings'
     if (pathname.startsWith('/setup')) return 'setup'
@@ -135,12 +134,6 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
               className={activePage === 'enterprise-analysis' ? 'text-primary-600 font-medium' : 'text-gray-600 hover:text-gray-900'}
             >
               🚀 Enterprise
-            </Link>
-            <Link 
-              href="/dashboard/enterprise-analysis-2" 
-              className={activePage === 'enterprise-analysis-2' ? 'text-primary-600 font-medium' : 'text-gray-600 hover:text-gray-900'}
-            >
-              🧠 Enterprise 2
             </Link>
             <Link 
               href="/dashboard/settings" 
