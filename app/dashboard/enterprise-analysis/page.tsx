@@ -242,17 +242,41 @@ export default function EnterpriseAnalysisPage() {
     try {
       const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
       
-      const response = await fetch('/api/chat/repository', {
+      // 🧠 TRY INTELLIGENT SESSION-BASED CHAT FIRST
+      const intelligentResponse = await fetch('/api/chat/intelligent-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: message.trim(),
           repository: `${owner}/${repo}`,
+          sessionId: analysisId, // Use analysis ID as session ID
+          analysisResults: {
+            totalIssues: status.results.length,
+            criticalIssues: status.results.filter(r => r.severity === 'critical').length,
+            categories: Array.from(new Set(status.results.map(r => r.type)))
+          },
           chatHistory: chatMessages.slice(-10) // Keep recent chat history for context
         })
       })
 
-      const data = await response.json()
+      let data = await intelligentResponse.json()
+
+      // 🔄 FALLBACK: If session context not available, use regular chat
+      if (!intelligentResponse.ok && intelligentResponse.status === 404) {
+        console.log('🔄 Session context not available, falling back to regular chat')
+        
+        const fallbackResponse = await fetch('/api/chat/repository', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message.trim(),
+            repository: `${owner}/${repo}`,
+            chatHistory: chatMessages.slice(-10)
+          })
+        })
+        
+        data = await fallbackResponse.json()
+      }
 
       if (data.success) {
         const aiMessage: ChatMessage = {
@@ -263,6 +287,11 @@ export default function EnterpriseAnalysisPage() {
           citations: data.citations || []
         }
         setChatMessages(prev => [...prev, aiMessage])
+        
+        // 🧠 Log context usage if available
+        if (data.contextUsed) {
+          console.log('🧠 Intelligent chat used context:', data.contextUsed)
+        }
       } else {
         throw new Error(data.error || 'Failed to get AI response')
       }
@@ -1371,6 +1400,21 @@ export default function EnterpriseAnalysisPage() {
             
             {/* Chat Input */}
             <div className="p-4 border-t border-gray-200">
+              {/* 🧠 Context Indicator */}
+              {analysisId && status.results.length > 0 && (
+                <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-blue-600">🧠</span>
+                    <span className="text-sm text-blue-700 font-medium">
+                      Intelligent Context Active
+                    </span>
+                    <span className="text-xs text-blue-600">
+                      • Complete repository knowledge • {status.results.length} issues analyzed
+                    </span>
+                  </div>
+                </div>
+              )}
+              
               <div className="flex space-x-2">
                 <input
                   type="text"
@@ -1381,7 +1425,7 @@ export default function EnterpriseAnalysisPage() {
                       sendChatMessage(chatInput)
                     }
                   }}
-                  placeholder="Ask about this code... (e.g., 'How does authentication work?')"
+                  placeholder={analysisId ? "Ask anything about this repository... (e.g., 'How does authentication work?', 'What functions call getUserData?')" : "Ask about this code... (e.g., 'How does authentication work?')"}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
                   disabled={chatLoading}
                 />
@@ -1394,7 +1438,11 @@ export default function EnterpriseAnalysisPage() {
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                💡 Try: "Fix the bug at line 1" or "How to resolve the security issue?" or "Show me exact code replacement"
+                {analysisId ? (
+                  <>💡 Try: "What functions are in auth.js?" or "Show me all database connections" or "How do components communicate?"</>
+                ) : (
+                  <>💡 Try: "Fix the bug at line 1" or "How to resolve the security issue?" or "Show me exact code replacement"</>
+                )}
               </p>
             </div>
           </div>
