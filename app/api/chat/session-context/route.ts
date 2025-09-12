@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('❌ Failed to store session context:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('❌ Failed to get session context:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }
 
@@ -136,6 +136,6 @@ export async function PUT(request: NextRequest) {
     })
   } catch (error) {
     console.error('❌ Failed to check session context:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }
