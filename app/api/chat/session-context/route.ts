@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Global type declaration for session contexts
+declare global {
+  var sessionContexts: Map<string, any> | undefined
+}
+
 // Session-based context storage (auto-cleanup)
 export async function POST(request: NextRequest) {
   try {

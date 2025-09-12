@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
+// Global type declaration for session contexts
+declare global {
+  var sessionContexts: Map<string, any> | undefined
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
@@ -82,7 +87,7 @@ function buildEnhancedContext(repoContext: any, analysisResults: any, userMessag
     architecture: {
       frameworks: repoContext.architecture.frameworks,
       totalFiles: Object.keys(repoContext.files).length,
-      languages: [...new Set(Object.values(repoContext.files).map((f: any) => f.language))],
+      languages: Array.from(new Set(Object.values(repoContext.files).map((f: any) => f.language))),
       keyFiles: getKeyFiles(repoContext.files)
     },
     codeIntelligence: {
@@ -133,9 +138,9 @@ function getKeyFiles(files: any) {
 // Find relevant code based on user message
 function findRelevantCode(repoContext: any, userMessage: string) {
   const relevantCode = {
-    files: [],
-    functions: [],
-    relationships: []
+    files: [] as any[],
+    functions: [] as any[],
+    relationships: [] as any[]
   }
   
   const messageLower = userMessage.toLowerCase()
