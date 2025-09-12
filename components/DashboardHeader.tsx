@@ -133,7 +133,7 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
               href="/dashboard/enterprise-analysis" 
               className={activePage === 'enterprise-analysis' ? 'text-primary-600 font-medium' : 'text-gray-600 hover:text-gray-900'}
             >
-              🚀 Enterprise
+              ⚡ Quick Analysis
             </Link>
             <Link 
               href="/dashboard/settings" 

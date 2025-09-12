@@ -996,8 +996,8 @@ export default function EnterpriseAnalysisPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-            <span className="text-2xl">🚀</span>
-            Enterprise Code Analysis
+            <span className="text-2xl">⚡</span>
+            Quick Analysis
           </h1>
           <p className="text-gray-600">
             Competitor-inspired analysis: Incremental, Priority-based, and Streaming Results
