@@ -4985,6 +4985,9 @@ export const handler = async (event) => {
     try {
       execSync(cloneCmd, { stdio: 'pipe' });
       console.log('✅ Shallow clone successful');
+      
+      // 🧠 TRIGGER SESSION CONTEXT BUILDER (Non-blocking, parallel)
+      triggerSessionContextBuilder(tempDir, repoUrl, analysisId);
     } catch (cloneError) {
       console.error('❌ Git clone failed:', cloneError.message);
       console.error('📋 Failed command:', cloneCmd);
@@ -5269,3 +5272,214 @@ export const handler = async (event) => {
     }
   }
 };
+
+// 🧠 SESSION CONTEXT BUILDER (Non-blocking, for chat intelligence)
+function triggerSessionContextBuilder(tempDir, repoUrl, analysisId) {
+  // Non-blocking - doesn't affect Lambda analysis performance
+  setImmediate(async () => {
+    try {
+      console.log('🧠 Building session context for chat (parallel)...');
+      const sessionContext = await buildSessionContext(tempDir, repoUrl, analysisId);
+      await sendContextToSession(sessionContext);
+      console.log('✅ Session context ready for chat');
+    } catch (error) {
+      console.warn('⚠️ Session context builder failed (non-critical):', error.message);
+      // Failure doesn't affect main analysis
+    }
+  });
+}
+
+// Build lightweight session context
+async function buildSessionContext(tempDir, repoUrl, analysisId) {
+  const startTime = Date.now();
+  
+  try {
+    const allFiles = await findCodeFiles(tempDir);
+    console.log(`📊 Session context: Processing ${allFiles.length} files...`);
+    
+    const sessionContext = {
+      repository: repoUrl.replace('https://github.com/', '').replace('.git', ''),
+      analysisId,
+      sessionId: `session-${analysisId}`,
+      timestamp: Date.now(),
+      files: {},
+      symbols: { functions: {}, classes: {}, variables: {}, imports: {}, exports: {} },
+      relationships: [],
+      architecture: { frameworks: [], patterns: [] }
+    };
+    
+    // Process files efficiently (limit to prevent timeout)
+    const importantFiles = allFiles.slice(0, 50); // Limit for performance
+    
+    for (const file of importantFiles) {
+      try {
+        const content = await fs.readFile(file, 'utf-8');
+        const relativePath = path.relative(tempDir, file);
+        const lines = content.split('\n');
+        
+        // Extract essential intelligence
+        const intelligence = extractFileIntelligence(content, relativePath);
+        
+        sessionContext.files[relativePath] = {
+          path: relativePath,
+          size: content.length,
+          lines: lines.length,
+          language: intelligence.language,
+          functions: intelligence.functions,
+          imports: intelligence.imports,
+          exports: intelligence.exports
+        };
+        
+        // Build symbol maps
+        intelligence.functions.forEach(func => {
+          if (!sessionContext.symbols.functions[func.name]) {
+            sessionContext.symbols.functions[func.name] = [];
+          }
+          sessionContext.symbols.functions[func.name].push({
+            file: relativePath,
+            line: func.line
+          });
+        });
+        
+      } catch (error) {
+        // Skip problematic files, don't break the process
+        continue;
+      }
+    }
+    
+    // Build relationships
+    sessionContext.relationships = buildBasicRelationships(sessionContext.symbols);
+    
+    // Detect frameworks
+    sessionContext.architecture.frameworks = detectBasicFrameworks(sessionContext.files);
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`✅ Session context built in ${elapsed}ms`);
+    
+    return sessionContext;
+    
+  } catch (error) {
+    console.error('❌ Session context error:', error);
+    return null;
+  }
+}
+
+// Extract basic file intelligence
+function extractFileIntelligence(content, filePath) {
+  const lines = content.split('\n');
+  const intelligence = {
+    language: getLanguageFromPath(filePath),
+    functions: [],
+    imports: [],
+    exports: []
+  };
+  
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    
+    // Extract functions
+    const funcMatch = trimmed.match(/(?:function\s+(\w+)|const\s+(\w+)\s*=.*?=>)/);
+    if (funcMatch) {
+      intelligence.functions.push({
+        name: funcMatch[1] || funcMatch[2],
+        line: index + 1
+      });
+    }
+    
+    // Extract imports
+    const importMatch = trimmed.match(/import.*?from\s+['"]([^'"]+)['"]/);
+    if (importMatch) {
+      intelligence.imports.push({
+        from: importMatch[1],
+        line: index + 1
+      });
+    }
+    
+    // Extract exports
+    const exportMatch = trimmed.match(/export\s+(?:default\s+)?(\w+)/);
+    if (exportMatch) {
+      intelligence.exports.push({
+        name: exportMatch[1],
+        line: index + 1
+      });
+    }
+  });
+  
+  return intelligence;
+}
+
+// Get language from file path
+function getLanguageFromPath(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const langMap = {
+    '.js': 'javascript', '.jsx': 'javascript',
+    '.ts': 'typescript', '.tsx': 'typescript',
+    '.py': 'python', '.java': 'java',
+    '.cpp': 'cpp', '.c': 'c',
+    '.go': 'go', '.rs': 'rust'
+  };
+  return langMap[ext] || 'unknown';
+}
+
+// Build basic relationships
+function buildBasicRelationships(symbols) {
+  const relationships = [];
+  
+  Object.entries(symbols.functions).forEach(([funcName, locations]) => {
+    if (locations.length > 1) {
+      const definition = locations[0];
+      const usages = locations.slice(1);
+      
+      usages.forEach(usage => {
+        relationships.push({
+          type: 'calls',
+          from: usage.file,
+          to: definition.file,
+          symbol: funcName
+        });
+      });
+    }
+  });
+  
+  return relationships;
+}
+
+// Detect basic frameworks
+function detectBasicFrameworks(files) {
+  const frameworks = [];
+  const fileNames = Object.keys(files);
+  
+  if (fileNames.some(f => f.includes('package.json'))) {
+    frameworks.push('node.js');
+  }
+  if (fileNames.some(f => f.includes('App.js') || f.includes('App.tsx'))) {
+    frameworks.push('react');
+  }
+  if (fileNames.some(f => f.includes('requirements.txt'))) {
+    frameworks.push('python');
+  }
+  
+  return frameworks;
+}
+
+// Send context to session storage
+async function sendContextToSession(sessionContext) {
+  if (!sessionContext) return;
+  
+  try {
+    const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/chat/session-context`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sessionContext),
+      timeout: 5000 // 5 second timeout
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Session context API failed: ${response.status}`);
+    }
+    
+  } catch (error) {
+    console.warn('Failed to send session context (non-critical):', error.message);
+    // Don't throw - this is non-critical for main analysis
+  }
+}
