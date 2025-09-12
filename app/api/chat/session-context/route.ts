@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'sessionId or repository required' }, { status: 400 })
     }
     
-    const context = await getSessionContext(sessionId, repository)
+    const context = await getSessionContext(sessionId || undefined, repository || undefined)
     
     if (!context) {
       return NextResponse.json({ error: 'Session context not found' }, { status: 404 })
@@ -111,7 +111,7 @@ function cleanupExpiredSessions() {
   const now = Date.now()
   let cleanedCount = 0
   
-  for (const [key, session] of global.sessionContexts.entries()) {
+  for (const [key, session] of Array.from(global.sessionContexts.entries())) {
     if (session.expiresAt < now) {
       global.sessionContexts.delete(key)
       cleanedCount++
