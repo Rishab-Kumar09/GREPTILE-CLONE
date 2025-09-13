@@ -29,15 +29,15 @@ export async function POST(request: NextRequest) {
     
     console.log(`🧠 Intelligent chat request for ${repository}`)
     
-    // 🚀 DIRECT SOLUTION: Clone and analyze repository RIGHT HERE!
-    const repoContext = await cloneAndAnalyzeRepository(repository)
+    // Get stored repository context
+    const repoContext = await getStoredRepositoryContext(sessionId, repository)
     
     if (!repoContext) {
-      console.warn(`⚠️ Failed to get repository context for ${repository}`)
+      console.warn(`⚠️ No session context found for ${repository}`)
       return NextResponse.json({ 
-        error: 'Failed to analyze repository',
+        error: 'Repository context not available. Please run analysis first.',
         contextAvailable: false
-      }, { status: 500 })
+      }, { status: 404 })
     }
     
     console.log(`📊 Using context: ${Object.keys(repoContext.files).length} files, ${Object.keys(repoContext.symbols.functions).length} functions`)
