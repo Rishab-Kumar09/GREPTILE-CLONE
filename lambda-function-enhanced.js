@@ -5462,7 +5462,7 @@ async function sendContextToSession(sessionContext) {
     return;
   }
   
-  const url = `${process.env.NEXTAUTH_URL || 'https://master.d3dp89v98knsw0.amplifyapp.com'}/api/chat/session-context`;
+  const url = `${process.env.NEXTAUTH_URL || 'https://master.d3dp89x98knsw0.amplifyapp.com'}/api/chat/session-context`;
   console.log('📡 Sending context to:', url);
   console.log('📊 Context size:', JSON.stringify(sessionContext).length, 'bytes');
   
