@@ -10,8 +10,17 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
+// Test endpoint to verify route is working
+export async function GET() {
+  return NextResponse.json({ 
+    message: 'Intelligent session API is working!',
+    timestamp: new Date().toISOString()
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
+    console.log('🧠 Intelligent session API called')
     const { message, repository, sessionId, analysisResults, chatHistory } = await request.json()
     
     if (!message || !repository) {
