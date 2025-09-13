@@ -4986,8 +4986,16 @@ export const handler = async (event) => {
       execSync(cloneCmd, { stdio: 'pipe' });
       console.log('✅ Shallow clone successful');
       
-      // 🧠 TRIGGER SESSION CONTEXT BUILDER (Non-blocking, parallel)
-      triggerSessionContextBuilder(tempDir, repoUrl, analysisId);
+      // 🧠 BUILD SESSION CONTEXT IMMEDIATELY
+      console.log('🧠 Building session context for chat...');
+      try {
+        const sessionContext = await buildSessionContext(tempDir, repoUrl, analysisId);
+        await sendContextToSession(sessionContext);
+        console.log('✅ Session context ready for chat');
+      } catch (contextError) {
+        console.error('❌ Session context failed:', contextError.message);
+        // Continue with analysis even if context fails
+      }
     } catch (cloneError) {
       console.error('❌ Git clone failed:', cloneError.message);
       console.error('📋 Failed command:', cloneCmd);
@@ -5273,21 +5281,6 @@ export const handler = async (event) => {
   }
 };
 
-// 🧠 SESSION CONTEXT BUILDER (Non-blocking, for chat intelligence)
-function triggerSessionContextBuilder(tempDir, repoUrl, analysisId) {
-  // Non-blocking - doesn't affect Lambda analysis performance
-  setImmediate(async () => {
-    try {
-      console.log('🧠 Building session context for chat (parallel)...');
-      const sessionContext = await buildSessionContext(tempDir, repoUrl, analysisId);
-      await sendContextToSession(sessionContext);
-      console.log('✅ Session context ready for chat');
-    } catch (error) {
-      console.warn('⚠️ Session context builder failed (non-critical):', error.message);
-      // Failure doesn't affect main analysis
-    }
-  });
-}
 
 // Build lightweight session context
 async function buildSessionContext(tempDir, repoUrl, analysisId) {
@@ -5464,22 +5457,37 @@ function detectBasicFrameworks(files) {
 
 // Send context to session storage
 async function sendContextToSession(sessionContext) {
-  if (!sessionContext) return;
+  if (!sessionContext) {
+    console.error('❌ No session context to send!');
+    return;
+  }
+  
+  const url = `${process.env.NEXTAUTH_URL || 'https://master.d3dp89x98knsw0.amplifyapp.com'}/api/chat/session-context`;
+  console.log('📡 Sending context to:', url);
+  console.log('📊 Context size:', JSON.stringify(sessionContext).length, 'bytes');
   
   try {
-    const response = await fetch(`${process.env.NEXTAUTH_URL || 'https://master.d3dp89x98knsw0.amplifyapp.com'}/api/chat/session-context`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sessionContext),
       timeout: 5000 // 5 second timeout
     });
     
+    console.log('📡 Response status:', response.status);
+    
     if (!response.ok) {
-      throw new Error(`Session context API failed: ${response.status}`);
+      const errorText = await response.text();
+      console.error('❌ API response error:', errorText);
+      throw new Error(`Session context API failed: ${response.status} - ${errorText}`);
     }
     
+    const result = await response.json();
+    console.log('✅ Session context sent successfully:', result);
+    
   } catch (error) {
-    console.warn('Failed to send session context (non-critical):', error.message);
+    console.error('❌ Failed to send session context:', error.message);
+    console.error('❌ Error details:', error);
     // Don't throw - this is non-critical for main analysis
   }
 }
