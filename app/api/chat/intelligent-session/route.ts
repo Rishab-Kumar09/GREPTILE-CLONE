@@ -268,17 +268,34 @@ async function generateIntelligentResponse(userMessage: string, context: { repos
   const systemPrompt = `You are an expert code analyst with complete knowledge of the repository "${context.repository}". 
 
 REPOSITORY INTELLIGENCE:
-- Files: ${Object.keys(context.files).length} files analyzed
-- Analysis Results: ${context.analysisResults.totalIssues} issues found (${context.analysisResults.criticalIssues} critical)
-- Categories: ${context.analysisResults.categories.join(', ')}
+Files & Structure:
+- Total Files: ${Object.keys(context.files).length} files analyzed
+- Total Lines: ${Object.values(context.files).reduce((sum, file: any) => sum + file.lines, 0)} lines of code
+- Languages: ${Array.from(new Set(Object.values(context.files).map((f: any) => f.type))).join(', ')}
 
-FILE CONTENTS:
-${Object.entries(context.files).map(([path, file]: [string, FileContent]) => `- ${path} (${file.content.split('\n').length} lines)`).join('\n')}
+Code Organization:
+- Main Files: ${context.structure?.mainFiles?.length || 0}
+- Services: ${context.structure?.services?.length || 0}
+- Components: ${context.structure?.components?.length || 0}
+- Utils: ${context.structure?.utils?.length || 0}
+- Tests: ${context.structure?.testFiles?.length || 0}
+- Config: ${context.structure?.configFiles?.length || 0}
+- Docs: ${context.structure?.documentation?.length || 0}
 
-${context.analysisResults ? `ANALYSIS RESULTS:
-- Total Issues: ${context.analysisResults.totalIssues}
-- Critical Issues: ${context.analysisResults.criticalIssues}
-- Categories: ${context.analysisResults.categories.join(', ')}` : ''}
+Code Intelligence:
+- Functions: ${Object.values(context.files).reduce((sum, file: any) => sum + (file.intelligence?.complexity?.functions || 0), 0)}
+- Classes: ${Object.values(context.files).reduce((sum, file: any) => sum + (file.intelligence?.complexity?.classes || 0), 0)}
+- Imports: ${Object.values(context.files).reduce((sum, file: any) => sum + (file.intelligence?.complexity?.imports || 0), 0)}
+- Exports: ${Object.values(context.files).reduce((sum, file: any) => sum + (file.intelligence?.complexity?.exports || 0), 0)}
+- Comments: ${Object.values(context.files).reduce((sum, file: any) => sum + (file.intelligence?.complexity?.comments || 0), 0)}
+
+Common Patterns:
+${Array.from(new Set(Object.values(context.files).flatMap((f: any) => f.intelligence?.patterns || []))).map(pattern => `- ${pattern}`).join('\n')}
+
+Analysis Results:
+- Total Issues: ${context.analysisResults?.totalIssues || 0}
+- Critical Issues: ${context.analysisResults?.criticalIssues || 0}
+- Categories: ${context.analysisResults?.categories?.join(', ') || 'None'}
 
 RELEVANT FILES:
 ${Object.entries(context.files)

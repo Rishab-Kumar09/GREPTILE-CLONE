@@ -5298,6 +5298,23 @@ async function buildSessionContext(tempDir, repoUrl, analysisId) {
       repository: repoUrl.replace('https://github.com/', '').replace('.git', ''),
       analysisId,
       sessionId: `session-${analysisId}`,
+      metadata: {
+        totalFiles: allFiles.length,
+        totalLines: 0,
+        lastModified: new Date().toISOString(),
+        readme: null,
+        license: null,
+        contributors: []
+      },
+      structure: {
+        mainFiles: [],
+        testFiles: [],
+        configFiles: [],
+        documentation: [],
+        services: [],
+        components: [],
+        utils: []
+      },
       timestamp: Date.now(),
       files: {},
       symbols: { functions: {}, classes: {}, variables: {}, imports: {}, exports: {} },
@@ -5368,11 +5385,95 @@ function extractFileIntelligence(content, filePath) {
     language: getLanguageFromPath(filePath),
     functions: [],
     imports: [],
-    exports: []
+    exports: [],
+    classes: [],
+    variables: [],
+    dependencies: [],
+    patterns: [],
+    complexity: {
+      lines: lines.length,
+      functions: 0,
+      classes: 0,
+      imports: 0,
+      exports: 0,
+      comments: 0
+    }
   };
   
   lines.forEach((line, index) => {
     const trimmed = line.trim();
+    
+    // Count comments
+    if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) {
+      intelligence.complexity.comments++;
+    }
+    
+    // Detect imports
+    if (trimmed.match(/^(import|require|from|using)\s/)) {
+      intelligence.complexity.imports++;
+      const importMatch = trimmed.match(/['"](.*?)['"]/);
+      if (importMatch) {
+        intelligence.imports.push(importMatch[1]);
+        intelligence.dependencies.push(importMatch[1]);
+      }
+    }
+    
+    // Detect exports
+    if (trimmed.match(/^(export|module\.exports)/)) {
+      intelligence.complexity.exports++;
+      intelligence.exports.push(index + 1);
+    }
+    
+    // Detect functions
+    if (trimmed.match(/^(function|const|let|var|async)\s+\w+\s*\(/)) {
+      intelligence.complexity.functions++;
+      const funcMatch = trimmed.match(/\s+(\w+)\s*\(/);
+      if (funcMatch) {
+        intelligence.functions.push({
+          name: funcMatch[1],
+          line: index + 1,
+          async: trimmed.startsWith('async')
+        });
+      }
+    }
+    
+    // Detect classes
+    if (trimmed.match(/^class\s+\w+/)) {
+      intelligence.complexity.classes++;
+      const classMatch = trimmed.match(/class\s+(\w+)/);
+      if (classMatch) {
+        intelligence.classes.push({
+          name: classMatch[1],
+          line: index + 1
+        });
+      }
+    }
+    
+    // Detect variables
+    if (trimmed.match(/^(const|let|var)\s+\w+\s*=/)) {
+      const varMatch = trimmed.match(/(const|let|var)\s+(\w+)\s*=/);
+      if (varMatch) {
+        intelligence.variables.push({
+          name: varMatch[2],
+          type: varMatch[1],
+          line: index + 1
+        });
+      }
+    }
+    
+    // Detect common patterns
+    if (trimmed.match(/new\s+(Promise|Set|Map|WeakMap|WeakSet)/)) {
+      intelligence.patterns.push('Built-in Objects');
+    }
+    if (trimmed.match(/\.(map|filter|reduce|forEach)\(/)) {
+      intelligence.patterns.push('Functional Programming');
+    }
+    if (trimmed.match(/try\s*{/)) {
+      intelligence.patterns.push('Error Handling');
+    }
+    if (trimmed.match(/async|await|\.then\(/)) {
+      intelligence.patterns.push('Async Programming');
+    }
     
     // Extract functions
     const funcMatch = trimmed.match(/(?:function\s+(\w+)|const\s+(\w+)\s*=.*?=>)/);
