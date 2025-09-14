@@ -121,7 +121,9 @@ export async function GET(request: NextRequest) {
     // Convert Map to object for JSON response
     const filesArray = Array.from(repoData.files.entries()).map(([filePath, content]) => ({
       path: filePath,
-      ...content
+      content: content.content,
+      size: content.size,
+      type: content.type
     }));
     
     return NextResponse.json({
