@@ -169,10 +169,18 @@ export async function POST(request: NextRequest) {
 
     const sessionContext = global.sessionContexts.get(key);
     console.log('📊 Session context found:', sessionContext ? 'yes' : 'no');
+    console.log('🗝️ Available session keys:', Array.from(global.sessionContexts.keys()));
+    console.log('📦 Session context details:', sessionContext ? Object.keys(sessionContext) : 'null');
 
     if (!sessionContext) {
       console.warn(`⚠️ No session context found for ${repository}`);
       return NextResponse.json({ error: 'Session context not found - please run analysis first' }, { status: 404 });
+    }
+
+    // Before building context
+    if (sessionContext) {
+      console.log('📊 Session files:', Object.keys(sessionContext.files));
+      console.log('📊 Session structure:', sessionContext.structure);
     }
 
     // Build context from session
