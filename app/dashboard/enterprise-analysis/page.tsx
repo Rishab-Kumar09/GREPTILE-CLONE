@@ -268,67 +268,33 @@ export default function EnterpriseAnalysisPage() {
         })
       })
 
-      // 🔄 FALLBACK CHAIN: Multiple backup systems
+      // 🔄 FALLBACK: Use GitHub API if RAG chat fails
       if (!response.ok) {
-        console.log(`🔄 RAG chat failed (${response.status}), trying fallback systems...`)
+        console.log(`🔄 RAG chat failed (${response.status}), falling back to GitHub API...`)
         
-        // FALLBACK 1: Try session-based intelligent chat
-        if (response.status === 404) {
-          console.log('🔄 Trying session-based intelligent chat...')
-          
-          try {
-            response = await fetch('/api/chat/intelligent-session', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                message: message.trim(),
-                repository: `${owner}/${repo}`,
-                sessionId: analysisId,
-                analysisResults: {
-                  totalIssues: status.results.length,
-                  criticalIssues: status.results.filter(r => r.severity === 'critical').length,
-                  categories: Array.from(new Set(status.results.map(r => r.type)))
-                },
-                chatHistory: chatMessages.slice(-10)
-              })
-            })
-            
-            if (response.ok) {
-              console.log('✅ Session-based chat succeeded')
+        response = await fetch('/api/github/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repoFullName: `${owner}/${repo}`,
+            question: message.trim(),
+            analysisResults: {
+              totalIssues: status.results.length,
+              criticalIssues: status.results.filter(r => r.severity === 'critical').length,
+              highIssues: status.results.filter(r => r.severity === 'high').length,
+              mediumIssues: status.results.filter(r => r.severity === 'medium').length,
+              categories: Array.from(new Set(status.results.map(r => r.type))),
+              issues: status.results.map(result => ({
+                file: result.file,
+                line: result.line,
+                type: result.type,
+                severity: result.severity,
+                message: result.message || result.description,
+                suggestion: getAISuggestion(result.type, result.name, result.description || result.message || '')
+              }))
             }
-          } catch (sessionError) {
-            console.warn('⚠️ Session-based chat failed:', sessionError)
-          }
-        }
-        
-        // FALLBACK 2: Use GitHub API as final backup
-        if (!response.ok) {
-          console.log('🔄 Trying GitHub API as final fallback...')
-          
-          response = await fetch('/api/github/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              repoFullName: `${owner}/${repo}`,
-              question: message.trim(),
-              analysisResults: {
-                totalIssues: status.results.length,
-                criticalIssues: status.results.filter(r => r.severity === 'critical').length,
-                highIssues: status.results.filter(r => r.severity === 'high').length,
-                mediumIssues: status.results.filter(r => r.severity === 'medium').length,
-                categories: Array.from(new Set(status.results.map(r => r.type))),
-                issues: status.results.map(result => ({
-                  file: result.file,
-                  line: result.line,
-                  type: result.type,
-                  severity: result.severity,
-                  message: result.message || result.description,
-                  suggestion: getAISuggestion(result.type, result.name, result.description || result.message || '')
-                }))
-              }
-            })
           })
-        }
+        })
       }
 
       // Handle response with better error checking
@@ -351,14 +317,11 @@ export default function EnterpriseAnalysisPage() {
         setChatMessages(prev => [...prev, aiMessage])
         
         // 🧠 Log chat source and usage
-        const chatSource = data.source || (data.response ? 'session-based' : 'github-api')
+        const chatSource = data.source || 'github-api'
         console.log(`🚀 Chat source: ${chatSource}`)
         console.log('📁 Files used:', data.filesUsed || 'N/A')
         if (data.analysisUsed) {
           console.log('🔍 Analysis data included:', data.analysisUsed)
-        }
-        if (data.contextUsed) {
-          console.log('🧠 Session context used:', data.contextUsed)
         }
       } else {
         throw new Error(data.error || 'Failed to get AI response')
