@@ -5666,8 +5666,8 @@ async function sendRepositoryFiles(persistentDir, metadata, allFiles) {
     for (const filePath of allFiles) {
       try {
         const fullPath = path.join(persistentDir, filePath);
-        const content = fs.readFileSync(fullPath, 'utf8');
-        const stats = fs.statSync(fullPath);
+        const content = require('fs').readFileSync(fullPath, 'utf8');
+        const stats = require('fs').statSync(fullPath);
         
         files.push({
           path: filePath,
