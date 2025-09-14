@@ -38,66 +38,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
     
-    // Clone repository directly for RAG chat (AWS Lambda instances don't share /tmp)
-    console.log(`🔍 RAG: Cloning repository ${repository} for chat`);
+    // Get repository files from the cache that Lambda already populated
+    console.log(`🔍 RAG: Getting files from repository cache for analysisId=${analysisId}`);
     
-    const { execSync } = require('child_process');
-    const fs = require('fs');
-    const path = require('path');
+    const repoResponse = await fetch(`${process.env.NEXTAUTH_URL || 'https://master.d3dp89x98knsw0.amplifyapp.com'}/api/chat/repository-files?analysisId=${analysisId}&repository=${encodeURIComponent(repository)}`);
     
-    // Create temp directory for this chat session
-    const tempDir = `/tmp/rag-${Date.now()}`;
-    const repoUrl = `https://github.com/${repository}.git`;
-    
-    try {
-      console.log(`📥 Cloning ${repoUrl} to ${tempDir}`);
-      execSync(`git clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`, { stdio: 'ignore' });
-      console.log(`✅ Successfully cloned repository to ${tempDir}`);
-    } catch (cloneError: any) {
-      console.error(`❌ Failed to clone repository:`, cloneError.message);
-      return NextResponse.json({ error: 'Failed to clone repository for chat' }, { status: 500 });
+    if (!repoResponse.ok) {
+      console.log(`❌ Repository files not found in cache (${repoResponse.status})`);
+      return NextResponse.json({ error: 'Repository files not found in persistent storage' }, { status: 404 });
     }
     
-    // Find all code files
-    const files: FileContent[] = [];
-    const extensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h', '.php', '.rb'];
+    const repoData = await repoResponse.json();
+    console.log(`✅ Retrieved ${repoData.filesCount} files from repository cache`);
     
-    const scanDirectory = (dir: string): void => {
-      const items = fs.readdirSync(dir, { withFileTypes: true });
-      
-      for (const item of items) {
-        if (item.name.startsWith('.') || 
-            ['node_modules', 'build', 'dist', 'coverage', '__pycache__', 'target', 'vendor'].includes(item.name)) {
-          continue;
-        }
-        
-        const fullPath = path.join(dir, item.name);
-        
-        if (item.isDirectory()) {
-          scanDirectory(fullPath);
-        } else if (item.isFile()) {
-          const ext = path.extname(item.name).toLowerCase();
-          if (extensions.includes(ext)) {
-            try {
-              const content = fs.readFileSync(fullPath, 'utf8');
-              const stats = fs.statSync(fullPath);
-              const relativePath = path.relative(tempDir, fullPath);
-              
-              files.push({
-                path: relativePath,
-                content: content,
-                size: stats.size,
-                type: ext.slice(1) || 'unknown'
-              });
-            } catch (err: any) {
-              console.warn(`Failed to read ${fullPath}:`, err.message);
-            }
-          }
-        }
-      }
-    };
-    
-    scanDirectory(tempDir);
+    // Use the files from the repository cache
+    const files: FileContent[] = repoData.files;
     console.log(`✅ Found ${files.length} code files in repository`);
     
     // Filter and rank files based on question relevance
@@ -204,13 +159,6 @@ IMPORTANT: Return ONLY valid JSON in this format:
       parsed = { answer: rawResponse, citations: [] };
     }
 
-    // Cleanup temp directory
-    try {
-      execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
-      console.log(`🧹 Cleaned up temp directory: ${tempDir}`);
-    } catch (cleanupError) {
-      console.warn(`⚠️ Failed to cleanup temp directory: ${tempDir}`);
-    }
 
     return NextResponse.json({
       success: true,
