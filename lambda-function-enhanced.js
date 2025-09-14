@@ -5305,8 +5305,8 @@ export const handler = async (event) => {
           originalPath: tempDir,
           persistentPath: persistentDir,
           filesCount: allFiles.length,
-          totalIssues: analysisResults.results.length,
-          criticalIssues: analysisResults.results.filter(r => r.severity === 'critical').length
+          totalIssues: totalIssues,
+          criticalIssues: results.filter(r => r.severity === 'critical').length
         };
         
         execSync(`echo '${JSON.stringify(repoMetadata)}' > "${persistentDir}/.chat-metadata.json"`, { stdio: 'ignore' });
