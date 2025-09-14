@@ -264,7 +264,7 @@ function extractKeywords(message: string) {
 }
 
 // Generate intelligent response using OpenAI
-async function generateIntelligentResponse(userMessage: string, context: any, chatHistory: any[] = []) {
+async function generateIntelligentResponse(userMessage: string, context: { files: { [key: string]: FileContent }, analysisResults: any }, chatHistory: any[] = []) {
   const systemPrompt = `You are an expert code analyst with complete knowledge of the repository "${context.repository}". 
 
 REPOSITORY INTELLIGENCE:
