@@ -75,6 +75,8 @@ async function getStoredRepositoryContext(sessionId?: string, repository?: strin
   
   // Try all possible keys in the same order as storage
   const key = sessionId || `repo:${repository}`
+  console.log('🔍 Looking for context with key:', key)
+  console.log('🗝️ Available keys:', Array.from(global.sessionContexts.keys()))
   const session = global.sessionContexts.get(key)
   
   if (!session) {
