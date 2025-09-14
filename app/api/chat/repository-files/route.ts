@@ -40,7 +40,8 @@ setInterval(() => {
   const TWO_HOURS = 2 * 60 * 60 * 1000;
   const now = Date.now();
   
-  Array.from(global.repositoryCache.entries()).forEach(([analysisId, data]) => {
+  const entries = Array.from(global.repositoryCache.entries());
+  entries.forEach(([analysisId, data]) => {
     if (now - data.timestamp > TWO_HOURS) {
       global.repositoryCache.delete(analysisId);
       console.log(`🧹 Cleaned up old repository cache: ${analysisId}`);
@@ -106,12 +107,11 @@ export async function GET(request: NextRequest) {
     
     if (!repoData && repository) {
       // Search by repository name
-      for (const [id, data] of global.repositoryCache.entries()) {
+      Array.from(global.repositoryCache.entries()).forEach(([id, data]) => {
         if (data.metadata.repository === repository) {
           repoData = data;
-          break;
         }
-      }
+      });
     }
     
     if (!repoData) {
