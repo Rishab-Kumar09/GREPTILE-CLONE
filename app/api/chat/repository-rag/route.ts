@@ -101,7 +101,7 @@ SECURITY & QUALITY ANALYSIS:
 - Categories: ${analysisResults.categories.join(', ')}
 
 SPECIFIC ISSUES FOUND:
-${analysisResults.issues.map((issue, index) => 
+${analysisResults.issues.map((issue: AnalysisIssue, index: number) => 
   `${index + 1}. ${issue.file}:${issue.line} - ${issue.severity.toUpperCase()}: ${issue.type}
      Problem: ${issue.message}
      Fix: ${issue.suggestion}`
