@@ -404,6 +404,18 @@ Analysis Results:
 - Critical Issues: ${context.analysisResults?.criticalIssues || 0}
 - Categories: ${context.analysisResults?.categories?.join(', ') || 'None'}
 
+FILE CONTENTS:
+${Object.entries(context.files).map(([path, file]: [string, FileContent]) => `
+${path}:
+${file.content}`).join('\n')}
+
+You have COMPLETE access to all file contents above. When describing the repository:
+1. DO NOT say there are no files if files exist in the context
+2. Always check the actual file contents before making statements about the code
+3. Be specific about what you find in the files
+4. Cite specific code examples when relevant
+5. If you see security issues, explain them clearly with the actual code context
+
 RELEVANT FILES:
 ${Object.entries(context.files)
   .filter(([path, file]: [string, FileContent]) => path.toLowerCase().includes(userMessage.toLowerCase()) || file.content.toLowerCase().includes(userMessage.toLowerCase()))
