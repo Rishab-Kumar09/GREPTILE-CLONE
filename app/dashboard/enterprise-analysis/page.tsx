@@ -242,56 +242,30 @@ export default function EnterpriseAnalysisPage() {
     try {
       const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
       
-      // 🧠 TRY INTELLIGENT SESSION-BASED CHAT FIRST
-      const intelligentResponse = await fetch('/api/chat/intelligent-session', {
+      // 🚀 USE THE WORKING GITHUB CHAT API (same as dashboard)
+      const response = await fetch('/api/github/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: message.trim(),
-          repository: `${owner}/${repo}`,
-          sessionId: analysisId, // Use analysis ID as session ID
-          analysisResults: {
-            totalIssues: status.results.length,
-            criticalIssues: status.results.filter(r => r.severity === 'critical').length,
-            categories: Array.from(new Set(status.results.map(r => r.type)))
-          },
-          chatHistory: chatMessages.slice(-10) // Keep recent chat history for context
+          repoFullName: `${owner}/${repo}`,
+          question: message.trim()
         })
       })
 
-      let data = await intelligentResponse.json()
+      const data = await response.json()
 
-      // 🔄 FALLBACK: If session context not available, use regular chat
-      if (!intelligentResponse.ok && intelligentResponse.status === 404) {
-        console.log('🔄 Session context not available, falling back to regular chat')
-        
-        const fallbackResponse = await fetch('/api/chat/repository', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: message.trim(),
-            repository: `${owner}/${repo}`,
-            chatHistory: chatMessages.slice(-10)
-          })
-        })
-        
-        data = await fallbackResponse.json()
-      }
-
-      if (data.success) {
+      if (response.ok && data.answer) {
         const aiMessage: ChatMessage = {
           id: Date.now() + 1,
           type: 'ai',
-          content: data.response,
+          content: data.answer,
           timestamp: new Date(),
           citations: data.citations || []
         }
         setChatMessages(prev => [...prev, aiMessage])
         
-        // 🧠 Log context usage if available
-        if (data.contextUsed) {
-          console.log('🧠 Intelligent chat used context:', data.contextUsed)
-        }
+        // 🧠 Log GitHub API usage
+        console.log('🚀 GitHub chat used files:', data.filesUsed)
       } else {
         throw new Error(data.error || 'Failed to get AI response')
       }
