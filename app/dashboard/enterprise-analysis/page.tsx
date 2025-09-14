@@ -242,24 +242,41 @@ export default function EnterpriseAnalysisPage() {
     try {
       const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
       
-      // 🤖 Use repository files from Lambda for chat
-      const chatResponse = await fetch('/api/chat/repo-chat', {
+      // 🧠 TRY INTELLIGENT SESSION-BASED CHAT FIRST
+      const intelligentResponse = await fetch('/api/chat/intelligent-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: message.trim(),
           repository: `${owner}/${repo}`,
-          tempDir: `/tmp/analysis-${analysisId}`, // Use Lambda's temp directory
+          sessionId: analysisId, // Use analysis ID as session ID
           analysisResults: {
             totalIssues: status.results.length,
             criticalIssues: status.results.filter(r => r.severity === 'critical').length,
-            issues: status.results,
             categories: Array.from(new Set(status.results.map(r => r.type)))
-          }
+          },
+          chatHistory: chatMessages.slice(-10) // Keep recent chat history for context
         })
       })
 
-      const data = await chatResponse.json()
+      let data = await intelligentResponse.json()
+
+      // 🔄 FALLBACK: If session context not available, use regular chat
+      if (!intelligentResponse.ok && intelligentResponse.status === 404) {
+        console.log('🔄 Session context not available, falling back to regular chat')
+        
+        const fallbackResponse = await fetch('/api/chat/repository', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message.trim(),
+            repository: `${owner}/${repo}`,
+            chatHistory: chatMessages.slice(-10)
+          })
+        })
+        
+        data = await fallbackResponse.json()
+      }
 
       if (data.success) {
         const aiMessage: ChatMessage = {
