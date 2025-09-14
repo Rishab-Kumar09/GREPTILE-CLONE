@@ -778,6 +778,10 @@ export default function EnterpriseAnalysisPage() {
     try {
       console.log('🔄 Making simple REGEX-ONLY analysis API request with timeout...')
       
+      // Generate analysis ID first
+      const newAnalysisId = uuid()
+      setAnalysisId(newAnalysisId)
+      
       // 🎯 UI-ONLY TIMEOUT: Give up after 25 seconds for small repos
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
@@ -785,12 +789,12 @@ export default function EnterpriseAnalysisPage() {
       const response = await fetch('/api/enterprise-analysis/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        owner, 
-        repo,
-        analysisId: uuid(), // Regular analysis ID
-        regexOnly: true // 🎯 REGEX-ONLY FLAG: Skip AI analysis for small repos
-      }),
+        body: JSON.stringify({ 
+          owner, 
+          repo,
+          analysisId: newAnalysisId, // Use the same ID we just generated
+          regexOnly: true // 🎯 REGEX-ONLY FLAG: Skip AI analysis for small repos
+        }),
         signal: controller.signal
       });
       
@@ -800,7 +804,7 @@ export default function EnterpriseAnalysisPage() {
       console.log('📡 Simple analysis response:', data)
 
     if (data.success) {
-      setAnalysisId(data.analysisId)
+      // We already set analysisId when we generated it
       
       // Handle direct results
       if (data.results && data.results.length > 0) {
