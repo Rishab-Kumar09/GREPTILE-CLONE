@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       const contentLower = file.content.toLowerCase();
       
       // Path relevance
-      questionLower.split(/\s+/).forEach(word => {
+      questionLower.split(/\s+/).forEach((word: string) => {
         if (pathLower.includes(word)) score += 3;
         if (contentLower.includes(word)) score += 1;
       });
