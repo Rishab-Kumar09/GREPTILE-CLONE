@@ -38,21 +38,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
     
-    // Use the persistent repository copy created by Lambda
-    console.log(`🔍 RAG: Using persistent repo copy for analysisId=${analysisId}`);
+    // Clone repository directly for RAG chat (AWS Lambda instances don't share /tmp)
+    console.log(`🔍 RAG: Cloning repository ${repository} for chat`);
     
+    const { execSync } = require('child_process');
     const fs = require('fs');
     const path = require('path');
     
-    // Use the persistent directory created by Lambda
-    const tempDir = `/tmp/chat-repos/${analysisId}`;
+    // Create temp directory for this chat session
+    const tempDir = `/tmp/rag-${Date.now()}`;
+    const repoUrl = `https://github.com/${repository}.git`;
     
-    if (!fs.existsSync(tempDir)) {
-      console.log(`❌ Persistent repo directory not found: ${tempDir}`);
-      return NextResponse.json({ error: 'Repository files not found in persistent storage' }, { status: 404 });
+    try {
+      console.log(`📥 Cloning ${repoUrl} to ${tempDir}`);
+      execSync(`git clone --depth 1 --single-branch --no-tags "${repoUrl}" "${tempDir}"`, { stdio: 'ignore' });
+      console.log(`✅ Successfully cloned repository to ${tempDir}`);
+    } catch (cloneError: any) {
+      console.error(`❌ Failed to clone repository:`, cloneError.message);
+      return NextResponse.json({ error: 'Failed to clone repository for chat' }, { status: 500 });
     }
-    
-    console.log(`✅ Found persistent repo copy at: ${tempDir}`);
     
     // Find all code files
     const files: FileContent[] = [];
@@ -198,6 +202,14 @@ IMPORTANT: Return ONLY valid JSON in this format:
     } catch (parseError) {
       console.warn('❌ JSON parsing failed, using raw response');
       parsed = { answer: rawResponse, citations: [] };
+    }
+
+    // Cleanup temp directory
+    try {
+      execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
+      console.log(`🧹 Cleaned up temp directory: ${tempDir}`);
+    } catch (cleanupError) {
+      console.warn(`⚠️ Failed to cleanup temp directory: ${tempDir}`);
     }
 
     return NextResponse.json({
