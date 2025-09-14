@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     const enhancedContext = {
       repository,
       files: context.files,
-      analysis: {
+      analysisResults: {
         totalIssues: analysisResults.totalIssues,
         criticalIssues: analysisResults.criticalIssues,
         categories: analysisResults.categories
