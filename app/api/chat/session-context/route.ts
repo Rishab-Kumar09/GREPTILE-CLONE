@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // Global type declaration for session contexts
 declare global {
-  var sessionContexts: Map<string, any> | undefined
+  var sessionContexts: Map<string, any>;
 }
 
 // Session-based context storage (auto-cleanup)
