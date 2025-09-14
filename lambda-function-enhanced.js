@@ -5666,15 +5666,19 @@ async function sendRepositoryFiles(sourceDir, metadata, allFiles) {
     // Read all files from the source directory
     for (const filePath of allFiles) {
       try {
-        const fullPath = path.join(sourceDir, filePath);
+        // Handle both absolute and relative paths
+        const fullPath = path.isAbsolute(filePath) ? filePath : path.join(sourceDir, filePath);
         const content = fsSync.readFileSync(fullPath, 'utf8');
         const stats = fsSync.statSync(fullPath);
         
+        // Store relative path for consistency
+        const relativePath = path.isAbsolute(filePath) ? path.relative(sourceDir, filePath) : filePath;
+        
         files.push({
-          path: filePath,
+          path: relativePath,
           content: content,
           size: stats.size,
-          type: path.extname(filePath).slice(1) || 'unknown'
+          type: path.extname(relativePath).slice(1) || 'unknown'
         });
         
       } catch (fileError) {
