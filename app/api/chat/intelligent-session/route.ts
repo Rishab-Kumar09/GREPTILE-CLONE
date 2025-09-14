@@ -158,23 +158,95 @@ export async function POST(request: NextRequest) {
     
     // Using the global Context interface
 
-    // Get context from session storage
-    const key = sessionId || `repo:${repository}`;
-    console.log('🔍 Looking for context with key:', key);
+    // Get context from session storage - try multiple key formats
+    const possibleKeys = [
+      sessionId,
+      analysisResults?.analysisId,
+      `repo:${repository}`,
+      repository
+    ].filter(Boolean);
+    
+    console.log('🔍 Trying keys:', possibleKeys);
     
     if (!global.sessionContexts) {
       global.sessionContexts = new Map();
       console.log('⚠️ Initializing new sessionContexts Map');
     }
 
-    const sessionContext = global.sessionContexts.get(key);
+    // Try to find context with any of the possible keys
+    let sessionContext = null;
+    let foundKey = null;
+    
+    for (const key of possibleKeys) {
+      sessionContext = global.sessionContexts.get(key);
+      if (sessionContext) {
+        foundKey = key;
+        console.log('✅ Found session context with key:', key);
+        break;
+      }
+    }
+    
     console.log('📊 Session context found:', sessionContext ? 'yes' : 'no');
-    console.log('🗝️ Available session keys:', Array.from(global.sessionContexts.keys()));
     console.log('📦 Session context details:', sessionContext ? Object.keys(sessionContext) : 'null');
 
     if (!sessionContext) {
-      console.warn(`⚠️ No session context found for ${repository}`);
-      return NextResponse.json({ error: 'Session context not found - please run analysis first' }, { status: 404 });
+      console.warn(`⚠️ No session context found for ${repository}, trying GitHub API fallback`);
+      
+      // Fallback: Use GitHub API to get file contents
+      try {
+        const [owner, repo] = repository.split('/');
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`);
+        
+        if (response.ok) {
+          const files = await response.json() as Array<{
+            type: string;
+            name: string;
+            path: string;
+            url: string;
+          }>;
+          
+          const contextFiles: { [key: string]: FileContent } = {};
+          
+          // Get content for code files
+          for (const file of files) {
+            if (file.type === 'file' && file.name.match(/\.(js|ts|py|java|cpp|go|rb|php|cs|rs|md|txt|json|ya?ml)$/i)) {
+              const contentResponse = await fetch(file.url);
+              if (contentResponse.ok) {
+                const data = await contentResponse.json() as { content: string };
+                contextFiles[file.path] = {
+                  name: file.name,
+                  path: file.path,
+                  content: Buffer.from(data.content, 'base64').toString('utf8')
+                };
+              }
+            }
+          }
+          
+          console.log(`📊 GitHub API fallback: Found ${Object.keys(contextFiles).length} files`);
+          
+          // Create fallback session context
+          sessionContext = {
+            repository,
+            files: contextFiles,
+            functions: {},
+            structure: {
+              mainFiles: Object.keys(contextFiles),
+              testFiles: [],
+              configFiles: [],
+              documentation: [],
+              services: [],
+              components: [],
+              utils: []
+            }
+          };
+        }
+      } catch (error) {
+        console.error('❌ GitHub API fallback failed:', error);
+      }
+      
+      if (!sessionContext) {
+        return NextResponse.json({ error: 'Session context not found and GitHub API fallback failed - please run analysis first' }, { status: 404 });
+      }
     }
 
     // Before building context
