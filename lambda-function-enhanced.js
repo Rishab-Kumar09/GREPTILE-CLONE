@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import { promises as fs } from 'fs';
+import fsSync from 'fs';
 import path from 'path';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -5666,8 +5667,8 @@ async function sendRepositoryFiles(persistentDir, metadata, allFiles) {
     for (const filePath of allFiles) {
       try {
         const fullPath = path.join(persistentDir, filePath);
-        const content = require('fs').readFileSync(fullPath, 'utf8');
-        const stats = require('fs').statSync(fullPath);
+        const content = fsSync.readFileSync(fullPath, 'utf8');
+        const stats = fsSync.statSync(fullPath);
         
         files.push({
           path: filePath,
