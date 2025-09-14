@@ -158,87 +158,33 @@ export async function POST(request: NextRequest) {
     
     // Using the global Context interface
 
-    // Clone and analyze repository
-    const repoPath = await cloneAndAnalyzeRepo(repository);
-    if (!repoPath) {
-      return NextResponse.json({ error: 'Failed to clone repository' }, { status: 500 });
+    // Get context from session storage
+    const sessionContext = await getStoredRepositoryContext(sessionId, repository);
+    if (!sessionContext) {
+      console.warn(`⚠️ No session context found for ${repository}`);
     }
 
-    // Build context from cloned repo and analysis results
-    const structure: RepoStructure = {
-      mainFiles: [],
-      testFiles: [],
-      configFiles: [],
-      documentation: [],
-      services: [],
-      components: [],
-      utils: []
-    };
-
+    // Build context from session or analysis results
     const context: Context = {
       repository,
       analysisResults,
-      files: {},
-      functions: {},
-      structure
+      files: sessionContext?.files || {},
+      functions: sessionContext?.functions || {},
+      structure: {
+        mainFiles: sessionContext?.structure?.mainFiles || [],
+        testFiles: sessionContext?.structure?.testFiles || [],
+        configFiles: sessionContext?.structure?.configFiles || [],
+        documentation: sessionContext?.structure?.documentation || [],
+        services: sessionContext?.structure?.services || [],
+        components: sessionContext?.structure?.components || [],
+        utils: sessionContext?.structure?.utils || []
+      }
     }
 
-    try {
-      // Read all files from cloned repo
-      const scanDirectory = (dir: string) => {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-        
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          const relativePath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
-          
-          if (entry.isDirectory()) {
-            if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
-              scanDirectory(fullPath);
-            }
-          } else if (entry.isFile()) {
-            // Only process code and doc files
-            if (entry.name.match(/\.(js|ts|py|java|cpp|go|rb|php|cs|rs|md|txt|json|ya?ml)$/i)) {
-              const content = fs.readFileSync(fullPath, 'utf8');
-              const lines = content.split('\n');
-              
-              // Categorize file
-              if (relativePath.toLowerCase().includes('test')) {
-                context.structure.testFiles.push(relativePath);
-              } else if (relativePath.match(/\.(json|ya?ml|env|config)/i)) {
-                context.structure.configFiles.push(relativePath);
-              } else if (relativePath.match(/\.(md|txt|doc)/i)) {
-                context.structure.documentation.push(relativePath);
-              } else if (relativePath.match(/service|api|controller/i)) {
-                context.structure.services.push(relativePath);
-              } else if (relativePath.match(/component|view|page/i)) {
-                context.structure.components.push(relativePath);
-              } else if (relativePath.match(/util|helper|lib/i)) {
-                context.structure.utils.push(relativePath);
-              } else {
-                context.structure.mainFiles.push(relativePath);
-              }
-              
-              // Store file info
-              context.files[relativePath] = {
-                name: entry.name,
-                path: relativePath,
-                content,
-                lines: lines.length,
-                type: path.extname(entry.name).slice(1),
-                intelligence: extractFileIntelligence(content, relativePath)
-              };
-            }
-          }
-        }
-      }
-      
-      scanDirectory(repoPath);
-      console.log(`📊 Processed ${Object.keys(context.files).length} files from cloned repo`);
-      
-    } catch (error) {
-      console.error('❌ Failed to process cloned repo:', error);
-      return NextResponse.json({ error: 'Failed to process repository' }, { status: 500 });
+    // Log context stats
+    console.log(`📊 Using context: ${Object.keys(context.files).length} files from session storage`);
+    if (!Object.keys(context.files).length) {
+      console.warn('⚠️ No files found in session context - chat may have limited functionality');
     }
     
     console.log(`📊 Using context: ${Object.keys(context.files).length} files from GitHub`)
