@@ -4986,6 +4986,38 @@ export const handler = async (event) => {
       execSync(cloneCmd, { stdio: 'pipe' });
       console.log('✅ Shallow clone successful');
       
+      // 🚀 CREATE PERSISTENT COPY IMMEDIATELY AFTER CLONING
+      if (analysisId) {
+        try {
+          // Clean up old chat repositories (older than 2 hours)
+          try {
+            const chatReposDir = '/tmp/chat-repos';
+            execSync(`mkdir -p "${chatReposDir}"`, { stdio: 'ignore' });
+            
+            // Find and remove directories older than 2 hours
+            execSync(`find "${chatReposDir}" -type d -mmin +120 -exec rm -rf {} + 2>/dev/null || true`, { stdio: 'ignore' });
+            console.log('🧹 Cleaned up old chat repositories');
+          } catch (cleanupError) {
+            console.warn('⚠️ Chat repos cleanup failed:', cleanupError.message);
+          }
+          
+          // Create persistent directory for chat RAG
+          const persistentDir = `/tmp/chat-repos/${analysisId}`;
+          console.log('📁 Creating persistent repo copy for chat context...');
+          
+          // Create directory structure
+          execSync(`mkdir -p "${persistentDir}"`, { stdio: 'ignore' });
+          
+          // Copy entire repository for chat context
+          execSync(`cp -r "${tempDir}"/* "${persistentDir}/" 2>/dev/null || true`, { stdio: 'ignore' });
+          
+          console.log('✅ Persistent repo copy created:', persistentDir);
+          
+        } catch (copyError) {
+          console.warn('⚠️ Failed to create persistent repo copy:', copyError.message);
+        }
+      }
+      
       // 🧠 BUILD SESSION CONTEXT IMMEDIATELY
       console.log('🧠 Building session context for chat...');
       try {
@@ -5272,32 +5304,12 @@ export const handler = async (event) => {
     };
     
   } finally {
-    // 🚀 CREATE PERSISTENT COPY FOR CHAT CONTEXT
-    if (analysisId) {
+    // 🚀 SEND ANALYSIS RESULTS TO CHAT AFTER ANALYSIS COMPLETE
+    if (analysisId && results && allFiles) {
       try {
-        // Clean up old chat repositories (older than 2 hours)
-        try {
-          const chatReposDir = '/tmp/chat-repos';
-          execSync(`mkdir -p "${chatReposDir}"`, { stdio: 'ignore' });
-          
-          // Find and remove directories older than 2 hours
-          execSync(`find "${chatReposDir}" -type d -mmin +120 -exec rm -rf {} + 2>/dev/null || true`, { stdio: 'ignore' });
-          console.log('🧹 Cleaned up old chat repositories');
-        } catch (cleanupError) {
-          console.warn('⚠️ Chat repos cleanup failed:', cleanupError.message);
-        }
-        
-        // Create persistent directory for chat RAG
         const persistentDir = `/tmp/chat-repos/${analysisId}`;
-        console.log('📁 Creating persistent repo copy for chat context...');
         
-        // Create directory structure
-        execSync(`mkdir -p "${persistentDir}"`, { stdio: 'ignore' });
-        
-        // Copy entire repository for chat context
-        execSync(`cp -r "${tempDir}"/* "${persistentDir}/" 2>/dev/null || true`, { stdio: 'ignore' });
-        
-        // Create metadata file for chat context
+        // Create metadata file with analysis results
         const repoMetadata = {
           analysisId,
           repository: repoUrl.replace('https://github.com/', '').replace('.git', ''),
@@ -5311,40 +5323,22 @@ export const handler = async (event) => {
         
         execSync(`echo '${JSON.stringify(repoMetadata)}' > "${persistentDir}/.chat-metadata.json"`, { stdio: 'ignore' });
         
-        console.log('✅ Persistent repo copy created:', persistentDir);
-        console.log('📊 Chat context ready with', allFiles.length, 'files');
-        
-        // Send persistent path to session context
-        await sendContextToSession({
-          ...sessionContext,
-          persistentPath: persistentDir,
-          metadata: repoMetadata
-        });
+        console.log('📊 Analysis results ready for chat:', totalIssues, 'issues found');
         
         // 🚀 SEND REPOSITORY FILES TO PERSISTENT STORAGE
         await sendRepositoryFiles(persistentDir, repoMetadata, allFiles);
         
-      } catch (copyError) {
-        console.warn('⚠️ Failed to create persistent repo copy:', copyError.message);
+      } catch (resultsError) {
+        console.warn('⚠️ Failed to send analysis results to chat:', resultsError.message);
       }
     }
     
-    // Only cleanup original temp dir if not needed for chat
-    if (!analysisId) {
-      try {
-        execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
-      } catch (err) {
-        console.warn('Cleanup failed:', err.message);
-      }
-    } else {
-      console.log('🧠 Original temp dir preserved for analysis:', tempDir);
-      // Clean up original after creating persistent copy
-      try {
-        execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
-        console.log('🗑️ Original temp dir cleaned up after copying');
-      } catch (err) {
-        console.warn('⚠️ Original temp cleanup failed:', err.message);
-      }
+    // Cleanup temp directory
+    try {
+      execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
+      console.log('🗑️ Temp directory cleaned up');
+    } catch (err) {
+      console.warn('⚠️ Temp cleanup failed:', err.message);
     }
   }
 };
