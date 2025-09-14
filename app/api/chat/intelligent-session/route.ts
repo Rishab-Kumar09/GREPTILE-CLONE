@@ -321,6 +321,11 @@ Always cite specific files, functions, or code sections when relevant. Be precis
     
   } catch (error) {
     console.error('OpenAI API error:', error)
+    console.error('Context used:', {
+      filesCount: Object.keys(context.files).length,
+      messageLength: userMessage.length,
+      promptLength: systemPrompt.length
+    })
     throw new Error('Failed to generate intelligent response')
   }
 }
