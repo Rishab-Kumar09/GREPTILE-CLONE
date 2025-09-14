@@ -6,10 +6,20 @@ const openai = new OpenAI({
 })
 
 // Access the same global cache as repository-files
+interface RepoMetadata {
+  analysisId: string;
+  repository: string;
+  timestamp: number;
+  persistentPath: string;
+  filesCount: number;
+  totalIssues: number;
+  criticalIssues: number;
+}
+
 declare global {
   var repositoryCache: Map<string, {
-    metadata: any;
-    files: Map<string, any>;
+    metadata: RepoMetadata;
+    files: Map<string, FileContent>;
     timestamp: number;
   }>;
 }
