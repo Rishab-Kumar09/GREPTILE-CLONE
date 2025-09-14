@@ -242,12 +242,13 @@ export default function EnterpriseAnalysisPage() {
     try {
       const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
       
-      // 🚀 USE THE WORKING GITHUB CHAT API (same as dashboard) + ANALYSIS DATA
-      const response = await fetch('/api/github/chat', {
+      // 🚀 TRY PERSISTENT REPOSITORY CHAT FIRST (RAG-based)
+      let response = await fetch('/api/chat/repository-rag', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          repoFullName: `${owner}/${repo}`,
+          analysisId: analysisId,
+          repository: `${owner}/${repo}`,
           question: message.trim(),
           analysisResults: {
             totalIssues: status.results.length,
@@ -267,7 +268,43 @@ export default function EnterpriseAnalysisPage() {
         })
       })
 
-      const data = await response.json()
+      // 🔄 FALLBACK: Use GitHub API if persistent repo not available
+      if (!response.ok && response.status === 404) {
+        console.log('🔄 Persistent repo not available, falling back to GitHub API')
+        
+        response = await fetch('/api/github/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repoFullName: `${owner}/${repo}`,
+            question: message.trim(),
+            analysisResults: {
+              totalIssues: status.results.length,
+              criticalIssues: status.results.filter(r => r.severity === 'critical').length,
+              highIssues: status.results.filter(r => r.severity === 'high').length,
+              mediumIssues: status.results.filter(r => r.severity === 'medium').length,
+              categories: Array.from(new Set(status.results.map(r => r.type))),
+              issues: status.results.map(result => ({
+                file: result.file,
+                line: result.line,
+                type: result.type,
+                severity: result.severity,
+                message: result.message || result.description,
+                suggestion: getAISuggestion(result.type, result.name, result.description || result.message || '')
+              }))
+            }
+          })
+        })
+      }
+
+      // Handle response with better error checking
+      let data;
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        console.error('❌ JSON parsing failed:', jsonError)
+        throw new Error(`API returned invalid JSON (Status: ${response.status})`)
+      }
 
       if (response.ok && data.answer) {
         const aiMessage: ChatMessage = {
@@ -279,8 +316,9 @@ export default function EnterpriseAnalysisPage() {
         }
         setChatMessages(prev => [...prev, aiMessage])
         
-        // 🧠 Log GitHub API usage
-        console.log('🚀 GitHub chat used files:', data.filesUsed)
+        // 🧠 Log chat source and usage
+        console.log(`🚀 Chat source: ${data.source || 'github-api'}`)
+        console.log('📁 Files used:', data.filesUsed)
         if (data.analysisUsed) {
           console.log('🔍 Analysis data included:', data.analysisUsed)
         }

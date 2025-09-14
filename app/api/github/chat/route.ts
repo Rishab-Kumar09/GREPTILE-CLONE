@@ -123,11 +123,11 @@ ANALYSIS RESULTS:
 - Issue Categories: ${analysisResults.categories?.join(', ') || 'None'}
 
 SPECIFIC ISSUES FOUND:
-${analysisResults.issues?.map((issue: any, index: number) => 
+${analysisResults.issues?.slice(0, 10).map((issue: any, index: number) => 
   `${index + 1}. ${issue.file}:${issue.line} - ${issue.severity.toUpperCase()}: ${issue.type}
      Problem: ${issue.message}
      Suggestion: ${issue.suggestion || 'No suggestion provided'}`
-).join('\n') || 'No specific issues listed'}
+).join('\n') || 'No specific issues listed'}${analysisResults.issues?.length > 10 ? `\n... and ${analysisResults.issues.length - 10} more issues` : ''}
 `
     }
 

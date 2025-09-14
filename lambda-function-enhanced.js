@@ -5272,7 +5272,64 @@ export const handler = async (event) => {
     };
     
   } finally {
-    // Only cleanup if not a chat context build
+    // 🚀 CREATE PERSISTENT COPY FOR CHAT CONTEXT
+    if (analysisId) {
+      try {
+        // Clean up old chat repositories (older than 2 hours)
+        try {
+          const chatReposDir = '/tmp/chat-repos';
+          execSync(`mkdir -p "${chatReposDir}"`, { stdio: 'ignore' });
+          
+          // Find and remove directories older than 2 hours
+          execSync(`find "${chatReposDir}" -type d -mmin +120 -exec rm -rf {} + 2>/dev/null || true`, { stdio: 'ignore' });
+          console.log('🧹 Cleaned up old chat repositories');
+        } catch (cleanupError) {
+          console.warn('⚠️ Chat repos cleanup failed:', cleanupError.message);
+        }
+        
+        // Create persistent directory for chat RAG
+        const persistentDir = `/tmp/chat-repos/${analysisId}`;
+        console.log('📁 Creating persistent repo copy for chat context...');
+        
+        // Create directory structure
+        execSync(`mkdir -p "${persistentDir}"`, { stdio: 'ignore' });
+        
+        // Copy entire repository for chat context
+        execSync(`cp -r "${tempDir}"/* "${persistentDir}/" 2>/dev/null || true`, { stdio: 'ignore' });
+        
+        // Create metadata file for chat context
+        const repoMetadata = {
+          analysisId,
+          repository: repoUrl.replace('https://github.com/', '').replace('.git', ''),
+          timestamp: Date.now(),
+          originalPath: tempDir,
+          persistentPath: persistentDir,
+          filesCount: allFiles.length,
+          totalIssues: analysisResults.results.length,
+          criticalIssues: analysisResults.results.filter(r => r.severity === 'critical').length
+        };
+        
+        execSync(`echo '${JSON.stringify(repoMetadata)}' > "${persistentDir}/.chat-metadata.json"`, { stdio: 'ignore' });
+        
+        console.log('✅ Persistent repo copy created:', persistentDir);
+        console.log('📊 Chat context ready with', allFiles.length, 'files');
+        
+        // Send persistent path to session context
+        await sendContextToSession({
+          ...sessionContext,
+          persistentPath: persistentDir,
+          metadata: repoMetadata
+        });
+        
+        // 🚀 SEND REPOSITORY FILES TO PERSISTENT STORAGE
+        await sendRepositoryFiles(persistentDir, repoMetadata, allFiles);
+        
+      } catch (copyError) {
+        console.warn('⚠️ Failed to create persistent repo copy:', copyError.message);
+      }
+    }
+    
+    // Only cleanup original temp dir if not needed for chat
     if (!analysisId) {
       try {
         execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
@@ -5280,7 +5337,14 @@ export const handler = async (event) => {
         console.warn('Cleanup failed:', err.message);
       }
     } else {
-      console.log('🧠 Keeping repo for chat context:', tempDir);
+      console.log('🧠 Original temp dir preserved for analysis:', tempDir);
+      // Clean up original after creating persistent copy
+      try {
+        execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
+        console.log('🗑️ Original temp dir cleaned up after copying');
+      } catch (err) {
+        console.warn('⚠️ Original temp cleanup failed:', err.message);
+      }
     }
   }
 };
@@ -5592,6 +5656,64 @@ async function sendContextToSession(sessionContext) {
     
   } catch (error) {
     console.error('❌ Failed to send session context:', error.message);
+    console.error('❌ Error details:', error);
+    // Don't throw - this is non-critical for main analysis
+  }
+}
+
+// Send repository files to persistent storage for RAG chat
+async function sendRepositoryFiles(persistentDir, metadata, allFiles) {
+  try {
+    console.log('📁 Sending repository files to persistent storage...');
+    
+    const files = [];
+    
+    // Read all files from the persistent directory
+    for (const filePath of allFiles) {
+      try {
+        const fullPath = path.join(persistentDir, filePath);
+        const content = fs.readFileSync(fullPath, 'utf8');
+        const stats = fs.statSync(fullPath);
+        
+        files.push({
+          path: filePath,
+          content: content,
+          size: stats.size,
+          type: path.extname(filePath).slice(1) || 'unknown'
+        });
+        
+      } catch (fileError) {
+        console.warn(`⚠️ Failed to read file ${filePath}:`, fileError.message);
+      }
+    }
+    
+    console.log('📊 Prepared', files.length, 'files for storage');
+    
+    const response = await fetch(`${process.env.NEXTAUTH_URL || 'https://master.d3dp89x98knsw0.amplifyapp.com'}/api/chat/repository-files`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        analysisId: metadata.analysisId,
+        metadata: metadata,
+        files: files
+      })
+    });
+    
+    console.log('📡 Repository files response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Repository files API error:', errorText);
+      throw new Error(`Repository files API failed: ${response.status} - ${errorText}`);
+    }
+    
+    const result = await response.json();
+    console.log('✅ Repository files sent successfully:', result);
+    
+  } catch (error) {
+    console.error('❌ Failed to send repository files:', error.message);
     console.error('❌ Error details:', error);
     // Don't throw - this is non-critical for main analysis
   }
