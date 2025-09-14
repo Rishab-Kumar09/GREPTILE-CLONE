@@ -273,7 +273,7 @@ REPOSITORY INTELLIGENCE:
 - Categories: ${context.analysisResults.categories.join(', ')}
 
 FILE CONTENTS:
-${Object.entries(context.files).map(([path, file]) => `- ${path} (${file.content.split('\n').length} lines)`).join('\n')}
+${Object.entries(context.files).map(([path, file]: [string, FileContent]) => `- ${path} (${file.content.split('\n').length} lines)`).join('\n')}
 
 ${context.analysisResults ? `ANALYSIS RESULTS:
 - Total Issues: ${context.analysisResults.totalIssues}
@@ -282,8 +282,8 @@ ${context.analysisResults ? `ANALYSIS RESULTS:
 
 RELEVANT FILES:
 ${Object.entries(context.files)
-  .filter(([path, file]) => path.toLowerCase().includes(userMessage.toLowerCase()) || file.content.toLowerCase().includes(userMessage.toLowerCase()))
-  .map(([path, file]) => `- ${path}`).join('\n')}
+  .filter(([path, file]: [string, FileContent]) => path.toLowerCase().includes(userMessage.toLowerCase()) || file.content.toLowerCase().includes(userMessage.toLowerCase()))
+  .map(([path]) => `- ${path}`).join('\n')}
 
 You have COMPLETE knowledge of every file, function, and relationship in this repository. Provide expert, contextual responses about:
 - Code architecture and patterns
