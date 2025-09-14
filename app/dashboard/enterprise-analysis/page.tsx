@@ -249,7 +249,13 @@ export default function EnterpriseAnalysisPage() {
         body: JSON.stringify({
           message: message.trim(),
           repository: `${owner}/${repo}`,
-          tempDir: `/tmp/analysis-${analysisId}` // Use Lambda's temp directory
+          tempDir: `/tmp/analysis-${analysisId}`, // Use Lambda's temp directory
+          analysisResults: {
+            totalIssues: status.results.length,
+            criticalIssues: status.results.filter(r => r.severity === 'critical').length,
+            issues: status.results,
+            categories: Array.from(new Set(status.results.map(r => r.type)))
+          }
         })
       })
 

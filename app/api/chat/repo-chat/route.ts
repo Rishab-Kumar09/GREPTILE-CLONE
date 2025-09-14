@@ -9,10 +9,10 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, tempDir, repository } = await request.json()
+    const { message, tempDir, repository, analysisResults } = await request.json()
     
-    if (!message || !tempDir || !repository) {
-      return NextResponse.json({ error: 'message, tempDir and repository are required' }, { status: 400 })
+    if (!message || !tempDir || !repository || !analysisResults) {
+      return NextResponse.json({ error: 'message, tempDir, repository and analysisResults are required' }, { status: 400 })
     }
     
     console.log(`🤖 Chat request for ${repository} using files in ${tempDir}`)
@@ -25,9 +25,12 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
     
-    // Build context from files
-    const context = await buildRepoContext(tempDir)
-    console.log(`📊 Built context from ${context.files.length} files`)
+    // Build context from files and analysis results
+    const context = {
+      ...(await buildRepoContext(tempDir)),
+      analysisResults
+    }
+    console.log(`📊 Built context from ${context.files.length} files and ${context.analysisResults.totalIssues} issues`)
     
     // Generate response
     const response = await generateResponse(message, context)
@@ -81,10 +84,36 @@ async function buildRepoContext(dir: string) {
   return { files }
 }
 
-async function generateResponse(message: string, context: { files: Array<{path: string, content: string}> }) {
+async function generateResponse(message: string, context: { 
+  files: Array<{path: string, content: string}>,
+  analysisResults: {
+    totalIssues: number,
+    criticalIssues: number,
+    categories: string[],
+    issues: Array<{
+      severity?: string,
+      type: string,
+      file: string,
+      line: number,
+      description: string
+    }>
+  }
+}) {
   // Build system prompt
   const systemPrompt = `You are an expert code analyst with complete knowledge of the repository.
-You have access to all files in the repository. Provide expert, contextual responses about:
+You have access to all files in the repository AND the analysis results. 
+
+ANALYSIS RESULTS:
+- Total Issues: ${context.analysisResults.totalIssues}
+- Critical Issues: ${context.analysisResults.criticalIssues}
+- Categories: ${context.analysisResults.categories.join(', ')}
+
+DETECTED ISSUES:
+${context.analysisResults.issues.map(issue => 
+  `- ${issue.severity?.toUpperCase() || 'INFO'}: ${issue.type} in ${issue.file}:${issue.line}\n  ${issue.description}`
+).join('\\n')}
+
+You can provide expert, contextual responses about:
 - Code architecture and patterns
 - Function implementations and usage
 - File relationships and dependencies
@@ -93,6 +122,7 @@ You have access to all files in the repository. Provide expert, contextual respo
 - Feature implementation guidance
 
 Always cite specific files and code sections when relevant. Be precise and actionable.
+When discussing issues, reference the specific line numbers and files from the analysis.
 
 Available files:
 ${context.files.map(f => f.path).join('\\n')}
