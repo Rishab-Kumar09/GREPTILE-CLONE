@@ -5,20 +5,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 
-// Global type declaration for session contexts and cloned repos
-declare global {
-  var sessionContexts: Map<string, any>;
-  var clonedRepos: Map<string, { path: string, lastAccessed: number }>;
-}
-
-// Initialize global maps
-if (!global.sessionContexts) {
-  global.sessionContexts = new Map();
-}
-if (!global.clonedRepos) {
-  global.clonedRepos = new Map();
-}
-
+// Type definitions
 interface FileIntelligence {
   language: string;
   functions: Array<{ name: string; line: number; async: boolean }>;
@@ -47,6 +34,16 @@ interface FileContent {
   intelligence?: FileIntelligence;
 }
 
+interface RepoStructure {
+  mainFiles: string[];
+  testFiles: string[];
+  configFiles: string[];
+  documentation: string[];
+  services: string[];
+  components: string[];
+  utils: string[];
+}
+
 interface Context {
   repository: string;
   analysisResults: any;
@@ -61,6 +58,20 @@ interface Context {
     components: string[];
     utils: string[];
   };
+}
+
+// Global type declaration for session contexts and cloned repos
+declare global {
+  var sessionContexts: Map<string, any>;
+  var clonedRepos: Map<string, { path: string, lastAccessed: number }>;
+}
+
+// Initialize global maps
+if (!global.sessionContexts) {
+  global.sessionContexts = new Map();
+}
+if (!global.clonedRepos) {
+  global.clonedRepos = new Map();
 }
 
 // Initialize global maps
@@ -83,7 +94,7 @@ setInterval(() => {
         console.warn(`Failed to cleanup repo ${repo}:`, err);
       }
     }
-  }
+  });
 }, 60 * 60 * 1000); // Run every hour
 
 const openai = new OpenAI({
@@ -145,12 +156,7 @@ export async function POST(request: NextRequest) {
     
     console.log(`🧠 Intelligent chat request for ${repository}`)
     
-    interface Context {
-      repository: string;
-      analysisResults: any; // We'll type this properly later
-      files: { [key: string]: FileContent };
-      functions: { [key: string]: any };
-    }
+    // Using the global Context interface
 
     // Clone and analyze repository
     const repoPath = await cloneAndAnalyzeRepo(repository);
@@ -159,20 +165,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Build context from cloned repo and analysis results
+    const structure: RepoStructure = {
+      mainFiles: [],
+      testFiles: [],
+      configFiles: [],
+      documentation: [],
+      services: [],
+      components: [],
+      utils: []
+    };
+
     const context: Context = {
       repository,
       analysisResults,
       files: {},
       functions: {},
-      structure: {
-        mainFiles: [],
-        testFiles: [],
-        configFiles: [],
-        documentation: [],
-        services: [],
-        components: [],
-        utils: []
-      }
+      structure
     }
 
     try {
@@ -237,19 +245,11 @@ export async function POST(request: NextRequest) {
     console.log(`📊 Analysis results: ${analysisResults.totalIssues} issues (${analysisResults.criticalIssues} critical)`)
     
     // Build enhanced context for AI
-    const enhancedContext: Context = {
+    const enhancedContext = {
       repository,
       files: context.files,
-      functions: {},
-      structure: {
-        mainFiles: context.structure.mainFiles,
-        testFiles: context.structure.testFiles,
-        configFiles: context.structure.configFiles,
-        documentation: context.structure.documentation,
-        services: context.structure.services,
-        components: context.structure.components,
-        utils: context.structure.utils
-      },
+      functions: context.functions || {},
+      structure: context.structure,
       analysisResults: {
         totalIssues: analysisResults.totalIssues,
         criticalIssues: analysisResults.criticalIssues,
