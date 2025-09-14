@@ -104,9 +104,9 @@ export async function POST(request: NextRequest) {
       response: response.content,
       citations: response.citations,
       contextUsed: {
-        filesCount: Object.keys(repoContext.files).length,
-        functionsCount: Object.keys(repoContext.symbols.functions).length,
-        relationshipsCount: repoContext.relationships.length
+        filesCount: Object.keys(context.files).length,
+        analysisIssues: context.analysisResults.totalIssues,
+        criticalIssues: context.analysisResults.criticalIssues
       }
     })
     
