@@ -5298,7 +5298,8 @@ async function buildSessionContext(tempDir, repoUrl, analysisId) {
       files: {},
       symbols: { functions: {}, classes: {}, variables: {}, imports: {}, exports: {} },
       relationships: [],
-      architecture: { frameworks: [], patterns: [] }
+      architecture: { frameworks: [], patterns: [] },
+      tempDir // Store the temp directory path so we can access files later
     };
     
     // Process files efficiently (limit to prevent timeout)
@@ -5320,7 +5321,8 @@ async function buildSessionContext(tempDir, repoUrl, analysisId) {
           language: intelligence.language,
           functions: intelligence.functions,
           imports: intelligence.imports,
-          exports: intelligence.exports
+          exports: intelligence.exports,
+          content // Store the actual file content
         };
         
         // Build symbol maps
