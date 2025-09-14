@@ -71,15 +71,39 @@ async function storeSessionContext(context: any) {
   // Store with TTL (2 hours)
   const key = context.analysisId || context.sessionId || `repo:${context.repository}`
   console.log('🔑 Storing context with key:', key)
-  global.sessionContexts.set(key, {
+  
+  // Ensure we have all required fields
+  const enhancedContext = {
     ...context,
+    repository: context.repository,
+    files: context.files || {},
+    functions: context.functions || {},
+    structure: {
+      mainFiles: context.structure?.mainFiles || [],
+      testFiles: context.structure?.testFiles || [],
+      configFiles: context.structure?.configFiles || [],
+      documentation: context.structure?.documentation || [],
+      services: context.structure?.services || [],
+      components: context.structure?.components || [],
+      utils: context.structure?.utils || []
+    },
     expiresAt: Date.now() + (2 * 60 * 60 * 1000) // 2 hours
+  }
+  
+  global.sessionContexts.set(key, enhancedContext)
+  
+  // Log what we stored
+  console.log('📊 Stored context stats:', {
+    key,
+    filesCount: Object.keys(enhancedContext.files).length,
+    functionsCount: Object.keys(enhancedContext.functions).length,
+    mainFiles: enhancedContext.structure.mainFiles.length
   })
   
   // Cleanup expired sessions
   cleanupExpiredSessions()
   
-  console.log(`✅ Session context stored: ${context.sessionId}`)
+  console.log(`✅ Session context stored with key: ${key}`)
 }
 
 // Get session context by ID or repository

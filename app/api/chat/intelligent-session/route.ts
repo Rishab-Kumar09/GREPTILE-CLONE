@@ -159,27 +159,46 @@ export async function POST(request: NextRequest) {
     // Using the global Context interface
 
     // Get context from session storage
-    const sessionContext = await getStoredRepositoryContext(sessionId, repository);
-    if (!sessionContext) {
-      console.warn(`⚠️ No session context found for ${repository}`);
+    const key = sessionId || `repo:${repository}`;
+    console.log('🔍 Looking for context with key:', key);
+    
+    if (!global.sessionContexts) {
+      global.sessionContexts = new Map();
+      console.log('⚠️ Initializing new sessionContexts Map');
     }
 
-    // Build context from session or analysis results
+    const sessionContext = global.sessionContexts.get(key);
+    console.log('📊 Session context found:', sessionContext ? 'yes' : 'no');
+
+    if (!sessionContext) {
+      console.warn(`⚠️ No session context found for ${repository}`);
+      return NextResponse.json({ error: 'Session context not found - please run analysis first' }, { status: 404 });
+    }
+
+    // Build context from session
     const context: Context = {
       repository,
       analysisResults,
-      files: sessionContext?.files || {},
-      functions: sessionContext?.functions || {},
+      files: sessionContext.files || {},
+      functions: sessionContext.functions || {},
       structure: {
-        mainFiles: sessionContext?.structure?.mainFiles || [],
-        testFiles: sessionContext?.structure?.testFiles || [],
-        configFiles: sessionContext?.structure?.configFiles || [],
-        documentation: sessionContext?.structure?.documentation || [],
-        services: sessionContext?.structure?.services || [],
-        components: sessionContext?.structure?.components || [],
-        utils: sessionContext?.structure?.utils || []
+        mainFiles: sessionContext.structure?.mainFiles || [],
+        testFiles: sessionContext.structure?.testFiles || [],
+        configFiles: sessionContext.structure?.configFiles || [],
+        documentation: sessionContext.structure?.documentation || [],
+        services: sessionContext.structure?.services || [],
+        components: sessionContext.structure?.components || [],
+        utils: sessionContext.structure?.utils || []
       }
     }
+
+    // Log context stats
+    console.log('📊 Context stats:', {
+      filesCount: Object.keys(context.files).length,
+      functionsCount: Object.keys(context.functions).length,
+      mainFiles: context.structure.mainFiles.length,
+      analysisIssues: context.analysisResults?.totalIssues
+    });
 
     // Log context stats
     console.log(`📊 Using context: ${Object.keys(context.files).length} files from session storage`);
