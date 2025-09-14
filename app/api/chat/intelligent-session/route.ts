@@ -1,20 +1,130 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { execSync } from 'child_process'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
 
-// Global type declaration for session contexts
+// Global type declaration for session contexts and cloned repos
 declare global {
-  var sessionContexts: Map<string, any> | undefined
+  var sessionContexts: Map<string, any>;
+  var clonedRepos: Map<string, { path: string, lastAccessed: number }>;
+}
+
+// Initialize global maps
+if (!global.sessionContexts) {
+  global.sessionContexts = new Map();
+}
+if (!global.clonedRepos) {
+  global.clonedRepos = new Map();
+}
+
+interface FileIntelligence {
+  language: string;
+  functions: Array<{ name: string; line: number; async: boolean }>;
+  imports: string[];
+  exports: number[];
+  classes: Array<{ name: string; line: number }>;
+  variables: Array<{ name: string; type: string; line: number }>;
+  dependencies: string[];
+  patterns: string[];
+  complexity: {
+    lines: number;
+    functions: number;
+    classes: number;
+    imports: number;
+    exports: number;
+    comments: number;
+  };
 }
 
 interface FileContent {
   name: string;
   path: string;
   content: string;
+  lines?: number;
+  type?: string;
+  intelligence?: FileIntelligence;
 }
+
+interface Context {
+  repository: string;
+  analysisResults: any;
+  files: { [key: string]: FileContent };
+  functions: { [key: string]: any };
+  structure: {
+    mainFiles: string[];
+    testFiles: string[];
+    configFiles: string[];
+    documentation: string[];
+    services: string[];
+    components: string[];
+    utils: string[];
+  };
+}
+
+// Initialize global maps
+if (!global.clonedRepos) {
+  global.clonedRepos = new Map();
+}
+
+// Cleanup old repos every hour
+setInterval(() => {
+  const ONE_HOUR = 60 * 60 * 1000;
+  const now = Date.now();
+  
+  Array.from(global.clonedRepos.entries()).forEach(([repo, info]) => {
+    if (now - info.lastAccessed > ONE_HOUR) {
+      try {
+        execSync(`rm -rf "${info.path}"`, { stdio: 'ignore' });
+        global.clonedRepos.delete(repo);
+        console.log(`🧹 Cleaned up old repo clone: ${repo}`);
+      } catch (err) {
+        console.warn(`Failed to cleanup repo ${repo}:`, err);
+      }
+    }
+  }
+}, 60 * 60 * 1000); // Run every hour
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
+
+// Clone repository and analyze its contents
+async function cloneAndAnalyzeRepo(repository: string) {
+  try {
+    // Check if we already have this repo cloned
+    const existingClone = global.clonedRepos.get(repository);
+    if (existingClone) {
+      existingClone.lastAccessed = Date.now();
+      console.log('📦 Using existing repo clone:', existingClone.path);
+      return existingClone.path;
+    }
+
+    // Create temp directory
+    const tempDir = path.join(os.tmpdir(), `chat-${Date.now()}`);
+    fs.mkdirSync(tempDir, { recursive: true });
+
+    console.log('📥 Cloning repository for chat...');
+    execSync(
+      `git clone --depth 1 --single-branch --no-tags "https://github.com/${repository}.git" "${tempDir}"`,
+      { stdio: 'ignore' }
+    );
+
+    // Store in global map
+    global.clonedRepos.set(repository, {
+      path: tempDir,
+      lastAccessed: Date.now()
+    });
+
+    console.log('✅ Repository cloned successfully:', tempDir);
+    return tempDir;
+
+  } catch (error) {
+    console.error('❌ Failed to clone repository:', error);
+    return null;
+  }
+}
 
 // Test endpoint to verify route is working
 export async function GET() {
@@ -42,53 +152,104 @@ export async function POST(request: NextRequest) {
       functions: { [key: string]: any };
     }
 
-    // Build context from analysis results AND GitHub API
+    // Clone and analyze repository
+    const repoPath = await cloneAndAnalyzeRepo(repository);
+    if (!repoPath) {
+      return NextResponse.json({ error: 'Failed to clone repository' }, { status: 500 });
+    }
+
+    // Build context from cloned repo and analysis results
     const context: Context = {
       repository,
       analysisResults,
       files: {},
-      functions: {}
+      functions: {},
+      structure: {
+        mainFiles: [],
+        testFiles: [],
+        configFiles: [],
+        documentation: [],
+        services: [],
+        components: [],
+        utils: []
+      }
     }
 
     try {
-      // Get file list from GitHub API
-      const [owner, repo] = repository.split('/')
-      const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`)
-      if (response.ok) {
-        const files = await response.json() as Array<{
-          type: string;
-          name: string;
-          path: string;
-          url: string;
-        }>
+      // Read all files from cloned repo
+      const scanDirectory = (dir: string) => {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
         
-        // Get content for code files
-        for (const file of files) {
-          if (file.type === 'file' && file.name.match(/\.(js|ts|py|java|cpp|go|rb|php|cs|rs)$/)) {
-            const contentResponse = await fetch(file.url)
-            if (contentResponse.ok) {
-              const data = await contentResponse.json() as { content: string }
-              context.files[file.path] = {
-                name: file.name,
-                path: file.path,
-                content: Buffer.from(data.content, 'base64').toString('utf8')
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          const relativePath = path.relative(repoPath, fullPath).replace(/\\/g, '/');
+          
+          if (entry.isDirectory()) {
+            if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
+              scanDirectory(fullPath);
+            }
+          } else if (entry.isFile()) {
+            // Only process code and doc files
+            if (entry.name.match(/\.(js|ts|py|java|cpp|go|rb|php|cs|rs|md|txt|json|ya?ml)$/i)) {
+              const content = fs.readFileSync(fullPath, 'utf8');
+              const lines = content.split('\n');
+              
+              // Categorize file
+              if (relativePath.toLowerCase().includes('test')) {
+                context.structure.testFiles.push(relativePath);
+              } else if (relativePath.match(/\.(json|ya?ml|env|config)/i)) {
+                context.structure.configFiles.push(relativePath);
+              } else if (relativePath.match(/\.(md|txt|doc)/i)) {
+                context.structure.documentation.push(relativePath);
+              } else if (relativePath.match(/service|api|controller/i)) {
+                context.structure.services.push(relativePath);
+              } else if (relativePath.match(/component|view|page/i)) {
+                context.structure.components.push(relativePath);
+              } else if (relativePath.match(/util|helper|lib/i)) {
+                context.structure.utils.push(relativePath);
+              } else {
+                context.structure.mainFiles.push(relativePath);
               }
+              
+              // Store file info
+              context.files[relativePath] = {
+                name: entry.name,
+                path: relativePath,
+                content,
+                lines: lines.length,
+                type: path.extname(entry.name).slice(1),
+                intelligence: extractFileIntelligence(content, relativePath)
+              };
             }
           }
         }
       }
+      
+      scanDirectory(repoPath);
+      console.log(`📊 Processed ${Object.keys(context.files).length} files from cloned repo`);
+      
     } catch (error) {
-      console.warn('⚠️ Failed to get files from GitHub:', error)
-      // Continue with just analysis results
+      console.error('❌ Failed to process cloned repo:', error);
+      return NextResponse.json({ error: 'Failed to process repository' }, { status: 500 });
     }
     
     console.log(`📊 Using context: ${Object.keys(context.files).length} files from GitHub`)
     console.log(`📊 Analysis results: ${analysisResults.totalIssues} issues (${analysisResults.criticalIssues} critical)`)
     
     // Build enhanced context for AI
-    const enhancedContext = {
+    const enhancedContext: Context = {
       repository,
       files: context.files,
+      functions: {},
+      structure: {
+        mainFiles: context.structure.mainFiles,
+        testFiles: context.structure.testFiles,
+        configFiles: context.structure.configFiles,
+        documentation: context.structure.documentation,
+        services: context.structure.services,
+        components: context.structure.components,
+        utils: context.structure.utils
+      },
       analysisResults: {
         totalIssues: analysisResults.totalIssues,
         criticalIssues: analysisResults.criticalIssues,
@@ -264,7 +425,7 @@ function extractKeywords(message: string) {
 }
 
 // Generate intelligent response using OpenAI
-async function generateIntelligentResponse(userMessage: string, context: { repository: string, files: { [key: string]: FileContent }, analysisResults: any }, chatHistory: any[] = []) {
+async function generateIntelligentResponse(userMessage: string, context: Context, chatHistory: any[] = []) {
   const systemPrompt = `You are an expert code analyst with complete knowledge of the repository "${context.repository}". 
 
 REPOSITORY INTELLIGENCE:
@@ -345,6 +506,118 @@ Always cite specific files, functions, or code sections when relevant. Be precis
     })
     throw new Error('Failed to generate intelligent response')
   }
+}
+
+// Extract detailed file intelligence
+function extractFileIntelligence(content: string, filePath: string): FileIntelligence {
+  const lines = content.split('\n');
+  const intelligence: FileIntelligence = {
+    language: path.extname(filePath).slice(1),
+    functions: [],
+    imports: [],
+    exports: [],
+    classes: [],
+    variables: [],
+    dependencies: [],
+    patterns: [],
+    complexity: {
+      lines: lines.length,
+      functions: 0,
+      classes: 0,
+      imports: 0,
+      exports: 0,
+      comments: 0
+    }
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    
+    // Count comments
+    if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) {
+      intelligence.complexity.comments++;
+    }
+    
+    // Detect imports
+    if (trimmed.match(/^(import|require|from|using)\s/)) {
+      intelligence.complexity.imports++;
+      const importMatch = trimmed.match(/['"](.*?)['"]/);
+      if (importMatch) {
+        intelligence.imports.push(importMatch[1]);
+        intelligence.dependencies.push(importMatch[1]);
+      }
+    }
+    
+    // Detect exports
+    if (trimmed.match(/^(export|module\.exports)/)) {
+      intelligence.complexity.exports++;
+      intelligence.exports.push(index + 1);
+    }
+    
+    // Detect functions
+    if (trimmed.match(/^(function|const|let|var|async)\s+\w+\s*\(/)) {
+      intelligence.complexity.functions++;
+      const funcMatch = trimmed.match(/\s+(\w+)\s*\(/);
+      if (funcMatch) {
+        intelligence.functions.push({
+          name: funcMatch[1],
+          line: index + 1,
+          async: trimmed.startsWith('async')
+        });
+      }
+    }
+    
+    // Detect classes
+    if (trimmed.match(/^class\s+\w+/)) {
+      intelligence.complexity.classes++;
+      const classMatch = trimmed.match(/class\s+(\w+)/);
+      if (classMatch) {
+        intelligence.classes.push({
+          name: classMatch[1],
+          line: index + 1
+        });
+      }
+    }
+    
+    // Detect variables
+    if (trimmed.match(/^(const|let|var)\s+\w+\s*=/)) {
+      const varMatch = trimmed.match(/(const|let|var)\s+(\w+)\s*=/);
+      if (varMatch) {
+        intelligence.variables.push({
+          name: varMatch[2],
+          type: varMatch[1],
+          line: index + 1
+        });
+      }
+    }
+    
+    // Detect common patterns
+    if (trimmed.match(/new\s+(Promise|Set|Map|WeakMap|WeakSet)/)) {
+      if (!intelligence.patterns.includes('Built-in Objects')) {
+        intelligence.patterns.push('Built-in Objects');
+      }
+    }
+    if (trimmed.match(/\.(map|filter|reduce|forEach)\(/)) {
+      if (!intelligence.patterns.includes('Functional Programming')) {
+        intelligence.patterns.push('Functional Programming');
+      }
+    }
+    if (trimmed.match(/try\s*{/)) {
+      if (!intelligence.patterns.includes('Error Handling')) {
+        intelligence.patterns.push('Error Handling');
+      }
+    }
+    if (trimmed.match(/async|await|\.then\(/)) {
+      if (!intelligence.patterns.includes('Async Programming')) {
+        intelligence.patterns.push('Async Programming');
+      }
+    }
+  });
+
+  return {
+    ...intelligence,
+    patterns: Array.from(intelligence.patterns)
+  };
 }
 
 // Extract citations from AI response
