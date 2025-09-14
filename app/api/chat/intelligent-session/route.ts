@@ -84,7 +84,7 @@ async function getStoredRepositoryContext(sessionId?: string, repository?: strin
   
   // Check if expired
   if (session.expiresAt < Date.now()) {
-    global.sessionContexts.delete(key)
+    global.sessionContexts.delete(sessionId)
     return null
   }
   
