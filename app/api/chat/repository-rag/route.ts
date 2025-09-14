@@ -5,6 +5,19 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
+// Access the same global cache as repository-files
+declare global {
+  var repositoryCache: Map<string, {
+    metadata: any;
+    files: Map<string, any>;
+    timestamp: number;
+  }>;
+}
+
+if (!global.repositoryCache) {
+  global.repositoryCache = new Map();
+}
+
 interface FileContent {
   path: string;
   content: string;
@@ -38,19 +51,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
     
-    // Get repository files from persistent storage
-    const repoResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/chat/repository-files?analysisId=${analysisId}&repository=${encodeURIComponent(repository)}`);
+    // Get repository files from direct cache access
+    console.log(`🔍 RAG: Looking for analysisId=${analysisId}, repository=${repository}`);
+    console.log(`📊 Cache size: ${global.repositoryCache.size} entries`);
     
-    if (!repoResponse.ok) {
-      console.log('❌ Repository files not found, returning 404');
+    let repoData = null;
+    
+    if (analysisId) {
+      repoData = global.repositoryCache.get(analysisId);
+      console.log(`🔍 Looking for analysisId ${analysisId}: ${repoData ? 'FOUND' : 'NOT FOUND'}`);
+    }
+    
+    if (!repoData && repository) {
+      console.log(`🔍 Searching by repository name: ${repository}`);
+      Array.from(global.repositoryCache.entries()).forEach(([id, data]) => {
+        if (data.metadata.repository === repository) {
+          repoData = data;
+          console.log(`✅ Found match by repository name!`);
+        }
+      });
+    }
+    
+    if (!repoData) {
+      console.log(`❌ Repository files not found in cache. Available keys: ${Array.from(global.repositoryCache.keys()).join(', ')}`);
       return NextResponse.json({ error: 'Repository files not found in persistent storage' }, { status: 404 });
     }
     
-    const repoData = await repoResponse.json();
-    console.log(`✅ Retrieved ${repoData.filesCount} files from persistent storage`);
+    // Convert cache data to expected format
+    const filesArray = Array.from(repoData.files.entries()).map(([filePath, content]) => ({
+      path: filePath,
+      content: content.content,
+      size: content.size,
+      type: content.type
+    }));
+    
+    const repoDataFormatted = {
+      files: filesArray,
+      filesCount: filesArray.length
+    };
+    
+    console.log(`✅ Retrieved ${repoDataFormatted.filesCount} files from direct cache access`);
     
     // Filter and rank files based on question relevance
-    const files: FileContent[] = repoData.files;
+    const files: FileContent[] = repoDataFormatted.files;
     const questionLower = question.toLowerCase();
     
     // Simple relevance scoring
