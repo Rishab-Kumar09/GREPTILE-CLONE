@@ -242,13 +242,28 @@ export default function EnterpriseAnalysisPage() {
     try {
       const [owner, repo] = repoUrl.replace('https://github.com/', '').split('/')
       
-      // 🚀 USE THE WORKING GITHUB CHAT API (same as dashboard)
+      // 🚀 USE THE WORKING GITHUB CHAT API (same as dashboard) + ANALYSIS DATA
       const response = await fetch('/api/github/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           repoFullName: `${owner}/${repo}`,
-          question: message.trim()
+          question: message.trim(),
+          analysisResults: {
+            totalIssues: status.results.length,
+            criticalIssues: status.results.filter(r => r.severity === 'critical').length,
+            highIssues: status.results.filter(r => r.severity === 'high').length,
+            mediumIssues: status.results.filter(r => r.severity === 'medium').length,
+            categories: Array.from(new Set(status.results.map(r => r.type))),
+            issues: status.results.map(result => ({
+              file: result.file,
+              line: result.line,
+              type: result.type,
+              severity: result.severity,
+              message: result.message,
+              suggestion: result.suggestion
+            }))
+          }
         })
       })
 
@@ -266,6 +281,9 @@ export default function EnterpriseAnalysisPage() {
         
         // 🧠 Log GitHub API usage
         console.log('🚀 GitHub chat used files:', data.filesUsed)
+        if (data.analysisUsed) {
+          console.log('🔍 Analysis data included:', data.analysisUsed)
+        }
       } else {
         throw new Error(data.error || 'Failed to get AI response')
       }

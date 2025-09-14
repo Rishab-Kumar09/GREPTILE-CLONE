@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    const { repoFullName, question, batchLimit = 8, maxFileBytes = 40_000 } = await req.json()
+    const { repoFullName, question, batchLimit = 8, maxFileBytes = 40_000, analysisResults } = await req.json()
     if (!repoFullName || !question) {
       return NextResponse.json({ error: 'repoFullName and question are required' }, { status: 400 })
     }
@@ -110,12 +110,40 @@ export async function POST(req: NextRequest) {
       return `FILE: ${path}\n-----\n${content}\n\n`
     }).join('\n')
 
-    const systemPrompt = `You are an expert codebase assistant. Answer the user's question using ONLY the provided files. 
-When you cite code, include the exact line(s) and a short snippet in your answer. 
+    // Build analysis context if available
+    let analysisContext = ''
+    if (analysisResults && analysisResults.totalIssues > 0) {
+      analysisContext = `
+
+ANALYSIS RESULTS:
+- Total Issues: ${analysisResults.totalIssues}
+- Critical Issues: ${analysisResults.criticalIssues || 0}
+- High Priority Issues: ${analysisResults.highIssues || 0}
+- Medium Priority Issues: ${analysisResults.mediumIssues || 0}
+- Issue Categories: ${analysisResults.categories?.join(', ') || 'None'}
+
+SPECIFIC ISSUES FOUND:
+${analysisResults.issues?.map((issue: any, index: number) => 
+  `${index + 1}. ${issue.file}:${issue.line} - ${issue.severity.toUpperCase()}: ${issue.type}
+     Problem: ${issue.message}
+     Suggestion: ${issue.suggestion || 'No suggestion provided'}`
+).join('\n') || 'No specific issues listed'}
+`
+    }
+
+    const systemPrompt = `You are an expert codebase assistant with COMPLETE knowledge of this repository's code AND its security analysis results. 
+
+${analysisContext}
+
+Answer the user's question using the provided files and analysis results. When discussing issues:
+- Reference specific files, line numbers, and code snippets
+- Explain the security/quality implications
+- Provide actionable recommendations
+- Cite the exact analysis findings when relevant
 
 IMPORTANT: You must return ONLY valid JSON in this exact format:
 {
-  "answer": "Your detailed answer here",
+  "answer": "Your detailed answer here with analysis insights",
   "citations": [{"file": "filename.js", "lines": [1, 5], "snippet": "code snippet"}]
 }
 
@@ -153,6 +181,11 @@ Do not include any text before or after the JSON. Do not use markdown code block
       filesUsed: ranked.map(f => f.path),
       answer: finalAnswer,
       citations: parsed.citations || [],
+      analysisUsed: analysisResults ? {
+        totalIssues: analysisResults.totalIssues,
+        criticalIssues: analysisResults.criticalIssues || 0,
+        categories: analysisResults.categories || []
+      } : null
     })
   } catch (err: any) {
     return NextResponse.json({ error: String(err?.message || err) }, { status: 500 })
