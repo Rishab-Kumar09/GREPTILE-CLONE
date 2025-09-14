@@ -503,10 +503,10 @@ Analysis Results:
 - Critical Issues: ${context.analysisResults?.criticalIssues || 0}
 - Categories: ${context.analysisResults?.categories?.join(', ') || 'None'}
 
-FILE CONTENTS (First 1000 chars of each file):
+FILE CONTENTS:
 ${Object.entries(context.files).map(([path, file]: [string, FileContent]) => `
 ${path}:
-${file.content.substring(0, 1000)}${file.content.length > 1000 ? '...' : ''}`).join('\n')}
+${file.content}`).join('\n')}
 
 You have COMPLETE access to all file contents above. When describing the repository:
 1. DO NOT say there are no files if files exist in the context
