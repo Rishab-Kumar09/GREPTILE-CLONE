@@ -61,11 +61,16 @@ export async function GET(request: NextRequest) {
 async function storeSessionContext(context: any) {
   // Initialize global session storage
   if (!global.sessionContexts) {
+    console.log('⚠️ Creating new sessionContexts Map - this means we lost previous context!')
     global.sessionContexts = new Map()
+  } else {
+    console.log('✅ Using existing sessionContexts Map')
+    console.log('🗝️ Current keys:', Array.from(global.sessionContexts.keys()))
   }
   
   // Store with TTL (2 hours)
   const key = context.analysisId || context.sessionId || `repo:${context.repository}`
+  console.log('🔑 Storing context with key:', key)
   global.sessionContexts.set(key, {
     ...context,
     expiresAt: Date.now() + (2 * 60 * 60 * 1000) // 2 hours
