@@ -5302,10 +5302,8 @@ async function buildSessionContext(tempDir, repoUrl, analysisId) {
       tempDir // Store the temp directory path so we can access files later
     };
     
-    // Process files efficiently (limit to prevent timeout)
-    const importantFiles = allFiles.slice(0, 50); // Limit for performance
-    
-    for (const file of importantFiles) {
+    // Process ALL files for chat context
+    for (const file of allFiles) {
       try {
         const content = await fs.readFile(file, 'utf-8');
         const relativePath = path.relative(tempDir, file);
