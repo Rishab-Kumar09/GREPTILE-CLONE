@@ -503,10 +503,10 @@ Analysis Results:
 - Critical Issues: ${context.analysisResults?.criticalIssues || 0}
 - Categories: ${context.analysisResults?.categories?.join(', ') || 'None'}
 
-FILE CONTENTS:
+FILE CONTENTS (First 1000 chars of each file):
 ${Object.entries(context.files).map(([path, file]: [string, FileContent]) => `
 ${path}:
-${file.content}`).join('\n')}
+${file.content.substring(0, 1000)}${file.content.length > 1000 ? '...' : ''}`).join('\n')}
 
 You have COMPLETE access to all file contents above. When describing the repository:
 1. DO NOT say there are no files if files exist in the context
@@ -556,11 +556,51 @@ Always cite specific files, functions, or code sections when relevant. Be precis
     
   } catch (error) {
     console.error('OpenAI API error:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      name: error instanceof Error ? error.name : 'Unknown error type'
+    })
     console.error('Context used:', {
       filesCount: Object.keys(context.files).length,
       messageLength: userMessage.length,
-      promptLength: systemPrompt.length
+      promptLength: systemPrompt.length,
+      totalPromptSize: systemPrompt.length + userMessage.length
     })
+    
+    // Check if it's a token limit issue
+    if (error instanceof Error && error.message.includes('token')) {
+      console.error('🚨 Token limit exceeded - reducing context size')
+      // Try with reduced context
+      const reducedPrompt = `You are an expert code analyst with knowledge of the repository "${context.repository}".
+      
+REPOSITORY SUMMARY:
+- Total Files: ${Object.keys(context.files).length} files
+- Analysis Results: ${context.analysisResults?.totalIssues || 0} issues found
+
+You have access to the repository analysis. Provide helpful responses about the code structure and potential improvements.`
+
+      try {
+        const reducedCompletion = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: reducedPrompt },
+            { role: 'user', content: userMessage }
+          ] as any,
+          max_tokens: 500,
+          temperature: 0.7,
+        })
+
+        const reducedResponse = reducedCompletion.choices[0]?.message?.content || 'No response generated'
+        return {
+          content: reducedResponse,
+          citations: []
+        }
+      } catch (reducedError) {
+        console.error('❌ Reduced context also failed:', reducedError)
+      }
+    }
+    
     throw new Error('Failed to generate intelligent response')
   }
 }
