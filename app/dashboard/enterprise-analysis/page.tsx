@@ -260,8 +260,8 @@ export default function EnterpriseAnalysisPage() {
               line: result.line,
               type: result.type,
               severity: result.severity,
-              message: result.message,
-              suggestion: result.suggestion
+              message: result.message || result.description,
+              suggestion: getAISuggestion(result.type, result.name, result.description || result.message || '')
             }))
           }
         })
