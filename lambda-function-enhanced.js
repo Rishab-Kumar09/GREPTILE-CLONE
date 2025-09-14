@@ -5327,7 +5327,7 @@ export const handler = async (event) => {
         console.log('📊 Analysis results ready for chat:', totalIssues, 'issues found');
         
         // 🚀 SEND REPOSITORY FILES TO PERSISTENT STORAGE
-        await sendRepositoryFiles(persistentDir, repoMetadata, allFiles);
+        await sendRepositoryFiles(tempDir, repoMetadata, allFiles);
         
       } catch (resultsError) {
         console.warn('⚠️ Failed to send analysis results to chat:', resultsError.message);
@@ -5657,16 +5657,16 @@ async function sendContextToSession(sessionContext) {
 }
 
 // Send repository files to persistent storage for RAG chat
-async function sendRepositoryFiles(persistentDir, metadata, allFiles) {
+async function sendRepositoryFiles(sourceDir, metadata, allFiles) {
   try {
     console.log('📁 Sending repository files to persistent storage...');
     
     const files = [];
     
-    // Read all files from the persistent directory
+    // Read all files from the source directory
     for (const filePath of allFiles) {
       try {
-        const fullPath = path.join(persistentDir, filePath);
+        const fullPath = path.join(sourceDir, filePath);
         const content = fsSync.readFileSync(fullPath, 'utf8');
         const stats = fsSync.statSync(fullPath);
         
