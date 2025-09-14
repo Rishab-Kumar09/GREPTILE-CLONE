@@ -29,8 +29,21 @@ export async function POST(request: NextRequest) {
     
     console.log(`🧠 Intelligent chat request for ${repository}`)
     
+    interface FileContent {
+      name: string;
+      path: string;
+      content: string;
+    }
+
+    interface Context {
+      repository: string;
+      analysisResults: any; // We'll type this properly later
+      files: { [key: string]: FileContent };
+      functions: { [key: string]: any };
+    }
+
     // Build context from analysis results AND GitHub API
-    const context = {
+    const context: Context = {
       repository,
       analysisResults,
       files: {},
@@ -42,14 +55,19 @@ export async function POST(request: NextRequest) {
       const [owner, repo] = repository.split('/')
       const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`)
       if (response.ok) {
-        const files = await response.json()
+        const files = await response.json() as Array<{
+          type: string;
+          name: string;
+          path: string;
+          url: string;
+        }>
         
         // Get content for code files
         for (const file of files) {
           if (file.type === 'file' && file.name.match(/\.(js|ts|py|java|cpp|go|rb|php|cs|rs)$/)) {
             const contentResponse = await fetch(file.url)
             if (contentResponse.ok) {
-              const data = await contentResponse.json()
+              const data = await contentResponse.json() as { content: string }
               context.files[file.path] = {
                 name: file.name,
                 path: file.path,
