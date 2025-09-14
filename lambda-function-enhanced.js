@@ -5272,11 +5272,15 @@ export const handler = async (event) => {
     };
     
   } finally {
-    // Cleanup
-    try {
-      execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
-    } catch (err) {
-      console.warn('Cleanup failed:', err.message);
+    // Only cleanup if not a chat context build
+    if (!analysisId) {
+      try {
+        execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
+      } catch (err) {
+        console.warn('Cleanup failed:', err.message);
+      }
+    } else {
+      console.log('🧠 Keeping repo for chat context:', tempDir);
     }
   }
 };
