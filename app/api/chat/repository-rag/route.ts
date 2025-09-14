@@ -5,29 +5,6 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-// Access the same global cache as repository-files
-interface RepoMetadata {
-  analysisId: string;
-  repository: string;
-  timestamp: number;
-  persistentPath: string;
-  filesCount: number;
-  totalIssues: number;
-  criticalIssues: number;
-}
-
-declare global {
-  var repositoryCache: Map<string, {
-    metadata: RepoMetadata;
-    files: Map<string, FileContent>;
-    timestamp: number;
-  }>;
-}
-
-if (!global.repositoryCache) {
-  global.repositoryCache = new Map();
-}
-
 interface FileContent {
   path: string;
   content: string;
@@ -76,59 +53,50 @@ export async function POST(request: NextRequest) {
     }
     
     console.log(`✅ Found persistent repo copy at: ${tempDir}`);
+    
+    // Find all code files
+    const files: FileContent[] = [];
+    const extensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h', '.php', '.rb'];
+    
+    const scanDirectory = (dir: string): void => {
+      const items = fs.readdirSync(dir, { withFileTypes: true });
       
-      // Find all code files
-      const files = [];
-      const extensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h', '.php', '.rb'];
-      
-      function scanDirectory(dir) {
-        const items = fs.readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        if (item.name.startsWith('.') || 
+            ['node_modules', 'build', 'dist', 'coverage', '__pycache__', 'target', 'vendor'].includes(item.name)) {
+          continue;
+        }
         
-        for (const item of items) {
-          if (item.name.startsWith('.') || 
-              ['node_modules', 'build', 'dist', 'coverage', '__pycache__', 'target', 'vendor'].includes(item.name)) {
-            continue;
-          }
-          
-          const fullPath = path.join(dir, item.name);
-          
-          if (item.isDirectory()) {
-            scanDirectory(fullPath);
-          } else if (item.isFile()) {
-            const ext = path.extname(item.name).toLowerCase();
-            if (extensions.includes(ext)) {
-              try {
-                const content = fs.readFileSync(fullPath, 'utf8');
-                const stats = fs.statSync(fullPath);
-                const relativePath = path.relative(tempDir, fullPath);
-                
-                files.push({
-                  path: relativePath,
-                  content: content,
-                  size: stats.size,
-                  type: ext.slice(1)
-                });
-              } catch (err) {
-                console.warn(`Failed to read ${fullPath}:`, err.message);
-              }
+        const fullPath = path.join(dir, item.name);
+        
+        if (item.isDirectory()) {
+          scanDirectory(fullPath);
+        } else if (item.isFile()) {
+          const ext = path.extname(item.name).toLowerCase();
+          if (extensions.includes(ext)) {
+            try {
+              const content = fs.readFileSync(fullPath, 'utf8');
+              const stats = fs.statSync(fullPath);
+              const relativePath = path.relative(tempDir, fullPath);
+              
+              files.push({
+                path: relativePath,
+                content: content,
+                size: stats.size,
+                type: ext.slice(1) || 'unknown'
+              });
+            } catch (err: any) {
+              console.warn(`Failed to read ${fullPath}:`, err.message);
             }
           }
         }
       }
-      
-      scanDirectory(tempDir);
-      console.log(`✅ Found ${files.length} code files in repository`);
-      
-      // Cleanup
-      execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
-      
-    } catch (error) {
-      console.error(`❌ Failed to clone repository:`, error.message);
-      return NextResponse.json({ error: 'Failed to clone repository for chat' }, { status: 500 });
-    }
+    };
+    
+    scanDirectory(tempDir);
+    console.log(`✅ Found ${files.length} code files in repository`);
     
     // Filter and rank files based on question relevance
-    const files: FileContent[] = repoDataFormatted.files;
     const questionLower = question.toLowerCase();
     
     // Simple relevance scoring
