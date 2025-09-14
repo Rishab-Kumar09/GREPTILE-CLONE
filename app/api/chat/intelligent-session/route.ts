@@ -73,10 +73,9 @@ async function getStoredRepositoryContext(sessionId?: string, repository?: strin
     return null
   }
   
-  if (!sessionId) {
-    return null
-  }
-  const session = global.sessionContexts.get(sessionId)
+  // Try all possible keys in the same order as storage
+  const key = sessionId || `repo:${repository}`
+  const session = global.sessionContexts.get(key)
   
   if (!session) {
     return null
@@ -84,7 +83,7 @@ async function getStoredRepositoryContext(sessionId?: string, repository?: strin
   
   // Check if expired
   if (session.expiresAt < Date.now()) {
-    global.sessionContexts.delete(sessionId)
+    global.sessionContexts.delete(key)
     return null
   }
   
