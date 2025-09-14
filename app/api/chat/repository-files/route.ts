@@ -94,6 +94,10 @@ export async function GET(request: NextRequest) {
     const analysisId = searchParams.get('analysisId');
     const repository = searchParams.get('repository');
     
+    console.log(`🔍 RAG GET request: analysisId=${analysisId}, repository=${repository}`);
+    console.log(`📊 Cache size: ${global.repositoryCache.size} entries`);
+    console.log(`📋 Cache keys: ${Array.from(global.repositoryCache.keys()).join(', ')}`);
+    
     if (!analysisId && !repository) {
       return NextResponse.json({ error: 'analysisId or repository required' }, { status: 400 });
     }
@@ -103,18 +107,23 @@ export async function GET(request: NextRequest) {
     
     if (analysisId) {
       repoData = global.repositoryCache.get(analysisId);
+      console.log(`🔍 Looking for analysisId ${analysisId}: ${repoData ? 'FOUND' : 'NOT FOUND'}`);
     }
     
     if (!repoData && repository) {
       // Search by repository name
+      console.log(`🔍 Searching by repository name: ${repository}`);
       Array.from(global.repositoryCache.entries()).forEach(([id, data]) => {
+        console.log(`📋 Checking cache entry ${id}: ${data.metadata.repository}`);
         if (data.metadata.repository === repository) {
           repoData = data;
+          console.log(`✅ Found match by repository name!`);
         }
       });
     }
     
     if (!repoData) {
+      console.log(`❌ Repository data not found. Cache entries: ${Array.from(global.repositoryCache.keys()).join(', ')}`);
       return NextResponse.json({ error: 'Repository data not found' }, { status: 404 });
     }
     
