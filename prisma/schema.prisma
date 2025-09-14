@@ -56,6 +56,17 @@ model AnalysisStatus {
   updatedAt         DateTime @updatedAt
 }
 
+model RepositoryFiles {
+  id          String   @id // Analysis ID
+  repository  String   // Repository full name (e.g., "owner/repo")
+  files       Json     // Array of file objects with path, content, size, type
+  metadata    Json     // Repository metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([repository])
+}
+
 model UserProfile {
   id           String   @id @default("default-user")
   name         String   @default("R.K.")

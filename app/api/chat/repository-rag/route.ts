@@ -61,46 +61,71 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Question is required' }, { status: 400 });
     }
     
-    // Get repository files from direct cache access
-    console.log(`🔍 RAG: Looking for analysisId=${analysisId}, repository=${repository}`);
-    console.log(`📊 Cache size: ${global.repositoryCache.size} entries`);
+    // Use the persistent repository copy created by Lambda
+    console.log(`🔍 RAG: Using persistent repo copy for analysisId=${analysisId}`);
     
-    let repoData = null;
+    const fs = require('fs');
+    const path = require('path');
     
-    if (analysisId) {
-      repoData = global.repositoryCache.get(analysisId);
-      console.log(`🔍 Looking for analysisId ${analysisId}: ${repoData ? 'FOUND' : 'NOT FOUND'}`);
-    }
+    // Use the persistent directory created by Lambda
+    const tempDir = `/tmp/chat-repos/${analysisId}`;
     
-    if (!repoData && repository) {
-      console.log(`🔍 Searching by repository name: ${repository}`);
-      Array.from(global.repositoryCache.entries()).forEach(([id, data]) => {
-        if (data.metadata.repository === repository) {
-          repoData = data;
-          console.log(`✅ Found match by repository name!`);
-        }
-      });
-    }
-    
-    if (!repoData) {
-      console.log(`❌ Repository files not found in cache. Available keys: ${Array.from(global.repositoryCache.keys()).join(', ')}`);
+    if (!fs.existsSync(tempDir)) {
+      console.log(`❌ Persistent repo directory not found: ${tempDir}`);
       return NextResponse.json({ error: 'Repository files not found in persistent storage' }, { status: 404 });
     }
     
-    // Convert cache data to expected format
-    const filesArray = Array.from(repoData.files.entries()).map(([filePath, content]) => ({
-      path: filePath,
-      content: content.content,
-      size: content.size,
-      type: content.type
-    }));
-    
-    const repoDataFormatted = {
-      files: filesArray,
-      filesCount: filesArray.length
-    };
-    
-    console.log(`✅ Retrieved ${repoDataFormatted.filesCount} files from direct cache access`);
+    console.log(`✅ Found persistent repo copy at: ${tempDir}`);
+      
+      // Find all code files
+      const files = [];
+      const extensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.go', '.rs', '.cpp', '.c', '.h', '.php', '.rb'];
+      
+      function scanDirectory(dir) {
+        const items = fs.readdirSync(dir, { withFileTypes: true });
+        
+        for (const item of items) {
+          if (item.name.startsWith('.') || 
+              ['node_modules', 'build', 'dist', 'coverage', '__pycache__', 'target', 'vendor'].includes(item.name)) {
+            continue;
+          }
+          
+          const fullPath = path.join(dir, item.name);
+          
+          if (item.isDirectory()) {
+            scanDirectory(fullPath);
+          } else if (item.isFile()) {
+            const ext = path.extname(item.name).toLowerCase();
+            if (extensions.includes(ext)) {
+              try {
+                const content = fs.readFileSync(fullPath, 'utf8');
+                const stats = fs.statSync(fullPath);
+                const relativePath = path.relative(tempDir, fullPath);
+                
+                files.push({
+                  path: relativePath,
+                  content: content,
+                  size: stats.size,
+                  type: ext.slice(1)
+                });
+              } catch (err) {
+                console.warn(`Failed to read ${fullPath}:`, err.message);
+              }
+            }
+          }
+        }
+      }
+      
+      scanDirectory(tempDir);
+      console.log(`✅ Found ${files.length} code files in repository`);
+      
+      // Cleanup
+      execSync(`rm -rf "${tempDir}"`, { stdio: 'ignore' });
+      
+    } catch (error) {
+      console.error(`❌ Failed to clone repository:`, error.message);
+      return NextResponse.json({ error: 'Failed to clone repository for chat' }, { status: 500 });
+    }
     
     // Filter and rank files based on question relevance
     const files: FileContent[] = repoDataFormatted.files;
