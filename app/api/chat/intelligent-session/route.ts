@@ -268,19 +268,22 @@ async function generateIntelligentResponse(userMessage: string, context: any, ch
   const systemPrompt = `You are an expert code analyst with complete knowledge of the repository "${context.repository}". 
 
 REPOSITORY INTELLIGENCE:
-- Architecture: ${context.architecture.frameworks.join(', ')} (${context.architecture.totalFiles} files, ${context.architecture.languages.join(', ')})
-- Code Intelligence: ${context.codeIntelligence.functions} functions, ${context.codeIntelligence.relationships} relationships, ${context.codeIntelligence.crossFileConnections} cross-file connections
-- Key Files: ${context.architecture.keyFiles.map((f: any) => `${f.path} (${f.functions} functions, ${f.lines} lines)`).join(', ')}
+- Files: ${Object.keys(context.files).length} files analyzed
+- Analysis Results: ${context.analysisResults.totalIssues} issues found (${context.analysisResults.criticalIssues} critical)
+- Categories: ${context.analysisResults.categories.join(', ')}
+
+FILE CONTENTS:
+${Object.entries(context.files).map(([path, file]) => `- ${path} (${file.content.split('\n').length} lines)`).join('\n')}
 
 ${context.analysisResults ? `ANALYSIS RESULTS:
 - Total Issues: ${context.analysisResults.totalIssues}
 - Critical Issues: ${context.analysisResults.criticalIssues}
 - Categories: ${context.analysisResults.categories.join(', ')}` : ''}
 
-RELEVANT CODE CONTEXT:
-${context.relevantCode.files.length > 0 ? `Files: ${context.relevantCode.files.map((f: any) => f.path).join(', ')}` : ''}
-${context.relevantCode.functions.length > 0 ? `Functions: ${context.relevantCode.functions.map((f: any) => f.name).join(', ')}` : ''}
-${context.relevantCode.relationships.length > 0 ? `Relationships: ${context.relevantCode.relationships.map((r: any) => `${r.symbol} (${r.from} → ${r.to})`).join(', ')}` : ''}
+RELEVANT FILES:
+${Object.entries(context.files)
+  .filter(([path, file]) => path.toLowerCase().includes(userMessage.toLowerCase()) || file.content.toLowerCase().includes(userMessage.toLowerCase()))
+  .map(([path, file]) => `- ${path}`).join('\n')}
 
 You have COMPLETE knowledge of every file, function, and relationship in this repository. Provide expert, contextual responses about:
 - Code architecture and patterns
