@@ -65,15 +65,10 @@ async function storeSessionContext(context: any) {
   }
   
   // Store with TTL (2 hours)
-  global.sessionContexts.set(context.sessionId, {
+  const key = context.analysisId || context.sessionId || `repo:${context.repository}`
+  global.sessionContexts.set(key, {
     ...context,
     expiresAt: Date.now() + (2 * 60 * 60 * 1000) // 2 hours
-  })
-  
-  // Also store by repository for easy lookup
-  global.sessionContexts.set(`repo:${context.repository}`, {
-    ...context,
-    expiresAt: Date.now() + (2 * 60 * 60 * 1000)
   })
   
   // Cleanup expired sessions

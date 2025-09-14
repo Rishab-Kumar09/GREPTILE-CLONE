@@ -73,7 +73,7 @@ async function getStoredRepositoryContext(sessionId?: string, repository?: strin
     return null
   }
   
-  const key = sessionId || `repo:${repository}`
+  const key = sessionId
   const session = global.sessionContexts.get(key)
   
   if (!session) {
