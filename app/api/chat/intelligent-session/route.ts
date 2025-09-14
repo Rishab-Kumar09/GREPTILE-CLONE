@@ -6,6 +6,12 @@ declare global {
   var sessionContexts: Map<string, any> | undefined
 }
 
+interface FileContent {
+  name: string;
+  path: string;
+  content: string;
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
@@ -29,12 +35,6 @@ export async function POST(request: NextRequest) {
     
     console.log(`🧠 Intelligent chat request for ${repository}`)
     
-    interface FileContent {
-      name: string;
-      path: string;
-      content: string;
-    }
-
     interface Context {
       repository: string;
       analysisResults: any; // We'll type this properly later
