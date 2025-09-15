@@ -133,11 +133,7 @@ You have COMPLETE knowledge of this codebase. Answer questions about:
 Always cite specific files, line numbers, and code snippets when relevant.
 Provide actionable, detailed responses based on the actual code and analysis results.
 
-IMPORTANT: Return ONLY valid JSON in this format:
-{
-  "answer": "Your detailed answer with code insights and security analysis",
-  "citations": [{"file": "filename.py", "lines": [1, 5], "snippet": "code snippet"}]
-}`;
+IMPORTANT: Provide a clear, detailed answer in plain text. Include specific file names and line numbers when referencing code.`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -149,21 +145,23 @@ IMPORTANT: Return ONLY valid JSON in this format:
       ]
     });
 
-    const rawResponse = completion.choices?.[0]?.message?.content || '';
+    const answer = completion.choices?.[0]?.message?.content || '';
     
-    let parsed: any = {};
-    try {
-      parsed = JSON.parse(rawResponse);
-    } catch (parseError) {
-      console.warn('❌ JSON parsing failed, using raw response');
-      parsed = { answer: rawResponse, citations: [] };
-    }
-
+    // Extract citations from the answer text (look for file mentions)
+    const citations: Array<{file: string, lines?: number[], snippet?: string}> = [];
+    topFiles.forEach(file => {
+      if (answer.toLowerCase().includes(file.path.toLowerCase())) {
+        citations.push({
+          file: file.path,
+          snippet: file.content.substring(0, 200) + '...'
+        });
+      }
+    });
 
     return NextResponse.json({
       success: true,
-      answer: parsed.answer || parsed.response || rawResponse,
-      citations: parsed.citations || [],
+      answer: answer,
+      citations: citations,
       filesUsed: topFiles.map(f => f.path),
       analysisUsed: analysisResults ? {
         totalIssues: analysisResults.totalIssues,
