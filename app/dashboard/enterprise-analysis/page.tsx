@@ -228,6 +228,24 @@ export default function EnterpriseAnalysisPage() {
     return genericSuggestions[type] || 'Review this code pattern for potential improvements in readability, maintainability, and performance.'
   }
 
+  const clearLambdaCache = async () => {
+    try {
+      console.log('🧹 Clearing old cache before new analysis...')
+      const response = await fetch('/api/clear-lambda-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        console.log('✅ Lambda cache cleared successfully')
+      } else {
+        console.warn('⚠️ Cache clear failed, continuing with analysis')
+      }
+    } catch (error) {
+      console.warn('⚠️ Cache clear error, continuing with analysis:', error)
+    }
+  }
+
   const sendChatMessage = async (message: string) => {
     if (!message.trim() || chatLoading) return
 
@@ -926,6 +944,16 @@ export default function EnterpriseAnalysisPage() {
     }
 
     setIsAnalyzing(true)
+    setStatus({
+      status: 'analyzing',
+      progress: 10,
+      currentFile: 'Clearing old cache...',
+      results: []
+    })
+
+    // 🧹 CLEAR OLD CACHE FIRST
+    await clearLambdaCache()
+
     setStatus({
       status: 'analyzing',
       progress: 50,

@@ -4936,7 +4936,32 @@ function checkStrictLowPriorityIssues(content, filePath) {
 export const handler = async (event) => {
   console.log('🤖 CLEAN Lambda analyzer started:', JSON.stringify(event));
   
-  var { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false, regexOnly = false } = JSON.parse(event.body || '{}');
+  const body = JSON.parse(event.body || '{}');
+  
+  // Handle cache clear requests
+  if (body.clearCache) {
+    console.log('🧹 Cache clear request received');
+    try {
+      // Aggressive cleanup of all temporary directories
+      execSync('rm -rf /tmp/analysis-* /tmp/chat-repos 2>/dev/null || true', { stdio: 'ignore' });
+      console.log('✅ All Lambda cache cleared successfully');
+      
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ success: true, message: 'Cache cleared' })
+      };
+    } catch (error) {
+      console.error('❌ Cache clear failed:', error);
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Cache clear failed' })
+      };
+    }
+  }
+  
+  var { repoUrl, analysisId, batchNumber = null, fullRepoAnalysis = false, regexOnly = false } = body;
   
   if (!repoUrl || !analysisId) {
     return {
@@ -4990,13 +5015,26 @@ export const handler = async (event) => {
       // 🚀 CREATE PERSISTENT COPY IMMEDIATELY AFTER CLONING
       if (analysisId) {
         try {
-          // Clean up old chat repositories (older than 2 hours)
+          // Aggressive cleanup when space is low
           try {
             const chatReposDir = '/tmp/chat-repos';
-            execSync(`mkdir -p "${chatReposDir}"`, { stdio: 'ignore' });
             
-            // Find and remove directories older than 2 hours
-            execSync(`find "${chatReposDir}" -type d -mmin +120 -exec rm -rf {} + 2>/dev/null || true`, { stdio: 'ignore' });
+            // Check available space
+            const spaceCheck = execSync('df /tmp | tail -1', { encoding: 'utf8' });
+            const usagePercent = parseInt(spaceCheck.split(/\s+/)[4]);
+            
+            if (usagePercent > 80) {
+              console.log(`💾 /tmp usage at ${usagePercent}% - performing aggressive cleanup`);
+              // Clean up ALL old chat repositories when space is low
+              execSync(`rm -rf "${chatReposDir}" 2>/dev/null || true`, { stdio: 'ignore' });
+              // Also clean up any leftover analysis directories
+              execSync(`find /tmp -name "analysis-*" -type d -mmin +30 -exec rm -rf {} + 2>/dev/null || true`, { stdio: 'ignore' });
+            } else {
+              // Normal cleanup - older than 30 minutes instead of 2 hours
+              execSync(`find "${chatReposDir}" -type d -mmin +30 -exec rm -rf {} + 2>/dev/null || true`, { stdio: 'ignore' });
+            }
+            
+            execSync(`mkdir -p "${chatReposDir}"`, { stdio: 'ignore' });
             console.log('🧹 Cleaned up old chat repositories');
           } catch (cleanupError) {
             console.warn('⚠️ Chat repos cleanup failed:', cleanupError.message);
