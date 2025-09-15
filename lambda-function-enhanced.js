@@ -5698,40 +5698,16 @@ async function sendContextToSession(sessionContext) {
 async function sendRepositoryFiles(sourceDir, metadata, allFiles) {
   try {
     console.log('📁 Sending repository files to persistent storage...');
-    console.log(`📊 Processing ${allFiles.length} files from ${sourceDir}`);
     
     const files = [];
-    let totalSize = 0;
-    const maxFiles = 100; // Limit to prevent timeout
-    const maxTotalSize = 10 * 1024 * 1024; // 10MB limit
     
-    // Read files with limits to prevent timeout
-    for (let i = 0; i < Math.min(allFiles.length, maxFiles); i++) {
-      const filePath = allFiles[i];
+    // Read all files from the source directory
+    for (const filePath of allFiles) {
       try {
         // Handle both absolute and relative paths
         const fullPath = path.isAbsolute(filePath) ? filePath : path.join(sourceDir, filePath);
-        
-        if (!fsSync.existsSync(fullPath)) {
-          console.warn(`⚠️ File not found: ${fullPath}`);
-          continue;
-        }
-        
-        const stats = fsSync.statSync(fullPath);
-        
-        // Skip very large files
-        if (stats.size > 1024 * 1024) { // Skip files > 1MB
-          console.log(`⚠️ Skipping large file: ${filePath} (${stats.size} bytes)`);
-          continue;
-        }
-        
-        // Check total size limit
-        if (totalSize + stats.size > maxTotalSize) {
-          console.log(`⚠️ Reached size limit, stopping at ${files.length} files`);
-          break;
-        }
-        
         const content = fsSync.readFileSync(fullPath, 'utf8');
+        const stats = fsSync.statSync(fullPath);
         
         // Store relative path for consistency
         const relativePath = path.isAbsolute(filePath) ? path.relative(sourceDir, filePath) : filePath;
@@ -5743,23 +5719,12 @@ async function sendRepositoryFiles(sourceDir, metadata, allFiles) {
           type: path.extname(relativePath).slice(1) || 'unknown'
         });
         
-        totalSize += stats.size;
-        
-        // Log progress every 10 files
-        if (files.length % 10 === 0) {
-          console.log(`📊 Processed ${files.length} files so far...`);
-        }
-        
       } catch (fileError) {
         console.warn(`⚠️ Failed to read file ${filePath}:`, fileError.message);
       }
     }
     
-    console.log(`📊 Prepared ${files.length} files for storage (${Math.round(totalSize/1024)}KB total)`);
-    
-    // Add timeout to prevent Lambda from hanging
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    console.log('📊 Prepared', files.length, 'files for storage');
     
     const response = await fetch(`${process.env.NEXTAUTH_URL || 'https://master.d3dp89x98knsw0.amplifyapp.com'}/api/chat/repository-files`, {
       method: 'POST',
@@ -5770,11 +5735,8 @@ async function sendRepositoryFiles(sourceDir, metadata, allFiles) {
         analysisId: metadata.analysisId,
         metadata: metadata,
         files: files
-      }),
-      signal: controller.signal
+      })
     });
-    
-    clearTimeout(timeoutId);
     
     console.log('📡 Repository files response status:', response.status);
     

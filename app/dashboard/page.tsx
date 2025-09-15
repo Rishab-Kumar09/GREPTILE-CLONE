@@ -392,20 +392,7 @@ export default function Dashboard() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown API error' }))
-        const errorMessage = errorData.error || 'Unknown error'
-        
-        // Handle specific error cases with user-friendly messages
-        if (response.status === 429) {
-          throw new Error('🚫 GitHub API rate limit exceeded. Please wait a few minutes and try again.')
-        } else if (response.status === 504) {
-          throw new Error('⏱️ Request timed out. This repository might be large or GitHub API is slow. Please try again.')
-        } else if (response.status === 503) {
-          throw new Error('🔧 Service temporarily unavailable. Please try again in a moment.')
-        } else if (response.status === 404) {
-          throw new Error('🔍 Repository not found or is private.')
-        } else {
-          throw new Error(`API Error ${response.status}: ${errorMessage}`)
-        }
+        throw new Error(`API Error ${response.status}: ${errorData.error || 'Unknown error'}`)
       }
 
       const data = await response.json()
