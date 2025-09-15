@@ -1087,55 +1087,8 @@ export default function EnterpriseAnalysisPage() {
             <span className="text-2xl">⚡</span>
             Quick Analysis
           </h1>
-          <p className="text-gray-600">
-            Competitor-inspired analysis: Incremental, Priority-based, and Streaming Results
-          </p>
         </div>
 
-        {/* Analysis Strategy Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm border border-blue-200 p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-orange-500">⚡</span>
-              <h3 className="font-semibold text-gray-900">Incremental Analysis</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-3">
-              Like Greptile - Only analyze changed files since last scan
-            </p>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-green-600">🕒</span>
-              <span className="text-gray-500">30 seconds - 2 minutes</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-purple-500">🎯</span>
-              <h3 className="font-semibold text-gray-900">Priority Analysis</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-3">
-              Like SonarQube - Critical files first, stream results
-            </p>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-yellow-600">🕒</span>
-              <span className="text-gray-500">2-5 minutes</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-blue-500">🔍</span>
-              <h3 className="font-semibold text-gray-900">Full Analysis</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-3">
-              Complete analysis with background processing
-            </p>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-blue-600">🕒</span>
-              <span className="text-gray-500">5-30 minutes</span>
-            </div>
-          </div>
-        </div>
 
         {/* Input Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
