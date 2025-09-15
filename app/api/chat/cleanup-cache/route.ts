@@ -2,12 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+// Import types to match repository-files route
+interface RepoMetadata {
+  analysisId: string;
+  repository: string;
+  timestamp: number;
+}
+
+interface FileContent {
+  path: string;
+  content: string;
+  size: number;
+  type: string;
+}
+
 // Global type declaration for caches
 declare global {
   var sessionContexts: Map<string, any>
   var repositoryCache: Map<string, {
-    metadata: any;
-    files: Map<string, any>;
+    metadata: RepoMetadata;
+    files: Map<string, FileContent>;
     timestamp: number;
   }>
 }
