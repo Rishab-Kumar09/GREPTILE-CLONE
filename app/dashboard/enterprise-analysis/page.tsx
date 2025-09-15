@@ -1386,7 +1386,11 @@ export default function EnterpriseAnalysisPage() {
                         ? 'bg-blue-600 text-white' 
                         : 'bg-gray-100 text-gray-900'
                     }`}>
-                      <MarkdownRenderer content={msg.content} className="text-sm" />
+                      <MarkdownRenderer 
+                        content={msg.content} 
+                        className="text-sm" 
+                        isUserMessage={msg.type === 'user'} 
+                      />
                       
                       {/* Citations */}
                       {msg.citations && msg.citations.length > 0 && (
@@ -1408,7 +1412,11 @@ export default function EnterpriseAnalysisPage() {
                         </div>
                       )}
                       
-                      <p className="text-xs opacity-75 mt-1">
+                      <p className={`text-xs mt-1 ${
+                        msg.type === 'user' 
+                          ? 'text-blue-200 opacity-90' 
+                          : 'text-gray-500 opacity-75'
+                      }`}>
                         {msg.timestamp.toLocaleTimeString()}
                       </p>
                     </div>

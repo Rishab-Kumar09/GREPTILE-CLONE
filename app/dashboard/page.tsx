@@ -634,6 +634,7 @@ export default function Dashboard() {
                       <MarkdownRenderer 
                         content={message.content} 
                         className={`text-sm ${message.type === 'user' ? 'text-white' : 'text-gray-900'}`} 
+                        isUserMessage={message.type === 'user'}
                       />
                       
                       {/* Citations for AI messages */}

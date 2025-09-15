@@ -683,7 +683,11 @@ export default function Reviews() {
                                     ? 'bg-primary-600 text-white' 
                                     : 'bg-gray-100 text-gray-900'
                                 }`}>
-                                  <MarkdownRenderer content={msg.content} className="text-sm" />
+                                  <MarkdownRenderer 
+                                    content={msg.content} 
+                                    className="text-sm" 
+                                    isUserMessage={msg.type === 'user'} 
+                                  />
                                   
                                   {/* Citations */}
                                   {msg.citations && msg.citations.length > 0 && (

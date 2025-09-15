@@ -172,6 +172,7 @@ export default function Demo() {
                     <MarkdownRenderer 
                       content={message.content} 
                       className={`text-sm ${message.type === 'user' ? 'text-white' : 'text-gray-900'}`} 
+                      isUserMessage={message.type === 'user'}
                     />
                   </div>
                   {message.type === 'user' && (
