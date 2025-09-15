@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
     
-    let repoRes, treeRes;
+    let repoRes, treeRes, defaultBranch = 'main';
     try {
       repoRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}`, {
         signal: controller.signal,
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       }
       console.log(`✅ Successfully fetched repo metadata for ${owner}/${repo}`)
       const repoMeta = await repoRes.json()
-      const defaultBranch = repoMeta.default_branch || 'main'
+      defaultBranch = repoMeta.default_branch || 'main'
 
       // Fetch tree with timeout
       const treeController = new AbortController()
@@ -77,12 +77,13 @@ export async function POST(req: NextRequest) {
       }
     } catch (error) {
       clearTimeout(timeoutId)
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         console.error(`❌ GitHub API timeout for ${owner}/${repo}`)
         return NextResponse.json({ error: 'GitHub API request timed out' }, { status: 504 })
       }
-      console.error(`❌ GitHub API error: ${error.message}`)
-      return NextResponse.json({ error: `GitHub API error: ${error.message}` }, { status: 500 })
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error(`❌ GitHub API error: ${errorMessage}`)
+      return NextResponse.json({ error: `GitHub API error: ${errorMessage}` }, { status: 500 })
     }
     const treeData = await treeRes.json()
 
