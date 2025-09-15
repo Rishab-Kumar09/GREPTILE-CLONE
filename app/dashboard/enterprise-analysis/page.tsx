@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { v4 as uuid } from 'uuid'
 import DashboardHeader from '@/components/DashboardHeader'
+import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 interface AnalysisResult {
   type: string
@@ -1385,7 +1386,7 @@ export default function EnterpriseAnalysisPage() {
                         ? 'bg-blue-600 text-white' 
                         : 'bg-gray-100 text-gray-900'
                     }`}>
-                      <p className="text-sm">{msg.content}</p>
+                      <MarkdownRenderer content={msg.content} className="text-sm" />
                       
                       {/* Citations */}
                       {msg.citations && msg.citations.length > 0 && (

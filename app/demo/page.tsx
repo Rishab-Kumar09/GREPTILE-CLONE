@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import MarkdownRenderer from '../../components/MarkdownRenderer'
 
 export default function Demo() {
   const [currentStep, setCurrentStep] = useState(0)
@@ -168,9 +169,10 @@ export default function Demo() {
                       ? 'bg-primary-600 text-white' 
                       : 'bg-white shadow-sm'
                   }`}>
-                    <p className={`text-sm ${message.type === 'user' ? 'text-white' : 'text-gray-900'}`}>
-                      {message.content}
-                    </p>
+                    <MarkdownRenderer 
+                      content={message.content} 
+                      className={`text-sm ${message.type === 'user' ? 'text-white' : 'text-gray-900'}`} 
+                    />
                   </div>
                   {message.type === 'user' && (
                     <div className="w-6 h-6 bg-gray-300 rounded-full flex-shrink-0"></div>

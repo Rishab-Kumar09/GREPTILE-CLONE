@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import DashboardHeader from '@/components/DashboardHeader'
+import MarkdownRenderer from '../../components/MarkdownRenderer'
 
 interface Repository {
   id?: string | number
@@ -630,9 +631,10 @@ export default function Dashboard() {
                         ? 'bg-primary-600 text-white' 
                         : 'bg-white shadow-sm'
                     }`}>
-                      <p className={`text-sm ${message.type === 'user' ? 'text-white' : 'text-gray-900'}`}>
-                        {message.content}
-                      </p>
+                      <MarkdownRenderer 
+                        content={message.content} 
+                        className={`text-sm ${message.type === 'user' ? 'text-white' : 'text-gray-900'}`} 
+                      />
                       
                       {/* Citations for AI messages */}
                       {message.type === 'ai' && message.citations && message.citations.length > 0 && (

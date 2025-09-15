@@ -5,6 +5,7 @@ import Link from 'next/link'
 import React from 'react' // Added for RepoChat component
 import DashboardHeader from '@/components/DashboardHeader'
 import AnalysisProgressModal from '@/components/AnalysisProgressModal'
+import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 interface Repository {
   id?: string | number
@@ -1087,9 +1088,7 @@ function RepoChat({ repoFullName }: { repoFullName: string }) {
 
       {answer && (
         <div className="bg-white border rounded-md p-3 space-y-2">
-          <div className="prose prose-sm max-w-none">
-            <p>{answer}</p>
-          </div>
+          <MarkdownRenderer content={answer} />
           {citations.length > 0 && (
             <div className="space-y-2">
               <div className="text-sm font-medium text-gray-900">Sources:</div>

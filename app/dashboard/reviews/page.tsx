@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import DashboardHeader from '@/components/DashboardHeader'
+import MarkdownRenderer from '../../../components/MarkdownRenderer'
 
 interface Repository {
   id?: string | number
@@ -682,7 +683,7 @@ export default function Reviews() {
                                     ? 'bg-primary-600 text-white' 
                                     : 'bg-gray-100 text-gray-900'
                                 }`}>
-                                  <p className="text-sm">{msg.content}</p>
+                                  <MarkdownRenderer content={msg.content} className="text-sm" />
                                   
                                   {/* Citations */}
                                   {msg.citations && msg.citations.length > 0 && (
