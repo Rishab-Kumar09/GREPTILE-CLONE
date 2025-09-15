@@ -13,6 +13,11 @@ export default function MarkdownRenderer({ content, className = '', isUserMessag
     const parsed = JSON.parse(content);
     if (parsed.answer) {
       processedContent = parsed.answer;
+    } else if (parsed.content) {
+      processedContent = parsed.content;
+    } else if (typeof parsed === 'object' && parsed !== null) {
+      // If it's an object but no answer/content field, try to extract meaningful text
+      processedContent = parsed.message || parsed.text || parsed.response || JSON.stringify(parsed, null, 2);
     }
   } catch {
     // Not JSON, use content as-is
@@ -21,11 +26,11 @@ export default function MarkdownRenderer({ content, className = '', isUserMessag
 
   return (
     <ReactMarkdown 
-      className={`prose prose-sm max-w-none ${className}`}
+      className={`prose prose-sm max-w-none ${isUserMessage ? 'text-white' : ''} ${className}`}
       components={{
         // Custom styling for different elements
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-        strong: ({ children }) => <strong className={`font-semibold ${isUserMessage ? 'text-white' : 'text-gray-900'}`}>{children}</strong>,
+        strong: ({ children }) => <strong className={`font-semibold ${isUserMessage ? 'text-white font-bold' : 'text-gray-900'}`}>{children}</strong>,
         em: ({ children }) => <em className="italic">{children}</em>,
         ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
         ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,

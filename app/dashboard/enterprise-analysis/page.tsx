@@ -307,13 +307,33 @@ export default function EnterpriseAnalysisPage() {
         throw new Error(`API returned invalid JSON (Status: ${response.status})`)
       }
 
-      if (response.ok && data.answer) {
+      if (response.ok) {
+        // Handle different response formats
+        let content = '';
+        let citations = [];
+        
+        if (data.answer) {
+          // Standard format with answer field
+          content = data.answer;
+          citations = data.citations || [];
+        } else if (typeof data === 'string') {
+          // Direct string response
+          content = data;
+        } else if (data.content) {
+          // Alternative content field
+          content = data.content;
+          citations = data.citations || [];
+        } else {
+          // Fallback - stringify the entire response
+          content = JSON.stringify(data);
+        }
+        
         const aiMessage: ChatMessage = {
           id: Date.now() + 1,
           type: 'ai',
-          content: data.answer,
+          content: content,
           timestamp: new Date(),
-          citations: data.citations || []
+          citations: citations
         }
         setChatMessages(prev => [...prev, aiMessage])
         
@@ -1414,8 +1434,8 @@ export default function EnterpriseAnalysisPage() {
                       
                       <p className={`text-xs mt-1 ${
                         msg.type === 'user' 
-                          ? 'text-blue-200 opacity-90' 
-                          : 'text-gray-500 opacity-75'
+                          ? 'text-gray-300' 
+                          : 'text-gray-500'
                       }`}>
                         {msg.timestamp.toLocaleTimeString()}
                       </p>
