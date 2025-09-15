@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { v4 as uuid } from 'uuid'
+import { ArrowsPointingOutIcon } from '@heroicons/react/24/outline'
 import DashboardHeader from '@/components/DashboardHeader'
 import MarkdownRenderer from '../../../components/MarkdownRenderer'
+import FullScreenChat from '../../../components/FullScreenChat'
 
 interface AnalysisResult {
   type: string
@@ -52,6 +54,7 @@ export default function EnterpriseAnalysisPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
+  const [isFullScreenChatOpen, setIsFullScreenChatOpen] = useState(false)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
 
@@ -1387,13 +1390,24 @@ export default function EnterpriseAnalysisPage() {
         {status.results.length > 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 mt-8">
             <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <span>🤖</span>
-                AI Assistant
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Get answers with file citations and line references
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <span>🤖</span>
+                    AI Assistant
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Get answers with file citations and line references
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsFullScreenChatOpen(true)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Expand to full screen"
+                >
+                  <ArrowsPointingOutIcon className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             
             {/* Chat Messages */}
@@ -1512,6 +1526,16 @@ export default function EnterpriseAnalysisPage() {
           </div>
         )}
       </div>
+      
+      {/* Full Screen Chat Modal */}
+      <FullScreenChat
+        isOpen={isFullScreenChatOpen}
+        onClose={() => setIsFullScreenChatOpen(false)}
+        messages={chatMessages}
+        onSendMessage={sendChatMessage}
+        loading={chatLoading}
+        repoName={repoUrl.split('/').slice(-2).join('/')}
+      />
     </div>
   )
 }
