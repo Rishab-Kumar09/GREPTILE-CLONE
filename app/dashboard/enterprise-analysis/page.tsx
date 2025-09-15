@@ -40,7 +40,7 @@ interface ChatMessage {
 }
 
 export default function EnterpriseAnalysisPage() {
-  const [repoUrl, setRepoUrl] = useState('https://github.com/facebook/react')
+  const [repoUrl, setRepoUrl] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisId, setAnalysisId] = useState<string | null>(null)
   const [status, setStatus] = useState<AnalysisStatus>({
@@ -1197,40 +1197,6 @@ export default function EnterpriseAnalysisPage() {
         )}
 
         {/* Analysis Stats */}
-        {status.results.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">
-                  {status.results.filter((r: any) => 
-                    r.severity === 'critical' || r.severity === 'high'
-                  ).length}
-                </div>
-                <div className="text-sm text-gray-500">High Priority</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">
-                  {status.results.filter((r: any) => 
-                    r.severity === 'medium'
-                  ).length}
-                </div>
-                <div className="text-sm text-gray-500">Medium Priority</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {status.results.filter((r: any) => 
-                    r.severity === 'low' || r.severity === 'info' || r.severity === 'informational'
-                  ).length}
-                </div>
-                <div className="text-sm text-gray-500">Informational</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{status.results.length}</div>
-                <div className="text-sm text-gray-500">Total Issues</div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Results Section - EXACT Reviews Page Format with Overall Collapse */}
         {status.results.length > 0 && (

@@ -5,7 +5,11 @@ export const dynamic = 'force-dynamic'
 // Global type declaration for caches
 declare global {
   var sessionContexts: Map<string, any>
-  var repositoryCache: Map<string, any>
+  var repositoryCache: Map<string, {
+    metadata: any;
+    files: Map<string, any>;
+    timestamp: number;
+  }>
 }
 
 export async function POST(request: NextRequest) {
