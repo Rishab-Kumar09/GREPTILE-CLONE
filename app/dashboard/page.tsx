@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { ArrowsPointingOutIcon } from '@heroicons/react/24/outline'
 import DashboardHeader from '@/components/DashboardHeader'
 import MarkdownRenderer from '../../components/MarkdownRenderer'
+import FullScreenChat from '../../components/FullScreenChat'
 
 interface Repository {
   id?: string | number
@@ -338,6 +340,7 @@ export default function Dashboard() {
 
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isFullScreenChatOpen, setIsFullScreenChatOpen] = useState(false)
 
 
   const getAiResponse = () => {
@@ -390,28 +393,83 @@ export default function Dashboard() {
         body: JSON.stringify(requestBody),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown API error' }))
-        throw new Error(`API Error ${response.status}: ${errorData.error || 'Unknown error'}`)
+      // Handle response with better error checking like Quick Analysis
+      let data;
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        console.error('❌ JSON parsing failed:', jsonError)
+        throw new Error(`API returned invalid JSON (Status: ${response.status})`)
       }
 
-      const data = await response.json()
-      
-      const aiResponse: ChatMessage = {
-        id: messages.length + 2,
-        type: 'ai',
-        content: selectedRepo ? (data.answer || 'Sorry, I encountered an error processing your request.') : (data.response || 'Sorry, I encountered an error processing your request.'),
-        timestamp: new Date(),
-        citations: selectedRepo ? (data.citations || []) : []
+      if (response.ok) {
+        // Handle different response formats like Quick Analysis
+        let content = '';
+        let citations = [];
+        
+        if (selectedRepo) {
+          // Repository-specific chat
+          if (data.answer) {
+            content = data.answer;
+            citations = data.citations || [];
+          } else if (typeof data === 'string') {
+            content = data;
+          } else if (data.content) {
+            content = data.content;
+            citations = data.citations || [];
+          } else {
+            content = JSON.stringify(data);
+          }
+        } else {
+          // General AI chat
+          if (data.response) {
+            content = data.response;
+          } else if (typeof data === 'string') {
+            content = data;
+          } else if (data.content) {
+            content = data.content;
+          } else {
+            content = JSON.stringify(data);
+          }
+        }
+        
+        const aiResponse: ChatMessage = {
+          id: messages.length + 2,
+          type: 'ai',
+          content: content || 'Sorry, I encountered an error processing your request.',
+          timestamp: new Date(),
+          citations: citations
+        }
+        
+        setMessages(prev => [...prev, aiResponse as ChatMessage])
+      } else {
+        // Handle API errors more gracefully
+        const errorMessage = data.error || `API Error ${response.status}: ${response.statusText}`;
+        throw new Error(errorMessage);
       }
-      
-      setMessages(prev => [...prev, aiResponse as ChatMessage])
     } catch (error) {
       console.error('Error calling AI API:', error)
+      
+      // More detailed error messages like Quick Analysis
+      let errorContent = 'Sorry, I encountered an error. Please try again.';
+      if (error instanceof Error) {
+        if (error.message.includes('504') || error.message.includes('timeout')) {
+          errorContent = 'The request timed out. The repository might be large or the API is temporarily unavailable. Please try again.';
+        } else if (error.message.includes('503')) {
+          errorContent = 'The service is temporarily unavailable. Please try again in a moment.';
+        } else if (error.message.includes('429')) {
+          errorContent = 'Too many requests. Please wait a moment before trying again.';
+        } else if (error.message.includes('JSON')) {
+          errorContent = 'Received an invalid response from the API. Please try again.';
+        } else if (selectedRepo && error.message.includes('Failed to fetch')) {
+          errorContent = 'Failed to connect to the repository chat service. Please check your connection and try again.';
+        }
+      }
+      
       const errorResponse: ChatMessage = {
         id: messages.length + 2,
         type: 'ai',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}. ${selectedRepo ? 'Repository-specific chat failed.' : 'General AI failed.'}`,
+        content: errorContent,
         timestamp: new Date(),
         citations: []
       }
@@ -613,6 +671,13 @@ export default function Dashboard() {
                   <div className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-100 text-green-800 border border-green-200">
                     ✅ OpenAI Connected
                   </div>
+                  <button
+                    onClick={() => setIsFullScreenChatOpen(true)}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Expand to full screen"
+                  >
+                    <ArrowsPointingOutIcon className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
 
@@ -853,6 +918,16 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      
+      {/* Full Screen Chat Modal */}
+      <FullScreenChat
+        isOpen={isFullScreenChatOpen}
+        onClose={() => setIsFullScreenChatOpen(false)}
+        messages={messages}
+        onSendMessage={handleSendMessage}
+        loading={isLoading}
+        repoName={selectedRepo ? selectedRepo.fullName : 'General AI'}
+      />
     </div>
   )
 } 
