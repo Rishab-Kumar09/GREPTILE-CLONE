@@ -1,11 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
-import '../../../../types/global' // Import shared global types
-import type { RepoMetadata, FileContent } from '../../../../types/global'
 
 // This endpoint will be called by Lambda to store persistent repo data
 // and by chat APIs to retrieve full repository context
+
+interface RepoMetadata {
+  analysisId: string;
+  repository: string;
+  timestamp: number;
+  persistentPath: string;
+  filesCount: number;
+  totalIssues: number;
+  criticalIssues: number;
+}
+
+interface FileContent {
+  path: string;
+  content: string;
+  size: number;
+  type: string;
+}
+
+// Global storage for repository data (in-memory for serverless)
+declare global {
+  var repositoryCache: Map<string, {
+    metadata: RepoMetadata;
+    files: Map<string, FileContent>;
+    timestamp: number;
+  }>;
+}
 
 if (!global.repositoryCache) {
   global.repositoryCache = new Map();

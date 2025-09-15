@@ -5,37 +5,23 @@ declare global {
   var sessionContexts: Map<string, any>;
 }
 
-// Session-based context storage (supports batching)
+// Session-based context storage (auto-cleanup)
 export async function POST(request: NextRequest) {
   try {
     const sessionContext = await request.json()
     
-    // Check if this is a batched request
-    const isBatched = sessionContext.batchInfo && sessionContext.batchInfo.totalBatches > 1
-    const batchInfo = sessionContext.batchInfo || { batchNumber: 1, totalBatches: 1, isLastBatch: true }
-    
-    console.log(`📥 Storing session context batch ${batchInfo.batchNumber}/${batchInfo.totalBatches} for ${sessionContext.repository}`)
+    console.log(`📥 Storing session context for ${sessionContext.repository}`)
     console.log(`📊 Context size: ${Math.round(JSON.stringify(sessionContext).length / 1024)}KB`)
+    console.log(`📊 Files: ${Object.keys(sessionContext.files).length}, Functions: ${Object.keys(sessionContext.symbols.functions).length}`)
     
-    const filesCount = sessionContext.files ? 
-      (Array.isArray(sessionContext.files) ? sessionContext.files.length : Object.keys(sessionContext.files).length) : 0
-    const functionsCount = sessionContext.symbols?.functions ? Object.keys(sessionContext.symbols.functions).length : 0
-    
-    console.log(`📊 Files: ${filesCount}, Functions: ${functionsCount}`)
-    
-    if (isBatched) {
-      await storeBatchedSessionContext(sessionContext, batchInfo)
-    } else {
-      // Store in session-based cache (memory with TTL)
-      await storeSessionContext(sessionContext)
-    }
+    // Store in session-based cache (memory with TTL)
+    await storeSessionContext(sessionContext)
     
     return NextResponse.json({ 
       success: true,
       contextSize: JSON.stringify(sessionContext).length,
-      filesCount,
-      functionsCount,
-      batchInfo
+      filesCount: Object.keys(sessionContext.files).length,
+      functionsCount: Object.keys(sessionContext.symbols.functions).length
     })
   } catch (error) {
     console.error('❌ Failed to store session context:', error)
@@ -118,95 +104,6 @@ async function storeSessionContext(context: any) {
   cleanupExpiredSessions()
   
   console.log(`✅ Session context stored with key: ${key}`)
-}
-
-// Handle batched session context storage
-async function storeBatchedSessionContext(context: any, batchInfo: any) {
-  // Initialize global session storage
-  if (!global.sessionContexts) {
-    console.log('⚠️ Creating new sessionContexts Map - this means we lost previous context!')
-    global.sessionContexts = new Map()
-  }
-  
-  const key = context.analysisId || context.sessionId || `repo:${context.repository}`
-  console.log(`🔑 Storing batch ${batchInfo.batchNumber}/${batchInfo.totalBatches} with key:`, key)
-  
-  // Get existing context or create new one
-  let existingContext = global.sessionContexts.get(key) || {
-    analysisId: context.analysisId,
-    sessionId: context.sessionId,
-    repository: context.repository,
-    files: [],
-    functions: context.functions || {},
-    structure: context.structure || {
-      mainFiles: [],
-      testFiles: [],
-      configFiles: [],
-      documentation: [],
-      services: [],
-      components: [],
-      utils: []
-    },
-    symbols: context.symbols || { functions: {} },
-    expiresAt: Date.now() + (2 * 60 * 60 * 1000), // 2 hours
-    batchInfo: {
-      totalBatches: batchInfo.totalBatches,
-      receivedBatches: []
-    }
-  }
-  
-  // Convert files to array if it's an object
-  if (existingContext.files && !Array.isArray(existingContext.files)) {
-    existingContext.files = Object.values(existingContext.files)
-  }
-  if (!existingContext.files) {
-    existingContext.files = []
-  }
-  
-  // Add files from current batch
-  if (context.files && Array.isArray(context.files)) {
-    existingContext.files.push(...context.files)
-  }
-  
-  // Track received batches
-  if (!existingContext.batchInfo.receivedBatches.includes(batchInfo.batchNumber)) {
-    existingContext.batchInfo.receivedBatches.push(batchInfo.batchNumber)
-  }
-  
-  // Update other fields from the latest batch
-  existingContext.functions = { ...existingContext.functions, ...context.functions }
-  existingContext.symbols = { 
-    functions: { ...existingContext.symbols.functions, ...context.symbols?.functions }
-  }
-  
-  // Store the updated context
-  global.sessionContexts.set(key, existingContext)
-  
-  console.log(`📊 Batch ${batchInfo.batchNumber}/${batchInfo.totalBatches} stored:`, {
-    key,
-    totalFiles: existingContext.files.length,
-    receivedBatches: existingContext.batchInfo.receivedBatches.length,
-    isComplete: existingContext.batchInfo.receivedBatches.length === batchInfo.totalBatches
-  })
-  
-  // If this is the last batch, finalize the context
-  if (batchInfo.isLastBatch || existingContext.batchInfo.receivedBatches.length === batchInfo.totalBatches) {
-    console.log(`✅ All batches received! Final context has ${existingContext.files.length} files`)
-    
-    // Convert files array back to object format for compatibility
-    const filesObject: any = {}
-    existingContext.files.forEach((file: any, index: number) => {
-      const fileName = file.path || file.name || `file_${index}`
-      filesObject[fileName] = file
-    })
-    existingContext.files = filesObject
-    
-    // Update the stored context
-    global.sessionContexts.set(key, existingContext)
-  }
-  
-  // Cleanup expired sessions
-  cleanupExpiredSessions()
 }
 
 // Get session context by ID or repository

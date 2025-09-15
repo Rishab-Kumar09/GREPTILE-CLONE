@@ -1,7 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
-import '../../../../types/global' // Import shared global types
 
 export const dynamic = 'force-dynamic'
+
+// Types to match repository-files route
+interface RepoMetadata {
+  analysisId: string
+  repository: string
+  timestamp: number
+  persistentPath: string
+  filesCount: number
+  totalIssues: number
+  criticalIssues: number
+}
+
+interface FileContent {
+  path: string
+  content: string
+  size: number
+  type: string
+}
+
+// Global type declaration for caches
+declare global {
+  var sessionContexts: Map<string, any>
+  var repositoryCache: Map<string, {
+    metadata: RepoMetadata;
+    files: Map<string, FileContent>;
+    timestamp: number;
+  }>
+}
 
 export async function POST(request: NextRequest) {
   try {
