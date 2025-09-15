@@ -5364,8 +5364,7 @@ export const handler = async (event) => {
         
         console.log('📊 Analysis results ready for chat:', totalIssues, 'issues found');
         
-        // 🚀 SEND REPOSITORY FILES TO PERSISTENT STORAGE
-        await sendRepositoryFiles(tempDir, repoMetadata, allFiles);
+        // Repository files will be accessed directly from persistent directory during RAG chat
         
       } catch (resultsError) {
         console.warn('⚠️ Failed to send analysis results to chat:', resultsError.message);
@@ -5657,7 +5656,7 @@ function detectBasicFrameworks(files) {
   return frameworks;
 }
 
-// Send context to session storage
+// Send context to session storage in batches
 async function sendContextToSession(sessionContext) {
   if (!sessionContext) {
     console.error('❌ No session context to send!');
@@ -5666,31 +5665,113 @@ async function sendContextToSession(sessionContext) {
   
   const url = `${process.env.NEXTAUTH_URL || 'https://master.d3dp89x98knsw0.amplifyapp.com'}/api/chat/session-context`;
   console.log('📡 Sending context to:', url);
-  console.log('📊 Context size:', JSON.stringify(sessionContext).length, 'bytes');
   
+  // 🚀 BATCHING SYSTEM: Send data in 30MB chunks instead of truncating
+  const contextString = JSON.stringify(sessionContext);
+  const contextSizeBytes = contextString.length;
+  const maxBatchSizeBytes = 30 * 1024 * 1024; // 30MB per batch
+  
+  console.log('📊 Total context size:', Math.round(contextSizeBytes / 1024 / 1024), 'MB');
+  
+  if (contextSizeBytes <= maxBatchSizeBytes) {
+    // Small enough to send in one batch
+    console.log('📦 Sending context in single batch');
+    return await sendSingleBatch(sessionContext, url, 1, 1);
+  }
+  
+  // Large context - split into batches
+  if (!sessionContext.files || !Array.isArray(sessionContext.files)) {
+    console.warn('⚠️ Large context without files array - sending as single batch anyway');
+    return await sendSingleBatch(sessionContext, url, 1, 1);
+  }
+  
+  console.log('📦 Large context detected - splitting into batches...');
+  const files = sessionContext.files;
+  const batches = [];
+  let currentBatch = [];
+  let currentBatchSize = 0;
+  
+  // Calculate base context size (without files)
+  const baseContext = { ...sessionContext, files: [] };
+  const baseContextSize = JSON.stringify(baseContext).length;
+  
+  for (const file of files) {
+    const fileSize = JSON.stringify(file).length;
+    
+    // If adding this file would exceed batch size, start a new batch
+    if (currentBatchSize + fileSize + baseContextSize > maxBatchSizeBytes && currentBatch.length > 0) {
+      batches.push([...currentBatch]);
+      currentBatch = [file];
+      currentBatchSize = fileSize;
+    } else {
+      currentBatch.push(file);
+      currentBatchSize += fileSize;
+    }
+  }
+  
+  // Add the last batch if it has files
+  if (currentBatch.length > 0) {
+    batches.push(currentBatch);
+  }
+  
+  console.log(`📦 Split into ${batches.length} batches`);
+  
+  // Send each batch
+  let allSuccessful = true;
+  for (let i = 0; i < batches.length; i++) {
+    const batchContext = {
+      ...baseContext,
+      files: batches[i],
+      batchInfo: {
+        batchNumber: i + 1,
+        totalBatches: batches.length,
+        isLastBatch: i === batches.length - 1
+      }
+    };
+    
+    const batchSize = JSON.stringify(batchContext).length;
+    console.log(`📦 Sending batch ${i + 1}/${batches.length} (${Math.round(batchSize / 1024 / 1024)}MB, ${batches[i].length} files)`);
+    
+    const success = await sendSingleBatch(batchContext, url, i + 1, batches.length);
+    if (!success) {
+      allSuccessful = false;
+    }
+    
+    // Small delay between batches to avoid overwhelming the API
+    if (i < batches.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  
+  return allSuccessful;
+}
+
+// Helper function to send a single batch
+async function sendSingleBatch(contextData, url, batchNum, totalBatches) {
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sessionContext),
-      timeout: 5000 // 5 second timeout
+      body: JSON.stringify(contextData),
+      timeout: 15000 // 15 second timeout for batches
     });
     
-    console.log('📡 Response status:', response.status);
+    console.log(`📡 Batch ${batchNum}/${totalBatches} response status:`, response.status);
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ API response error:', errorText);
-      throw new Error(`Session context API failed: ${response.status} - ${errorText}`);
+      console.error(`❌ Batch ${batchNum}/${totalBatches} API response error:`, errorText);
+      return false;
     }
     
     const result = await response.json();
-    console.log('✅ Session context sent successfully:', result);
+    console.log(`✅ Batch ${batchNum}/${totalBatches} sent successfully:`, result);
+    return true;
     
   } catch (error) {
-    console.error('❌ Failed to send session context:', error.message);
+    console.error(`❌ Failed to send batch ${batchNum}/${totalBatches}:`, error.message);
     console.error('❌ Error details:', error);
-    // Don't throw - this is non-critical for main analysis
+    return false;
   }
 }
 
