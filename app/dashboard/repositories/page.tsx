@@ -54,6 +54,7 @@ export default function Repositories() {
   const [hasAnalysisError, setHasAnalysisError] = useState(false)
   const [currentSkippedCount, setCurrentSkippedCount] = useState(0)
   const [isPrevention, setIsPrevention] = useState(false)
+  const [currentRepoUrl, setCurrentRepoUrl] = useState('')
 
   // Load repositories from database on component mount
   const loadRepositories = async () => {
@@ -400,6 +401,8 @@ export default function Repositories() {
 
   const analyzeRepository = async (repo: Repository) => {
     const repoKey = `${repo.fullName}`
+    const fullRepoUrl = `https://github.com/${repo.fullName}`
+    setCurrentRepoUrl(fullRepoUrl)
     
     // 🛡️ Pre-analysis size check to prevent token waste
     try {
@@ -1076,6 +1079,7 @@ export default function Repositories() {
         isOpen={showProgressModal}
         onClose={() => setShowProgressModal(false)}
         repositoryName={analyzing || ''}
+        repoUrl={currentRepoUrl}
         progress={analysisProgress}
         isComplete={isAnalysisComplete}
         hasError={hasAnalysisError}
