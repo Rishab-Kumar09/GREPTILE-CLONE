@@ -433,7 +433,7 @@ export default function Repositories() {
           setIsPrevention(true) // Mark as prevention
           setAnalysisProgress({ percentage: 0 })
           
-          setTimeout(() => setShowProgressModal(false), 5000) // Show for 5 seconds
+          // No timeout - popup stays open until user clicks X button
           return
         }
       }
