@@ -20,6 +20,7 @@ interface AnalysisProgressModalProps {
   isComplete: boolean
   hasError: boolean
   skippedCount?: number
+  isPrevention?: boolean // New prop to distinguish prevention from failure
 }
 
 export default function AnalysisProgressModal({
@@ -29,7 +30,8 @@ export default function AnalysisProgressModal({
   progress,
   isComplete,
   hasError,
-  skippedCount = 0
+  skippedCount = 0,
+  isPrevention = false
 }: AnalysisProgressModalProps) {
   // Auto-close when analysis is complete
   useEffect(() => {
@@ -51,6 +53,7 @@ export default function AnalysisProgressModal({
 
   // Determine status text based on stage
   const getStatusText = () => {
+    if (hasError && isPrevention) return 'Repository too large for analysis'
     if (hasError) return 'Repository analysis failed'
     if (isComplete) {
       if (skippedCount > 0) {
@@ -125,8 +128,22 @@ export default function AnalysisProgressModal({
               </p>
             )}
             
-            {/* Big repo error message */}
-            {hasError && (
+            {/* Big repo prevention/error message */}
+            {hasError && isPrevention && (
+              <div className="mt-3 p-4 bg-orange-50 border border-orange-200 rounded-lg text-left">
+                <p className="text-sm text-orange-800 font-medium mb-2">
+                  🛡️ Analysis prevented to save GitHub tokens
+                </p>
+                <p className="text-xs text-orange-700 mb-2">
+                  This repository is too large (&gt;50MB) for efficient analysis. To save your GitHub API tokens:
+                </p>
+                <p className="text-xs text-orange-600 font-medium">
+                  <strong>Use the Quick Analysis page</strong> to analyze critical issues and learn more about the repo.
+                </p>
+              </div>
+            )}
+            
+            {hasError && !isPrevention && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-left">
                 <p className="text-sm text-blue-800 font-medium mb-2">
                   💡 Repository too large or complex?

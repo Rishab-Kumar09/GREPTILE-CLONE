@@ -53,6 +53,7 @@ export default function Repositories() {
   const [isAnalysisComplete, setIsAnalysisComplete] = useState(false)
   const [hasAnalysisError, setHasAnalysisError] = useState(false)
   const [currentSkippedCount, setCurrentSkippedCount] = useState(0)
+  const [isPrevention, setIsPrevention] = useState(false)
 
   // Load repositories from database on component mount
   const loadRepositories = async () => {
@@ -399,12 +400,51 @@ export default function Repositories() {
 
   const analyzeRepository = async (repo: Repository) => {
     const repoKey = `${repo.fullName}`
+    
+    // 🛡️ Pre-analysis size check to prevent token waste
+    try {
+      console.log('🔍 Checking repository size before analysis...')
+      const [owner, repoName] = repo.fullName.split('/')
+      const sizeCheckResponse = await fetch(`https://api.github.com/repos/${owner}/${repoName}`, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Greptile-Clone'
+        }
+      })
+      
+      if (sizeCheckResponse.ok) {
+        const repoData = await sizeCheckResponse.json()
+        const sizeInKB = repoData.size || 0
+        const sizeInMB = sizeInKB / 1024
+        
+        console.log(`📊 Repository size: ${sizeInMB.toFixed(1)}MB (${sizeInKB}KB)`)
+        
+        // Prevent analysis for repos larger than 50MB or with >1000 files
+        if (sizeInMB > 50) {
+          console.log('⚠️ Repository too large for analysis, showing prevention message')
+          
+          // Show modal with prevention message instead of starting analysis
+          setShowProgressModal(true)
+          setIsAnalysisComplete(true)
+          setHasAnalysisError(true)
+          setIsPrevention(true) // Mark as prevention
+          setAnalysisProgress({ percentage: 0 })
+          
+          setTimeout(() => setShowProgressModal(false), 5000) // Show for 5 seconds
+          return
+        }
+      }
+    } catch (sizeCheckError) {
+      console.warn('⚠️ Could not check repository size, proceeding with analysis:', sizeCheckError)
+    }
+    
     setAnalyzing(repoKey)
     
     // 🎯 Initialize Progress Modal
     setShowProgressModal(true)
     setIsAnalysisComplete(false)
     setHasAnalysisError(false)
+    setIsPrevention(false) // Reset prevention flag for actual analysis
     setCurrentSkippedCount(0)
     setAnalysisProgress({ percentage: 0 })
     
@@ -1040,6 +1080,7 @@ export default function Repositories() {
         isComplete={isAnalysisComplete}
         hasError={hasAnalysisError}
         skippedCount={currentSkippedCount}
+        isPrevention={isPrevention}
       />
     </div>
   )
