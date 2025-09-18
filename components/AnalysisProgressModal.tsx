@@ -131,15 +131,28 @@ export default function AnalysisProgressModal({
             {/* Big repo prevention/error message */}
             {hasError && isPrevention && (
               <div className="mt-3 p-4 bg-orange-50 border border-orange-200 rounded-lg text-left">
-                <p className="text-sm text-orange-800 font-medium mb-2">
+                <p className="text-sm text-orange-800 font-medium mb-3">
                   🛡️ Analysis prevented to save GitHub tokens
                 </p>
-                <p className="text-xs text-orange-700 mb-2">
+                <p className="text-xs text-orange-700 mb-4">
                   This repository is too large (&gt;50MB) for efficient analysis. To save your GitHub API tokens:
                 </p>
-                <p className="text-xs text-orange-600 font-medium">
-                  <strong>Use the Quick Analysis page</strong> to analyze critical issues and learn more about the repo.
-                </p>
+                <div className="text-center">
+                  <p className="text-sm text-orange-800 font-bold mb-3">
+                    Use the Quick Analysis page instead
+                  </p>
+                  <button
+                    onClick={() => {
+                      const repoUrl = `https://github.com/${repositoryName}`
+                      window.location.href = `/dashboard/enterprise-analysis?repo=${encodeURIComponent(repoUrl)}`
+                    }}
+                    className="w-full px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <span>🚀</span>
+                    Go to Quick Analysis
+                    <span>→</span>
+                  </button>
+                </div>
               </div>
             )}
             

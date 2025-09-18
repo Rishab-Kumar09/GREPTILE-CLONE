@@ -1093,6 +1093,16 @@ export default function EnterpriseAnalysisPage() {
 
 
   // Cleanup polling on unmount
+  // Auto-fill repo URL from query parameter (for big repo prevention redirect)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const repoParam = urlParams.get('repo')
+    if (repoParam) {
+      setRepoUrl(repoParam)
+      console.log('🚀 Auto-filled repo URL from prevention system:', repoParam)
+    }
+  }, [])
+
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {
