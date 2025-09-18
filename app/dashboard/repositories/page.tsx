@@ -223,7 +223,7 @@ export default function Repositories() {
       }
     } catch (error) {
       console.error('Error fetching GitHub repositories:', error)
-      alert('Failed to fetch GitHub repositories. Please try again.')
+      alert('Failed to fetch GitHub repositories. Issues loading repos? Try pressing the "Refresh GitHub" button and try again.')
     } finally {
       setLoadingGithubRepos(false)
     }

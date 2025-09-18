@@ -51,7 +51,7 @@ export default function AnalysisProgressModal({
 
   // Determine status text based on stage
   const getStatusText = () => {
-    if (hasError) return 'Analysis failed'
+    if (hasError) return 'Repository analysis failed'
     if (isComplete) {
       if (skippedCount > 0) {
         return `Analysis complete (${skippedCount} files skipped)`
@@ -108,7 +108,7 @@ export default function AnalysisProgressModal({
           </div>
         </div>
 
-        {/* Progress Content */}
+          {/* Progress Content */}
         <div className="px-6 pb-6">
           {/* Progress Percentage */}
           <div className="text-center mb-4">
@@ -123,6 +123,21 @@ export default function AnalysisProgressModal({
               <p className="text-xs text-gray-500 mt-1">
                 {progress.downloadSpeed} • ETA: {progress.eta}
               </p>
+            )}
+            
+            {/* Big repo error message */}
+            {hasError && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-left">
+                <p className="text-sm text-blue-800 font-medium mb-2">
+                  💡 Repository too large or complex?
+                </p>
+                <p className="text-xs text-blue-700 mb-2">
+                  This repo might be too big or have analysis issues. For better results:
+                </p>
+                <p className="text-xs text-blue-600">
+                  <strong>Use the Quick Analysis page</strong> to analyze critical issues and learn more about the repo.
+                </p>
+              </div>
             )}
           </div>
           
