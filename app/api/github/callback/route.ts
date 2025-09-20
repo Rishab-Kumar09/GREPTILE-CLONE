@@ -71,17 +71,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=oauth_security_error'));
     }
 
+    let isTemporarySession = false;
+    let purpose = 'connect';
+    
     try {
       const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-      userId = stateData.userId;
+      userId = stateData.userId; // Can be null for temporary sessions
       returnTo = stateData.returnTo || 'dashboard';
+      isTemporarySession = stateData.isTemporarySession || false;
+      purpose = stateData.purpose || 'connect';
       
-      if (!userId) {
-        console.error('❌ CALLBACK SECURITY ERROR: No userId in state parameter');
+      // For temporary sessions (GitHub signin), userId will be null - this is expected
+      if (!isTemporarySession && !userId) {
+        console.error('❌ CALLBACK SECURITY ERROR: No userId in state parameter for regular session');
         return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=oauth_invalid_state'));
       }
       
-      console.log('🔓 CALLBACK: Decoded userId from state:', userId);
+      console.log('🔓 CALLBACK: Decoded state - userId:', userId, 'purpose:', purpose, 'temporary:', isTemporarySession);
       console.log('🔓 CALLBACK: Will return to:', returnTo);
     } catch (error) {
       console.error('❌ CALLBACK SECURITY ERROR: Failed to decode state parameter:', error);
@@ -143,7 +149,66 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_user_failed'));
     }
     
-    console.log('✅ CALLBACK: User data validated, checking for existing connections...');
+    console.log('✅ CALLBACK: User data validated');
+
+    // 🔐 GITHUB SIGNIN: Handle GitHub signin (create new user account)
+    if (isTemporarySession && purpose === 'signin') {
+      console.log('🔄 CALLBACK: Processing GitHub signin - creating new user account...');
+      
+      // Check if user already exists with this GitHub username
+      const existingGithubUser = await prisma.$queryRaw`
+        SELECT * FROM "UserProfile" WHERE "githubUsername" = ${userData.login} LIMIT 1
+      ` as any[];
+      
+      if (existingGithubUser.length > 0) {
+        // User exists - sign them in with existing account
+        const existingUser = existingGithubUser[0];
+        console.log('✅ CALLBACK: Found existing user with GitHub account:', existingUser.id);
+        
+        // Create session for existing user
+        const { createSession } = await import('@/lib/session-utils');
+        const sessionToken = await createSession(existingUser.id, existingUser.email);
+        
+        // Redirect with session token
+        const redirectUrl = `https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin-success?session=${encodeURIComponent(sessionToken)}`;
+        return NextResponse.redirect(new URL(redirectUrl));
+      } else {
+        // Create new user account with GitHub data
+        const newUserId = `github-${userData.login.toLowerCase()}`;
+        const newUserEmail = userData.email || `${userData.login}@github.local`;
+        
+        console.log('🔄 CALLBACK: Creating new user account for GitHub user:', userData.login);
+        
+        await prisma.$executeRaw`
+          INSERT INTO "UserProfile" (
+            id, name, email, "profileImage", "selectedIcon", "userTitle",
+            "githubConnected", "githubUsername", "githubAvatarUrl", "githubTokenRef",
+            "createdAt", "updatedAt"
+          ) VALUES (
+            ${newUserId}, ${userData.name || userData.login}, ${newUserEmail},
+            ${userData.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.login)}&background=10b981&color=fff&size=128`},
+            ${'👤'}, ${'Developer'}, ${true}, ${userData.login}, ${userData.avatar_url},
+            ${`github_token_${newUserId}`}, NOW(), NOW()
+          )
+        `;
+        
+        // Store GitHub token in AWS Secrets Manager
+        // ... (token storage logic would go here)
+        
+        console.log('✅ CALLBACK: New user account created:', newUserId);
+        
+        // Create session for new user
+        const { createSession } = await import('@/lib/session-utils');
+        const sessionToken = await createSession(newUserId, newUserEmail);
+        
+        // Redirect with session token
+        const redirectUrl = `https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin-success?session=${encodeURIComponent(sessionToken)}`;
+        return NextResponse.redirect(new URL(redirectUrl));
+      }
+    }
+
+    // 🔗 GITHUB CONNECT: Handle GitHub connection to existing account
+    console.log('🔄 CALLBACK: Processing GitHub connection to existing account...');
 
     // 🚨 EMERGENCY SECURITY CHECK: Prevent unauthorized access to GitHub accounts
     // Check if this GitHub account is already connected to another user

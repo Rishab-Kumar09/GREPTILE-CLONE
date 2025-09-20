@@ -12,32 +12,51 @@ export async function GET(request: NextRequest) {
     console.log('🔄 OAUTH: Initiating GitHub OAuth with session validation...');
     console.log('🔄 OAUTH: Will return to:', returnTo);
     
-    // 🔒 SECURITY FIX: Validate session instead of trusting userId from URL
+    const purpose = searchParams.get('purpose') || 'connect'; // 'signin' or 'connect'
+    
+    // 🔒 SECURITY FIX: Handle both authenticated users and temporary sessions for GitHub signin
+    let userId: string | null = null;
+    let isTemporarySession = false;
+    
     if (!sessionToken) {
-      console.error('❌ OAUTH ERROR: No session token provided - user must be logged in first');
+      console.error('❌ OAUTH ERROR: No session token provided');
       return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=login_required&returnTo=${encodeURIComponent(returnTo)}`));
     }
 
-    // Validate session token and get user ID
-    let userId: string;
-    try {
-      const sessionResponse = await fetch('https://master.d3dp89x98knsw0.amplifyapp.com/api/auth/validate-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionToken })
-      });
+    // Check if it's a temporary session (for GitHub signin)
+    if (sessionToken.startsWith('temp_')) {
+      console.log('🔄 OAUTH: Validating temporary session for GitHub signin...');
+      const { validateTempSession } = await import('../../auth/create-temp-session/route');
+      const tempResult = validateTempSession(sessionToken);
       
-      const sessionData = await sessionResponse.json();
-      if (!sessionData.success || !sessionData.userId) {
-        console.error('❌ OAUTH ERROR: Invalid session token');
-        return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_expired&returnTo=${encodeURIComponent(returnTo)}`));
+      if (!tempResult.valid || tempResult.purpose !== 'github_signin') {
+        console.error('❌ OAUTH ERROR: Invalid temporary session');
+        return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=temp_session_expired`));
       }
       
-      userId = sessionData.userId;
-      console.log('✅ OAUTH: Valid session found for user:', userId);
-    } catch (error) {
-      console.error('❌ OAUTH ERROR: Session validation failed:', error);
-      return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_error&returnTo=${encodeURIComponent(returnTo)}`));
+      isTemporarySession = true;
+      console.log('✅ OAUTH: Valid temporary session for GitHub signin');
+    } else {
+      // Validate regular session token and get user ID
+      try {
+        const sessionResponse = await fetch('https://master.d3dp89x98knsw0.amplifyapp.com/api/auth/validate-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionToken })
+        });
+        
+        const sessionData = await sessionResponse.json();
+        if (!sessionData.success || !sessionData.userId) {
+          console.error('❌ OAUTH ERROR: Invalid session token');
+          return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_expired&returnTo=${encodeURIComponent(returnTo)}`));
+        }
+        
+        userId = sessionData.userId;
+        console.log('✅ OAUTH: Valid session found for user:', userId);
+      } catch (error) {
+        console.error('❌ OAUTH ERROR: Session validation failed:', error);
+        return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_error&returnTo=${encodeURIComponent(returnTo)}`));
+      }
     }
     
     // Fetch GitHub credentials from internal endpoint (same pattern as callback)
@@ -68,15 +87,18 @@ export async function GET(request: NextRequest) {
 
     // userId is now validated from session above
 
-    // Generate state with user ID and return URL encoded for callback
+    // Generate state with user info and session type for callback
     const stateData = {
-      userId: userId,
+      userId: userId, // null for temporary sessions
       returnTo: returnTo,
+      isTemporarySession: isTemporarySession,
+      purpose: purpose,
+      sessionToken: isTemporarySession ? sessionToken : undefined, // Include temp session for callback
       random: Math.random().toString(36).substring(2, 15)
     };
     const state = Buffer.from(JSON.stringify(stateData)).toString('base64');
     
-    console.log('🔒 OAUTH: Generated state for user:', userId);
+    console.log('🔒 OAUTH: Generated state for', isTemporarySession ? 'GitHub signin' : `authenticated user: ${userId}`);
     
     // Create GitHub OAuth URL with parameters to force fresh authentication
     const oauthUrl = new URL('https://github.com/login/oauth/authorize');

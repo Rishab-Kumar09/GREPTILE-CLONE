@@ -52,9 +52,30 @@ export default function SignIn() {
   }
 
   const handleGithubSignIn = async () => {
-    // 🔒 SECURITY FIX: GitHub OAuth is for connecting accounts, not signing in
-    // Users must create an account first, then connect GitHub
-    alert('Please create an account first, then connect your GitHub account from the dashboard.')
+    try {
+      console.log('🔗 SIGNIN: Starting GitHub OAuth for authentication')
+      
+      // Create a temporary session for GitHub OAuth flow
+      const tempSessionResponse = await fetch('/api/auth/create-temp-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purpose: 'github_signin' })
+      })
+      
+      const tempSessionData = await tempSessionResponse.json()
+      if (!tempSessionData.success) {
+        alert('Failed to initiate GitHub sign in. Please try again.')
+        return
+      }
+      
+      // Redirect to GitHub OAuth with temporary session
+      console.log('🔗 SIGNIN: Redirecting to GitHub OAuth for authentication')
+      window.location.href = `/api/github/oauth?session=${encodeURIComponent(tempSessionData.tempSession)}&purpose=signin`
+      
+    } catch (error) {
+      console.error('Error initiating GitHub OAuth:', error)
+      alert('Failed to sign in with GitHub. Please try again.')
+    }
   }
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
