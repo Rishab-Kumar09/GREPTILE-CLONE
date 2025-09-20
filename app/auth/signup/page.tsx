@@ -29,9 +29,17 @@ export default function SignUp() {
       const data = await response.json()
       
       if (data.success) {
-        // Store user session in localStorage
-        localStorage.setItem('currentUser', JSON.stringify(data.user))
-        console.log('✅ SIGNUP SUCCESS: User created and logged in')
+        // 🔒 SECURITY FIX: Store session token securely instead of user data in localStorage
+        if (data.sessionToken) {
+          localStorage.setItem('sessionToken', data.sessionToken)
+          localStorage.setItem('currentUser', JSON.stringify(data.user)) // Keep for UI display only
+          console.log('✅ SIGNUP SUCCESS: User created with secure session:', data.user.name)
+        } else {
+          console.error('❌ SIGNUP ERROR: No session token received')
+          alert('Account creation failed - no session token received')
+          setIsLoading(false)
+          return
+        }
         router.push('/dashboard')
       } else {
         alert(data.error || 'Failed to create account')

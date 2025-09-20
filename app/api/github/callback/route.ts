@@ -62,21 +62,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/dashboard?error=github_auth_failed'));
     }
 
-    // Decode user ID and return URL from state parameter
-    let userId = 'default-user'; // fallback for legacy flows
-    let returnTo = 'dashboard'; // default return location
-    if (state) {
-      try {
-        const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
-        userId = stateData.userId || 'default-user';
-        returnTo = stateData.returnTo || 'dashboard';
-        console.log('🔓 CALLBACK: Decoded userId from state:', userId);
-        console.log('🔓 CALLBACK: Will return to:', returnTo);
-      } catch (error) {
-        console.log('⚠️ CALLBACK: Failed to decode state, using default-user fallback');
+    // 🔒 SECURITY FIX: Decode user ID from state parameter - NO FALLBACKS!
+    let userId: string;
+    let returnTo = 'dashboard';
+    
+    if (!state) {
+      console.error('❌ CALLBACK SECURITY ERROR: No state parameter - potential CSRF attack');
+      return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=oauth_security_error'));
+    }
+
+    try {
+      const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+      userId = stateData.userId;
+      returnTo = stateData.returnTo || 'dashboard';
+      
+      if (!userId) {
+        console.error('❌ CALLBACK SECURITY ERROR: No userId in state parameter');
+        return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=oauth_invalid_state'));
       }
-    } else {
-      console.log('⚠️ CALLBACK: No state parameter, using default-user fallback');
+      
+      console.log('🔓 CALLBACK: Decoded userId from state:', userId);
+      console.log('🔓 CALLBACK: Will return to:', returnTo);
+    } catch (error) {
+      console.error('❌ CALLBACK SECURITY ERROR: Failed to decode state parameter:', error);
+      return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=oauth_invalid_state'));
     }
     
     console.log('✅ CALLBACK: Authorization code received');

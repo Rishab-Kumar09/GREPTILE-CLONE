@@ -28,9 +28,17 @@ export default function SignIn() {
       const data = await response.json()
       
       if (data.success) {
-        // Store user session in localStorage
-        localStorage.setItem('currentUser', JSON.stringify(data.user))
-        console.log('✅ SIGNIN SUCCESS: User logged in as', data.user.name)
+        // 🔒 SECURITY FIX: Store session token securely instead of user data in localStorage
+        if (data.sessionToken) {
+          localStorage.setItem('sessionToken', data.sessionToken)
+          localStorage.setItem('currentUser', JSON.stringify(data.user)) // Keep for UI display only
+          console.log('✅ SIGNIN SUCCESS: User logged in with secure session:', data.user.name)
+        } else {
+          console.error('❌ SIGNIN ERROR: No session token received')
+          alert('Login failed - no session token received')
+          setIsLoading(false)
+          return
+        }
         router.push('/dashboard')
       } else {
         alert(data.error || 'Failed to sign in')
@@ -44,19 +52,9 @@ export default function SignIn() {
   }
 
   const handleGithubSignIn = async () => {
-    try {
-      // For signin page, use default-user for GitHub OAuth
-      // Direct redirect approach (same as repositories and setup pages)
-      console.log('🔗 SIGNIN: Starting GitHub OAuth for default user')
-      
-      // Direct redirect to OAuth endpoint - it will handle the redirect automatically
-      console.log('🔗 SIGNIN: Redirecting to GitHub OAuth endpoint')
-      window.location.href = '/api/github/oauth?userId=default-user'
-      
-    } catch (error) {
-      console.error('Error initiating GitHub OAuth:', error)
-      alert('Failed to sign in with GitHub. Please try again.')
-    }
+    // 🔒 SECURITY FIX: GitHub OAuth is for connecting accounts, not signing in
+    // Users must create an account first, then connect GitHub
+    alert('Please create an account first, then connect your GitHub account from the dashboard.')
   }
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

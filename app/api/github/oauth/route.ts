@@ -6,11 +6,39 @@ const GITHUB_REDIRECT_URI = process.env.GITHUB_REDIRECT_URI || 'https://master.d
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const sessionToken = searchParams.get('session') || request.headers.get('authorization')?.replace('Bearer ', '');
     const returnTo = searchParams.get('returnTo') || '/dashboard';
     
-    console.log('🔄 OAUTH: Initiating GitHub OAuth for user:', userId);
+    console.log('🔄 OAUTH: Initiating GitHub OAuth with session validation...');
     console.log('🔄 OAUTH: Will return to:', returnTo);
+    
+    // 🔒 SECURITY FIX: Validate session instead of trusting userId from URL
+    if (!sessionToken) {
+      console.error('❌ OAUTH ERROR: No session token provided - user must be logged in first');
+      return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=login_required&returnTo=${encodeURIComponent(returnTo)}`));
+    }
+
+    // Validate session token and get user ID
+    let userId: string;
+    try {
+      const sessionResponse = await fetch('https://master.d3dp89x98knsw0.amplifyapp.com/api/auth/validate-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionToken })
+      });
+      
+      const sessionData = await sessionResponse.json();
+      if (!sessionData.success || !sessionData.userId) {
+        console.error('❌ OAUTH ERROR: Invalid session token');
+        return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_expired&returnTo=${encodeURIComponent(returnTo)}`));
+      }
+      
+      userId = sessionData.userId;
+      console.log('✅ OAUTH: Valid session found for user:', userId);
+    } catch (error) {
+      console.error('❌ OAUTH ERROR: Session validation failed:', error);
+      return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_error&returnTo=${encodeURIComponent(returnTo)}`));
+    }
     
     // Fetch GitHub credentials from internal endpoint (same pattern as callback)
     console.log('🔄 OAUTH: Fetching GitHub credentials from internal endpoint...');
@@ -38,13 +66,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!userId) {
-      console.log('❌ OAUTH ERROR: userId is required');
-      return NextResponse.json(
-        { error: 'User ID is required for GitHub OAuth' },
-        { status: 400 }
-      );
-    }
+    // userId is now validated from session above
 
     // Generate state with user ID and return URL encoded for callback
     const stateData = {

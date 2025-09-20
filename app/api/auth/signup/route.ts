@@ -54,9 +54,16 @@ export async function POST(request: NextRequest) {
     console.log('✅ SIGNUP: User profile created successfully')
     console.log('User ID:', userId)
     
-    // Store user session in localStorage (client-side will handle this)
+    // 🔒 SECURITY FIX: Create server-side session instead of client-side storage
+    const { createSession } = await import('../validate-session/route')
+    const sessionToken = await createSession(newUser.id, newUser.email)
+    
+    console.log('✅ SIGNUP: Server-side session created for new user:', newUser.id)
+    
+    // Return user data with session token
     return NextResponse.json({
       success: true,
+      sessionToken: sessionToken, // 🔒 Server-side session token
       user: {
         id: newUser.id,
         name: newUser.name,

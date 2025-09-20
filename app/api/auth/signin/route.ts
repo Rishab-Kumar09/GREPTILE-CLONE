@@ -52,9 +52,16 @@ export async function POST(request: NextRequest) {
     console.log('User ID:', userId)
     console.log('User Name:', user.name)
     
-    // Return user data for client-side session storage
+    // 🔒 SECURITY FIX: Create server-side session instead of client-side storage
+    const { createSession } = await import('../validate-session/route')
+    const sessionToken = await createSession(user.id, user.email)
+    
+    console.log('✅ SIGNIN: Server-side session created for user:', user.id)
+    
+    // Return user data with session token
     return NextResponse.json({
       success: true,
+      sessionToken: sessionToken, // 🔒 Server-side session token
       user: {
         id: user.id,
         name: user.name,

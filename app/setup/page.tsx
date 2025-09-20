@@ -54,19 +54,18 @@ export default function Setup() {
     try {
       setIsRefreshing(true)
       
-      // Get current user
-      const currentUserStr = localStorage.getItem('currentUser')
-      if (!currentUserStr) {
-        alert('Please log in first')
+      // 🔒 SECURITY FIX: Get session token instead of userId from localStorage
+      const sessionToken = localStorage.getItem('sessionToken')
+      if (!sessionToken) {
+        alert('Please log in first - no valid session found')
         return
       }
       
-      const currentUser = JSON.parse(currentUserStr)
-      console.log('🔄 SETUP: Starting GitHub refresh for user:', currentUser.id)
+      console.log('🔄 SETUP: Starting GitHub OAuth with session token')
       
-      // Direct redirect to OAuth endpoint - it will handle the redirect automatically
-      console.log('🔄 SETUP: Redirecting to GitHub OAuth endpoint')
-      window.location.href = `/api/github/oauth?userId=${currentUser.id}`
+      // Direct redirect to OAuth endpoint with session token
+      console.log('🔄 SETUP: Redirecting to GitHub OAuth endpoint with secure session')
+      window.location.href = `/api/github/oauth?session=${encodeURIComponent(sessionToken)}`
       
     } catch (error) {
       console.error('Error refreshing GitHub connection:', error)
