@@ -20,15 +20,9 @@ export async function POST(request: NextRequest) {
 
     console.log('🚪 LOGOUT: Destroying session...')
     
-    // Remove session from server-side storage
-    const sessionExists = global.userSessions?.has(sessionToken)
-    if (sessionExists) {
-      const session = global.userSessions.get(sessionToken)
-      global.userSessions.delete(sessionToken)
-      console.log('✅ LOGOUT: Session destroyed for user:', session?.userId)
-    } else {
-      console.log('⚠️ LOGOUT: Session not found (already expired or invalid)')
-    }
+    // Use utility function to destroy session
+    const { destroySession } = await import('@/lib/session-utils')
+    await destroySession(sessionToken)
 
     return NextResponse.json({
       success: true,

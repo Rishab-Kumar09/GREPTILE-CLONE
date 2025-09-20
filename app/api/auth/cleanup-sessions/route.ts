@@ -24,13 +24,13 @@ export async function POST(request: NextRequest) {
     let cleanedCount = 0
     const initialCount = global.userSessions.size
     
-    for (const [token, session] of global.userSessions.entries()) {
+    Array.from(global.userSessions.entries()).forEach(([token, session]) => {
       if (session.timestamp < oneWeekAgo) {
         global.userSessions.delete(token)
         cleanedCount++
         console.log('🗑️ MANUAL CLEANUP: Removed old session for user:', session.userId)
       }
-    }
+    })
     
     const remainingCount = global.userSessions.size
     
@@ -68,11 +68,11 @@ export async function GET(request: NextRequest) {
     const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
     let oldSessions = 0
     
-    for (const [token, session] of global.userSessions.entries()) {
+    Array.from(global.userSessions.entries()).forEach(([token, session]) => {
       if (session.timestamp < oneWeekAgo) {
         oldSessions++
       }
-    }
+    })
     
     return NextResponse.json({
       totalSessions: global.userSessions.size,

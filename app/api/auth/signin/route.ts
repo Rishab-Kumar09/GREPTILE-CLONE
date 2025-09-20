@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     console.log('User Name:', user.name)
     
     // 🔒 SECURITY FIX: Create server-side session instead of client-side storage
-    const { createSession } = await import('../validate-session/route')
+    const { createSession } = await import('@/lib/session-utils')
     const sessionToken = await createSession(user.id, user.email)
     
     console.log('✅ SIGNIN: Server-side session created for user:', user.id)

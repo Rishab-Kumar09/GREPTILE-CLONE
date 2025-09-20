@@ -22,40 +22,44 @@ export async function POST(request: NextRequest) {
     // Generate a unique user ID based on email
     const userId = email.toLowerCase().replace(/[^a-z0-9]/g, '-')
     
-    // Check if user already exists
-    const existingUser = await prisma.userProfile.findUnique({
-      where: { id: userId }
-    })
+    // Check if user already exists using raw SQL (same pattern as signin)
+    const existingUsers = await prisma.$queryRaw`
+      SELECT * FROM "UserProfile" WHERE id = ${userId} LIMIT 1
+    ` as any[]
     
-    if (existingUser) {
+    if (existingUsers.length > 0) {
       return NextResponse.json({
         success: false,
         error: 'User already exists with this email'
       }, { status: 400 })
     }
     
-    // Create new user profile
-    const newUser = await prisma.userProfile.create({
-      data: {
-        id: userId,
-        name: name,
-        email: email,
-        password: hashedPassword,
-        profileImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10b981&color=fff&size=128`,
-        selectedIcon: '👤',
-        userTitle: 'Developer',
-        githubConnected: false,
-        githubUsername: null,
-        githubAvatarUrl: null,
-        githubTokenRef: null
-      }
-    })
+    // Create new user profile using raw SQL
+    const newUserResult = await prisma.$executeRaw`
+      INSERT INTO "UserProfile" (
+        id, name, email, password, "profileImage", "selectedIcon", "userTitle",
+        "githubConnected", "githubUsername", "githubAvatarUrl", "githubTokenRef",
+        "createdAt", "updatedAt"
+      ) VALUES (
+        ${userId}, ${name}, ${email}, ${hashedPassword},
+        ${`https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=10b981&color=fff&size=128`},
+        ${'👤'}, ${'Developer'}, ${false}, ${null}, ${null}, ${null},
+        NOW(), NOW()
+      )
+    `
+    
+    // Get the created user data
+    const newUserData = await prisma.$queryRaw`
+      SELECT * FROM "UserProfile" WHERE id = ${userId} LIMIT 1
+    ` as any[]
+    
+    const newUser = newUserData[0]
     
     console.log('✅ SIGNUP: User profile created successfully')
     console.log('User ID:', userId)
     
     // 🔒 SECURITY FIX: Create server-side session instead of client-side storage
-    const { createSession } = await import('../validate-session/route')
+    const { createSession } = await import('@/lib/session-utils')
     const sessionToken = await createSession(newUser.id, newUser.email)
     
     console.log('✅ SIGNUP: Server-side session created for new user:', newUser.id)
