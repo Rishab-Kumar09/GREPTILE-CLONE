@@ -171,7 +171,7 @@ export async function GET(request: NextRequest) {
         
         // DEBUG: Log all accounts found
         const allAccounts = await prisma.$queryRaw`
-          SELECT id, name, email, "githubUsername", "updatedAt", "lastUsed" FROM "UserProfile" 
+          SELECT id, name, email, "githubUsername", "updatedAt" FROM "UserProfile" 
           WHERE "githubUsername" = ${userData.login}
           ORDER BY "updatedAt" DESC
         ` as any[];
@@ -191,8 +191,7 @@ export async function GET(request: NextRequest) {
               id: user.id,
               name: user.name || 'Unknown',
               email: user.email || 'No email',
-              updatedAt: user.updatedAt || new Date().toISOString(),
-              lastUsed: user.lastUsed || null
+              updatedAt: user.updatedAt || new Date().toISOString()
             }));
             
             // Use base64 encoding to compress the data
@@ -214,14 +213,14 @@ export async function GET(request: NextRequest) {
           const existingUser = existingGithubUser[0];
           console.log('✅ CALLBACK: Found existing user with GitHub account:', existingUser.id, `(${existingUser.name})`);
           
-          // Update lastUsed timestamp
+          // Update updatedAt timestamp to reflect last login
           await prisma.$executeRaw`
             UPDATE "UserProfile" 
-            SET "lastUsed" = NOW() 
+            SET "updatedAt" = NOW() 
             WHERE id = ${existingUser.id}
           `;
           
-          console.log('✅ CALLBACK: Updated lastUsed timestamp for user:', existingUser.id);
+          console.log('✅ CALLBACK: Updated last login timestamp for user:', existingUser.id);
           
           // Create session for existing user
           const { createSession } = await import('@/lib/session-utils');

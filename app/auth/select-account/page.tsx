@@ -9,7 +9,6 @@ interface UserAccount {
   email: string
   profileImage: string
   updatedAt: string
-  lastUsed?: string | null
 }
 
 function SelectAccountContent() {
@@ -109,7 +108,7 @@ function SelectAccountContent() {
         </div>
 
         <div className="space-y-3">
-          {accounts.map((account) => (
+          {accounts.map((account, index) => (
             <button
               key={account.id}
               onClick={() => selectAccount(account.id)}
@@ -124,13 +123,17 @@ function SelectAccountContent() {
                 className="w-12 h-12 rounded-full mr-4"
               />
               <div className="flex-1 text-left">
-                <div className="font-medium text-gray-900">{account.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="font-medium text-gray-900">{account.name}</div>
+                  {index === 0 && (
+                    <span className="px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-full">
+                      Recommended
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm text-gray-500">{account.email}</div>
                 <div className="text-xs text-gray-400">
                   Last updated: {new Date(account.updatedAt).toLocaleDateString()}
-                </div>
-                <div className="text-xs text-gray-400">
-                  Last used: {account.lastUsed ? new Date(account.lastUsed).toLocaleString() : 'Never'}
                 </div>
               </div>
               {selecting === account.id && (
