@@ -19,21 +19,28 @@ function SelectAccountContent() {
   const [selecting, setSelecting] = useState<string | null>(null)
 
   useEffect(() => {
-    const accountsData = searchParams.get('accounts')
-    const githubUsername = searchParams.get('github')
+    const selectionId = searchParams.get('selectionId')
     
-    if (accountsData) {
-      try {
-        const parsedAccounts = JSON.parse(decodeURIComponent(accountsData))
-        setAccounts(parsedAccounts)
-        setLoading(false)
-      } catch (error) {
-        console.error('Failed to parse accounts data:', error)
-        router.push('/auth/signin?error=account_selection_failed')
-      }
+    if (selectionId) {
+      // Fetch account data from server
+      fetch(`/api/auth/store-account-selection?selectionId=${encodeURIComponent(selectionId)}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            setAccounts(data.accounts)
+            setLoading(false)
+          } else {
+            console.error('Failed to load account data:', data.error)
+            router.push('/auth/signin?error=account_selection_failed')
+          }
+        })
+        .catch(error => {
+          console.error('Error loading account data:', error)
+          router.push('/auth/signin?error=account_selection_error')
+        })
     } else {
-      console.error('No accounts data provided')
-      router.push('/auth/signin?error=no_accounts_data')
+      console.error('No selection ID provided')
+      router.push('/auth/signin?error=no_selection_id')
     }
   }, [searchParams, router])
 
@@ -46,7 +53,7 @@ function SelectAccountContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           accountId,
-          githubUsername: searchParams.get('github')
+          githubUsername: 'from-selection' // Will be validated server-side
         })
       })
       

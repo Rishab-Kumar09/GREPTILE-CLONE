@@ -177,6 +177,45 @@ export async function GET(request: NextRequest) {
           console.log(`   ${i + 1}. ${acc.id} (${acc.name}) - Updated: ${acc.updatedAt}`);
         });
         
+        // 🎯 GIVE USER CHOICE: If multiple accounts, show selection page
+        if (allAccounts.length > 1) {
+          console.log('⚠️ CALLBACK: Multiple accounts found, redirecting to selection page');
+          
+          try {
+            // Store account data on server
+            const accountsData = allAccounts.map(user => ({
+              id: user.id,
+              name: user.name || 'Unknown',
+              email: user.email || 'No email',
+              profileImage: user.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=10b981&color=fff&size=128`,
+              updatedAt: user.updatedAt || new Date().toISOString()
+            }));
+            
+            const storeResponse = await fetch('https://master.d3dp89x98knsw0.amplifyapp.com/api/auth/store-account-selection', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                accounts: accountsData,
+                githubUsername: userData.login
+              })
+            });
+            
+            const storeData = await storeResponse.json();
+            
+            if (storeData.success) {
+              const redirectUrl = `https://master.d3dp89x98knsw0.amplifyapp.com/auth/select-account?selectionId=${encodeURIComponent(storeData.selectionId)}`;
+              console.log('🔄 CALLBACK: Redirecting to account selection page');
+              return NextResponse.redirect(new URL(redirectUrl));
+            } else {
+              console.error('❌ CALLBACK: Failed to store account selection data');
+              // Fallback to first non-default account
+            }
+          } catch (error) {
+            console.error('❌ CALLBACK: Error storing account selection data:', error);
+            // Fallback to first non-default account
+          }
+        }
+        
         if (existingGithubUser.length > 0) {
           // User exists - sign them in with existing account
           const existingUser = existingGithubUser[0];
