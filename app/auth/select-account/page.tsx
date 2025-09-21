@@ -9,6 +9,7 @@ interface UserAccount {
   email: string
   profileImage: string
   updatedAt: string
+  lastUsed?: string | null
 }
 
 function SelectAccountContent() {
