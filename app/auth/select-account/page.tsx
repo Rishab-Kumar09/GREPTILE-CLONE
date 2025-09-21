@@ -19,28 +19,30 @@ function SelectAccountContent() {
   const [selecting, setSelecting] = useState<string | null>(null)
 
   useEffect(() => {
-    const selectionId = searchParams.get('selectionId')
+    const accountsData = searchParams.get('accounts')
+    const githubUsername = searchParams.get('github')
     
-    if (selectionId) {
-      // Fetch account data from server
-      fetch(`/api/auth/store-account-selection?selectionId=${encodeURIComponent(selectionId)}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            setAccounts(data.accounts)
-            setLoading(false)
-          } else {
-            console.error('Failed to load account data:', data.error)
-            router.push('/auth/signin?error=account_selection_failed')
-          }
-        })
-        .catch(error => {
-          console.error('Error loading account data:', error)
-          router.push('/auth/signin?error=account_selection_error')
-        })
+    if (accountsData) {
+      try {
+        // Decode base64 data
+        const accountsJson = Buffer.from(decodeURIComponent(accountsData), 'base64').toString('utf-8')
+        const parsedAccounts = JSON.parse(accountsJson)
+        
+        // Add profile images
+        const accountsWithImages = parsedAccounts.map((acc: any) => ({
+          ...acc,
+          profileImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.name || 'User')}&background=10b981&color=fff&size=128`
+        }))
+        
+        setAccounts(accountsWithImages)
+        setLoading(false)
+      } catch (error) {
+        console.error('Failed to parse accounts data:', error)
+        router.push('/auth/signin?error=account_selection_failed')
+      }
     } else {
-      console.error('No selection ID provided')
-      router.push('/auth/signin?error=no_selection_id')
+      console.error('No accounts data provided')
+      router.push('/auth/signin?error=no_accounts_data')
     }
   }, [searchParams, router])
 
@@ -53,7 +55,7 @@ function SelectAccountContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           accountId,
-          githubUsername: 'from-selection' // Will be validated server-side
+          githubUsername: searchParams.get('github')
         })
       })
       

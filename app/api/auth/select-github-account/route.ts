@@ -7,21 +7,21 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const { accountId } = await request.json()
+    const { accountId, githubUsername } = await request.json()
     
-    if (!accountId) {
+    if (!accountId || !githubUsername) {
       return NextResponse.json({
         success: false,
-        error: 'Account ID is required'
+        error: 'Account ID and GitHub username are required'
       }, { status: 400 })
     }
 
-    console.log('🔄 ACCOUNT SELECTION: User selected account:', accountId)
+    console.log('🔄 ACCOUNT SELECTION: User selected account:', accountId, 'for GitHub:', githubUsername)
     
-    // Verify the account exists
+    // Verify the account exists and has the correct GitHub username
     const selectedAccount = await prisma.$queryRaw`
       SELECT * FROM "UserProfile" 
-      WHERE id = ${accountId}
+      WHERE id = ${accountId} AND "githubUsername" = ${githubUsername}
       LIMIT 1
     ` as any[]
     
