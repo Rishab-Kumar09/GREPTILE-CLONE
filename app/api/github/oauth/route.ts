@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     // Check if it's a temporary session (for GitHub signin)
     if (sessionToken.startsWith('temp_')) {
       console.log('🔄 OAUTH: Validating temporary session for GitHub signin...');
-      const { validateTempSession } = await import('../../auth/create-temp-session/route');
+      const { validateTempSession } = await import('@/lib/session-utils');
       const tempResult = validateTempSession(sessionToken);
       
       if (!tempResult.valid || tempResult.purpose !== 'github_signin') {

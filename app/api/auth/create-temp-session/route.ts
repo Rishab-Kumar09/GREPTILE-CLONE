@@ -50,28 +50,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper function to validate and consume temporary session
-export function validateTempSession(tempSession: string): { valid: boolean; purpose?: string } {
-  if (!global.tempSessions || !tempSession) {
-    return { valid: false }
-  }
-
-  const session = global.tempSessions.get(tempSession)
-  if (!session) {
-    return { valid: false }
-  }
-
-  // Check if expired (10 minutes)
-  const age = Date.now() - session.timestamp
-  const maxAge = 10 * 60 * 1000 // 10 minutes
-  
-  if (age > maxAge) {
-    global.tempSessions.delete(tempSession)
-    return { valid: false }
-  }
-
-  // Consume the session (one-time use)
-  global.tempSessions.delete(tempSession)
-  
-  return { valid: true, purpose: session.purpose }
-}
+// Helper function moved to session-utils to avoid Next.js route export conflicts

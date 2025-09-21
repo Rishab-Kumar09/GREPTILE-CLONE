@@ -10,9 +10,9 @@ export async function GET() {
   try {
     console.log('🔍 DEBUG: Fetching all repositories from database...')
     
-    const repositories = await prisma.repository.findMany({
-      orderBy: { createdAt: 'desc' }
-    })
+    const repositories = await prisma.$queryRaw`
+      SELECT * FROM "Repository" ORDER BY "createdAt" DESC
+    ` as any[]
     
     console.log(`🔍 DEBUG: Found ${repositories.length} repositories`)
     
