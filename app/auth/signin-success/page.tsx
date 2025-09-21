@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function SignInSuccess() {
+function SignInSuccessContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -75,5 +75,31 @@ export default function SignInSuccess() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SignInSuccess() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full space-y-8 text-center">
+          <div>
+            <div className="flex justify-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+              </div>
+            </div>
+            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+              Processing sign in...
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Please wait while we set up your account
+            </p>
+          </div>
+        </div>
+      </div>
+    }>
+      <SignInSuccessContent />
+    </Suspense>
   )
 }
