@@ -128,6 +128,9 @@ function SelectAccountContent() {
                 <div className="text-xs text-gray-400">
                   Last updated: {new Date(account.updatedAt).toLocaleDateString()}
                 </div>
+                <div className="text-xs text-gray-400">
+                  Last used: {account.lastUsed ? new Date(account.lastUsed).toLocaleString() : 'Never'}
+                </div>
               </div>
               {selecting === account.id && (
                 <div className="ml-4">

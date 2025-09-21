@@ -36,6 +36,15 @@ export async function POST(request: NextRequest) {
     const user = selectedAccount[0]
     console.log('✅ ACCOUNT SELECTION: Verified account:', user.id, `(${user.name})`)
     
+    // Update lastUsed timestamp
+    await prisma.$executeRaw`
+      UPDATE "UserProfile" 
+      SET "lastUsed" = NOW() 
+      WHERE id = ${accountId}
+    `
+    
+    console.log('✅ ACCOUNT SELECTION: Updated lastUsed timestamp for user:', user.id)
+    
     // Create session for selected user
     const { createSession } = await import('@/lib/session-utils')
     const sessionToken = await createSession(user.id, user.email)
