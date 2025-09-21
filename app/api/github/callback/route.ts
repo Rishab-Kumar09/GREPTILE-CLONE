@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
       
       // 🚨 DEBUG: Check for multiple accounts with same GitHub username
       const allGithubUsers = await prisma.$queryRaw`
-        SELECT id, name, email, "updatedAt" FROM "UserProfile" 
+        SELECT id, name, email, "profileImage", "updatedAt" FROM "UserProfile" 
         WHERE "githubUsername" = ${userData.login}
         ORDER BY "updatedAt" DESC
       ` as any[];
@@ -176,13 +176,26 @@ export async function GET(request: NextRequest) {
         allGithubUsers.forEach((user, index) => {
           console.log(`   ${index + 1}. ${user.id} (${user.name}) - Updated: ${user.updatedAt}`);
         });
-        console.log('🔄 CALLBACK: Using most recently updated account:', allGithubUsers[0].id);
+        
+        // 🎯 GIVE USER CHOICE: Redirect to account selection page
+        console.log('🔄 CALLBACK: Redirecting to account selection page for user choice');
+        
+        const accountsData = allGithubUsers.map(user => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          profileImage: user.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=10b981&color=fff&size=128`,
+          updatedAt: user.updatedAt
+        }));
+        
+        const redirectUrl = `https://master.d3dp89x98knsw0.amplifyapp.com/auth/select-account?accounts=${encodeURIComponent(JSON.stringify(accountsData))}&github=${encodeURIComponent(userData.login)}`;
+        return NextResponse.redirect(new URL(redirectUrl));
       }
       
       if (existingGithubUser.length > 0) {
-        // User exists - sign them in with existing account
+        // Single user exists - sign them in automatically
         const existingUser = existingGithubUser[0];
-        console.log('✅ CALLBACK: Found existing user with GitHub account:', existingUser.id);
+        console.log('✅ CALLBACK: Found single existing user with GitHub account:', existingUser.id);
         
         // Create session for existing user
         const { createSession } = await import('@/lib/session-utils');
