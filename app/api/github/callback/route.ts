@@ -154,9 +154,11 @@ export async function GET(request: NextRequest) {
     // 🔐 GITHUB SIGNIN: Handle GitHub signin (create new user account)
     if (isTemporarySession && purpose === 'signin') {
       console.log('🔄 CALLBACK: Processing GitHub signin - simplified version');
+      console.log('🔄 CALLBACK: GitHub user data:', { login: userData.login, id: userData.id, email: userData.email });
       
       try {
         // Find the RIGHT account - prioritize accounts with repositories/activity
+        console.log('🔍 CALLBACK: Searching for existing GitHub user:', userData.login);
         const existingGithubUser = await prisma.$queryRaw`
           SELECT * FROM "UserProfile" 
           WHERE "githubUsername" = ${userData.login} 
@@ -164,6 +166,8 @@ export async function GET(request: NextRequest) {
           ORDER BY "updatedAt" DESC 
           LIMIT 1
         ` as any[];
+        
+        console.log('🔍 CALLBACK: Found existing GitHub users:', existingGithubUser.length);
         
         // DEBUG: Log all accounts found
         const allAccounts = await prisma.$queryRaw`
