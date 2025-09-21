@@ -153,43 +153,69 @@ export async function GET(request: NextRequest) {
 
     // 🔐 GITHUB SIGNIN: Handle GitHub signin (create new user account)
     if (isTemporarySession && purpose === 'signin') {
-      console.log('🔄 CALLBACK: Processing GitHub signin - creating new user account...');
+      console.log('🔄 CALLBACK: Processing GitHub signin...');
       
-      // Check if user already exists with this GitHub username
-      // Order by updatedAt DESC to get the most recently active account
-      const existingGithubUser = await prisma.$queryRaw`
-        SELECT * FROM "UserProfile" 
-        WHERE "githubUsername" = ${userData.login} 
-        ORDER BY "updatedAt" DESC 
-        LIMIT 1
-      ` as any[];
+      let existingGithubUser = [];
+      try {
+        // Check if user already exists with this GitHub username
+        // Order by updatedAt DESC to get the most recently active account
+        existingGithubUser = await prisma.$queryRaw`
+          SELECT * FROM "UserProfile" 
+          WHERE "githubUsername" = ${userData.login} 
+          ORDER BY "updatedAt" DESC 
+          LIMIT 1
+        ` as any[];
+        
+        console.log(`🔍 CALLBACK: Found ${existingGithubUser.length} existing accounts for GitHub signin`);
+      } catch (dbError) {
+        console.error('❌ CALLBACK: Database error in GitHub signin:', dbError);
+        // Continue to create new account if database fails
+        existingGithubUser = [];
+      }
       
       // 🚨 DEBUG: Check for multiple accounts with same GitHub username
-      const allGithubUsers = await prisma.$queryRaw`
-        SELECT id, name, email, "profileImage", "updatedAt" FROM "UserProfile" 
-        WHERE "githubUsername" = ${userData.login}
-        ORDER BY "updatedAt" DESC
-      ` as any[];
+      let allGithubUsers = [];
+      try {
+        allGithubUsers = await prisma.$queryRaw`
+          SELECT id, name, email, "profileImage", "updatedAt" FROM "UserProfile" 
+          WHERE "githubUsername" = ${userData.login}
+          ORDER BY "updatedAt" DESC
+        ` as any[];
+        
+        console.log(`🔍 CALLBACK: Found ${allGithubUsers.length} accounts with GitHub username:`, userData.login);
+      } catch (dbError) {
+        console.error('❌ CALLBACK: Database error checking for multiple accounts:', dbError);
+        // Fallback to single account check
+        allGithubUsers = existingGithubUser;
+      }
       
       if (allGithubUsers.length > 1) {
-        console.log('⚠️ CALLBACK: Multiple accounts found with GitHub username:', userData.login);
+        console.log('⚠️ CALLBACK: Multiple accounts found, showing selection');
         allGithubUsers.forEach((user, index) => {
-          console.log(`   ${index + 1}. ${user.id} (${user.name}) - Updated: ${user.updatedAt}`);
+          console.log(`   ${index + 1}. ${user.id} (${user.name})`);
         });
         
-        // 🎯 GIVE USER CHOICE: Redirect to account selection page
-        console.log('🔄 CALLBACK: Redirecting to account selection page for user choice');
-        
-        const accountsData = allGithubUsers.map(user => ({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          profileImage: user.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=10b981&color=fff&size=128`,
-          updatedAt: user.updatedAt
-        }));
-        
-        const redirectUrl = `https://master.d3dp89x98knsw0.amplifyapp.com/auth/select-account?accounts=${encodeURIComponent(JSON.stringify(accountsData))}&github=${encodeURIComponent(userData.login)}`;
-        return NextResponse.redirect(new URL(redirectUrl));
+        try {
+          // 🎯 GIVE USER CHOICE: Redirect to account selection page
+          const accountsData = allGithubUsers.map(user => ({
+            id: user.id,
+            name: user.name || 'Unknown',
+            email: user.email || 'No email',
+            profileImage: user.profileImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=10b981&color=fff&size=128`,
+            updatedAt: user.updatedAt || new Date().toISOString()
+          }));
+          
+          const accountsParam = encodeURIComponent(JSON.stringify(accountsData));
+          const githubParam = encodeURIComponent(userData.login);
+          const redirectUrl = `https://master.d3dp89x98knsw0.amplifyapp.com/auth/select-account?accounts=${accountsParam}&github=${githubParam}`;
+          
+          console.log('🔄 CALLBACK: Redirecting to account selection page');
+          return NextResponse.redirect(new URL(redirectUrl));
+        } catch (redirectError) {
+          console.error('❌ CALLBACK: Error creating account selection redirect:', redirectError);
+          // Fallback to first account
+          console.log('🔄 CALLBACK: Falling back to first account due to redirect error');
+        }
       }
       
       if (existingGithubUser.length > 0) {
