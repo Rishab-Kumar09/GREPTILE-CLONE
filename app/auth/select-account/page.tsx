@@ -26,7 +26,7 @@ function SelectAccountContent() {
     if (accountsData) {
       try {
         // Decode base64 data
-        const accountsJson = Buffer.from(decodeURIComponent(accountsData), 'base64').toString('utf-8')
+        const accountsJson = atob(decodeURIComponent(accountsData))
         const parsedAccounts = JSON.parse(accountsJson)
         
         // Add profile images and fix dates

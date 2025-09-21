@@ -258,6 +258,11 @@ export async function GET(request: NextRequest) {
         }
       } catch (error) {
         console.error('❌ CALLBACK: Error in GitHub signin flow:', error);
+        console.error('❌ CALLBACK: Error details:', {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : 'No stack trace',
+          userData: userData ? { login: userData.login, id: userData.id } : 'No userData'
+        });
         return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=github_signin_failed'));
       }
     }
