@@ -156,9 +156,28 @@ export async function GET(request: NextRequest) {
       console.log('🔄 CALLBACK: Processing GitHub signin - creating new user account...');
       
       // Check if user already exists with this GitHub username
+      // Order by updatedAt DESC to get the most recently active account
       const existingGithubUser = await prisma.$queryRaw`
-        SELECT * FROM "UserProfile" WHERE "githubUsername" = ${userData.login} LIMIT 1
+        SELECT * FROM "UserProfile" 
+        WHERE "githubUsername" = ${userData.login} 
+        ORDER BY "updatedAt" DESC 
+        LIMIT 1
       ` as any[];
+      
+      // 🚨 DEBUG: Check for multiple accounts with same GitHub username
+      const allGithubUsers = await prisma.$queryRaw`
+        SELECT id, name, email, "updatedAt" FROM "UserProfile" 
+        WHERE "githubUsername" = ${userData.login}
+        ORDER BY "updatedAt" DESC
+      ` as any[];
+      
+      if (allGithubUsers.length > 1) {
+        console.log('⚠️ CALLBACK: Multiple accounts found with GitHub username:', userData.login);
+        allGithubUsers.forEach((user, index) => {
+          console.log(`   ${index + 1}. ${user.id} (${user.name}) - Updated: ${user.updatedAt}`);
+        });
+        console.log('🔄 CALLBACK: Using most recently updated account:', allGithubUsers[0].id);
+      }
       
       if (existingGithubUser.length > 0) {
         // User exists - sign them in with existing account
