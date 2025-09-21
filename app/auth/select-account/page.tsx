@@ -28,10 +28,11 @@ function SelectAccountContent() {
         const accountsJson = Buffer.from(decodeURIComponent(accountsData), 'base64').toString('utf-8')
         const parsedAccounts = JSON.parse(accountsJson)
         
-        // Add profile images
+        // Add profile images and fix dates
         const accountsWithImages = parsedAccounts.map((acc: any) => ({
           ...acc,
-          profileImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.name || 'User')}&background=10b981&color=fff&size=128`
+          profileImage: `https://ui-avatars.com/api/?name=${encodeURIComponent(acc.name || 'User')}&background=10b981&color=fff&size=128`,
+          updatedAt: acc.updatedAt || new Date().toISOString()
         }))
         
         setAccounts(accountsWithImages)

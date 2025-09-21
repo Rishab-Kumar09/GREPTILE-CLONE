@@ -186,7 +186,8 @@ export async function GET(request: NextRequest) {
             const accountsData = allAccounts.map(user => ({
               id: user.id,
               name: user.name || 'Unknown',
-              email: user.email || 'No email'
+              email: user.email || 'No email',
+              updatedAt: user.updatedAt || new Date().toISOString()
             }));
             
             // Use base64 encoding to compress the data
