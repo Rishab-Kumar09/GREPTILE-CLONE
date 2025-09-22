@@ -239,21 +239,31 @@ export default function Repositories() {
     }
   }
 
-  // Simple refresh GitHub repositories (without re-authentication)
+  // Refresh GitHub tokens (re-authenticate to get fresh tokens)
   const refreshGithubConnection = async () => {
+    if (!confirm('This will refresh your GitHub tokens. You may need to re-authenticate. Continue?')) {
+      return
+    }
+
     try {
       setRefreshingGithub(true)
-      console.log('🔄 REFRESH: Refreshing GitHub repositories...')
       
-      // Just refetch the repositories without OAuth
-      await fetchGithubRepos()
+      // 🔒 Get session token for OAuth
+      const sessionToken = localStorage.getItem('sessionToken')
+      if (!sessionToken) {
+        alert('Please log in first - no valid session found')
+        return
+      }
       
-      console.log('✅ REFRESH: GitHub repositories refreshed successfully')
+      console.log('🔄 REFRESH: Starting GitHub OAuth to refresh tokens')
+      
+      // Redirect to OAuth endpoint with session token to refresh GitHub tokens
+      console.log('🔄 REPOS: Redirecting to GitHub OAuth endpoint to refresh tokens')
+      window.location.href = `/api/github/oauth?session=${encodeURIComponent(sessionToken)}&returnTo=${encodeURIComponent('/dashboard/repositories')}`
       
     } catch (error) {
-      console.error('❌ REFRESH: Error refreshing GitHub repositories:', error)
-      alert('Failed to refresh GitHub repositories. Please try again.')
-    } finally {
+      console.error('❌ REFRESH: Error refreshing GitHub tokens:', error)
+      alert('Failed to refresh GitHub tokens. Please try again.')
       setRefreshingGithub(false)
     }
   }

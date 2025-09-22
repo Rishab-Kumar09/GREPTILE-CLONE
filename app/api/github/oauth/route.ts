@@ -39,15 +39,19 @@ export async function GET(request: NextRequest) {
     } else {
       // Validate regular session token and get user ID
       try {
+        console.log('🔍 OAUTH: Validating session token for GitHub refresh...');
         const sessionResponse = await fetch('https://master.d3dp89x98knsw0.amplifyapp.com/api/auth/validate-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionToken })
         });
         
+        console.log('🔍 OAUTH: Session validation response status:', sessionResponse.status);
         const sessionData = await sessionResponse.json();
+        console.log('🔍 OAUTH: Session validation data:', { success: sessionData.success, hasUserId: !!sessionData.userId });
+        
         if (!sessionData.success || !sessionData.userId) {
-          console.error('❌ OAUTH ERROR: Invalid session token');
+          console.error('❌ OAUTH ERROR: Invalid session token - Success:', sessionData.success, 'UserId:', sessionData.userId, 'Error:', sessionData.error);
           return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_expired&returnTo=${encodeURIComponent(returnTo)}`));
         }
         
