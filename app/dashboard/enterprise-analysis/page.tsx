@@ -1341,6 +1341,7 @@ export default function EnterpriseAnalysisPage() {
         )}
 
         {/* AI Chat Section - Like Reviews Page */}
+        {status.status === 'completed' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 mt-8">
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
@@ -1477,6 +1478,7 @@ export default function EnterpriseAnalysisPage() {
               </p>
             </div>
           </div>
+        )}
       </div>
       
       {/* Full Screen Chat Modal */}
