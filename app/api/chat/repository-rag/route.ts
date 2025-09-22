@@ -32,6 +32,7 @@ interface AnalysisResults {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🚀 RAG ENDPOINT: Request received'); // Debug log
     const { analysisId, repository, question, analysisResults } = await request.json();
     
     if (!question) {
