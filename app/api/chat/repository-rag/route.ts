@@ -41,11 +41,13 @@ export async function POST(request: NextRequest) {
     
     // Get repository files from the cache that Lambda already populated
     console.log(`🔍 RAG: Getting files from repository cache for analysisId=${analysisId}`);
+    console.log(`🔍 RAG: Repository parameter=${repository}`);
     
     const repoResponse = await fetch(`${process.env.NEXTAUTH_URL || 'https://master.d3dp89x98knsw0.amplifyapp.com'}/api/chat/repository-files?analysisId=${analysisId}&repository=${encodeURIComponent(repository)}`);
     
     if (!repoResponse.ok) {
       console.log(`❌ Repository files not found in cache (${repoResponse.status})`);
+      console.log(`❌ RAG: Fetch URL was: /api/chat/repository-files?analysisId=${analysisId}&repository=${encodeURIComponent(repository)}`);
       return NextResponse.json({ error: 'Repository files not found in persistent storage' }, { status: 404 });
     }
     

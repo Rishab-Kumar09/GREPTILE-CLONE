@@ -97,6 +97,10 @@ export async function GET(request: NextRequest) {
     console.log(`🔍 RAG GET request: analysisId=${analysisId}, repository=${repository}`);
     console.log(`📊 Cache size: ${global.repositoryCache.size} entries`);
     console.log(`📋 Cache keys: ${Array.from(global.repositoryCache.keys()).join(', ')}`);
+    console.log(`🔍 Cache entries details:`);
+    Array.from(global.repositoryCache.entries()).forEach(([key, data]) => {
+      console.log(`   - ${key}: ${data.metadata.repository} (${data.files.size} files, age: ${Math.round((Date.now() - data.timestamp) / 1000)}s)`);
+    });
     
     if (!analysisId && !repository) {
       return NextResponse.json({ error: 'analysisId or repository required' }, { status: 400 });
