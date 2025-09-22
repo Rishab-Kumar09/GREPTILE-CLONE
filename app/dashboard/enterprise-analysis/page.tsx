@@ -926,6 +926,11 @@ export default function EnterpriseAnalysisPage() {
     }
 
     setIsAnalyzing(true)
+    
+    // 🧹 CLEAR OLD CHAT when starting new analysis
+    setChatMessages([])
+    setChatInput('')
+    
     setStatus({
       status: 'analyzing',
       progress: 10,
