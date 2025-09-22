@@ -1341,7 +1341,6 @@ export default function EnterpriseAnalysisPage() {
         )}
 
         {/* AI Chat Section - Like Reviews Page */}
-        {status.results.length > 0 && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 mt-8">
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
@@ -1433,7 +1432,7 @@ export default function EnterpriseAnalysisPage() {
             {/* Chat Input */}
             <div className="p-4 border-t border-gray-200">
               {/* 🧠 Context Indicator */}
-              {analysisId && status.results.length > 0 && (
+              {analysisId && (
                 <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <span className="text-blue-600">🧠</span>
@@ -1478,7 +1477,6 @@ export default function EnterpriseAnalysisPage() {
               </p>
             </div>
           </div>
-        )}
       </div>
       
       {/* Full Screen Chat Modal */}
