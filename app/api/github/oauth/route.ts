@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const sessionToken = searchParams.get('session') || request.headers.get('authorization')?.replace('Bearer ', '');
-    const userId = searchParams.get('userId'); // BACK TO SIMPLE: Direct userId parameter
+    let userId = searchParams.get('userId'); // BACK TO SIMPLE: Direct userId parameter
     const returnTo = searchParams.get('returnTo') || '/dashboard';
     
     console.log('🔄 OAUTH: Initiating GitHub OAuth...');
