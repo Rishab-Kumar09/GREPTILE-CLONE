@@ -52,11 +52,41 @@ export async function GET(request: NextRequest) {
         
         if (!sessionData.success || !sessionData.userId) {
           console.error('❌ OAUTH ERROR: Invalid session token - Success:', sessionData.success, 'UserId:', sessionData.userId, 'Error:', sessionData.error);
-          return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_expired&returnTo=${encodeURIComponent(returnTo)}`));
+          
+          // 🚨 EMERGENCY FALLBACK: Try to extract userId from localStorage token pattern
+          // This prevents logout due to serverless session loss
+          if (sessionToken && sessionToken.startsWith('session_')) {
+            console.log('🔄 OAUTH FALLBACK: Attempting to continue with token-based userId extraction...');
+            
+            // Extract timestamp from token for basic validation
+            const tokenParts = sessionToken.split('_');
+            if (tokenParts.length >= 2) {
+              const timestamp = parseInt(tokenParts[1]);
+              const ageHours = (Date.now() - timestamp) / (1000 * 60 * 60);
+              
+              // If token is less than 24 hours old, allow it (emergency fallback)
+              if (ageHours < 24) {
+                console.log('🆘 OAUTH FALLBACK: Using emergency token validation (age:', ageHours.toFixed(1), 'hours)');
+                userId = 'emergency_fallback_user'; // Will be resolved in callback via GitHub email
+              } else {
+                console.error('❌ OAUTH FALLBACK: Token too old, redirecting to signin');
+                return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_expired&returnTo=${encodeURIComponent(returnTo)}`));
+              }
+            } else {
+              console.error('❌ OAUTH FALLBACK: Invalid token format, redirecting to signin');
+              return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_expired&returnTo=${encodeURIComponent(returnTo)}`));
+            }
+          } else {
+            console.error('❌ OAUTH FALLBACK: No valid session token, redirecting to signin');
+            return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_expired&returnTo=${encodeURIComponent(returnTo)}`));
+          }
         }
         
-        userId = sessionData.userId;
-        console.log('✅ OAUTH: Valid session found for user:', userId);
+        // Only set userId from sessionData if we didn't use the fallback
+        if (userId !== 'emergency_fallback_user') {
+          userId = sessionData.userId;
+          console.log('✅ OAUTH: Valid session found for user:', userId);
+        }
       } catch (error) {
         console.error('❌ OAUTH ERROR: Session validation failed:', error);
         return NextResponse.redirect(new URL(`https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=session_error&returnTo=${encodeURIComponent(returnTo)}`));

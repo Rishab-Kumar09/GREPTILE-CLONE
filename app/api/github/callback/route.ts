@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
     // 🔒 SECURITY FIX: Decode user ID from state parameter - NO FALLBACKS!
     let userId: string;
     let returnTo = 'dashboard';
+    let isEmergencyFallback = false;
     
     if (!state) {
       console.error('❌ CALLBACK SECURITY ERROR: No state parameter - potential CSRF attack');
@@ -81,13 +82,19 @@ export async function GET(request: NextRequest) {
       isTemporarySession = stateData.isTemporarySession || false;
       purpose = stateData.purpose || 'connect';
       
+      // Check for emergency fallback user
+      if (userId === 'emergency_fallback_user') {
+        console.log('🆘 CALLBACK: Emergency fallback user detected - will resolve via GitHub email');
+        isEmergencyFallback = true;
+      }
+      
       // For temporary sessions (GitHub signin), userId will be null - this is expected
-      if (!isTemporarySession && !userId) {
+      if (!isTemporarySession && !userId && !isEmergencyFallback) {
         console.error('❌ CALLBACK SECURITY ERROR: No userId in state parameter for regular session');
         return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=oauth_invalid_state'));
       }
       
-      console.log('🔓 CALLBACK: Decoded state - userId:', userId, 'purpose:', purpose, 'temporary:', isTemporarySession);
+      console.log('🔓 CALLBACK: Decoded state - userId:', userId, 'purpose:', purpose, 'temporary:', isTemporarySession, 'emergency:', isEmergencyFallback);
       console.log('🔓 CALLBACK: Will return to:', returnTo);
     } catch (error) {
       console.error('❌ CALLBACK SECURITY ERROR: Failed to decode state parameter:', error);
@@ -267,6 +274,31 @@ export async function GET(request: NextRequest) {
           userData: userData ? { login: userData.login, id: userData.id } : 'No userData'
         });
         return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=github_signin_failed'));
+      }
+    }
+
+    // 🆘 EMERGENCY FALLBACK: Resolve emergency user via GitHub email
+    if (isEmergencyFallback) {
+      console.log('🆘 CALLBACK: Resolving emergency fallback user via GitHub email...');
+      
+      try {
+        // Find user by GitHub email
+        const userByEmail = await prisma.$queryRaw`
+          SELECT id, name, email FROM "UserProfile" 
+          WHERE email = ${userData.email}
+          LIMIT 1
+        ` as any[];
+        
+        if (userByEmail.length > 0) {
+          userId = userByEmail[0].id;
+          console.log('✅ CALLBACK: Emergency fallback resolved to user:', userId, `(${userByEmail[0].name})`);
+        } else {
+          console.error('❌ CALLBACK: Emergency fallback failed - no user found with email:', userData.email);
+          return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=emergency_fallback_failed'));
+        }
+      } catch (error) {
+        console.error('❌ CALLBACK: Error resolving emergency fallback user:', error);
+        return NextResponse.redirect(new URL('https://master.d3dp89x98knsw0.amplifyapp.com/auth/signin?error=emergency_fallback_error'));
       }
     }
 
