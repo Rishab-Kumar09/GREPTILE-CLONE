@@ -767,8 +767,8 @@ export default function Dashboard() {
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
                   disabled={isLoading}
                 />
-                <button 
-                  onClick={handleSendMessage}
+                <button
+                  onClick={() => handleSendMessage()}
                   disabled={!inputMessage.trim() || isLoading}
                   className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
