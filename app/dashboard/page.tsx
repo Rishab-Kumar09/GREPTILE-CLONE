@@ -357,19 +357,27 @@ export default function Dashboard() {
     return responses[Math.floor(Math.random() * responses.length)]
   }
 
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return
+  const handleSendMessage = async (messageText?: string) => {
+    // Use passed message or dashboard input message
+    const messageToSend = messageText || inputMessage.trim()
+    
+    if (!messageToSend || isLoading) return
 
     const userMessage: ChatMessage = {
       id: messages.length + 1,
       type: 'user' as const,
-      content: inputMessage.trim(),
+      content: messageToSend,
       timestamp: new Date(),
       citations: []
     }
 
     setMessages(prev => [...prev, userMessage as ChatMessage])
-    setInputMessage('')
+    
+    // Only clear dashboard input if no message parameter (collapsed mode)
+    if (!messageText) {
+      setInputMessage('')
+    }
+    
     setIsLoading(true)
 
     try {
@@ -378,10 +386,10 @@ export default function Dashboard() {
       const requestBody = selectedRepo 
         ? {
             repoFullName: selectedRepo.fullName,
-            question: inputMessage.trim()
+            question: messageToSend
           }
         : {
-            message: inputMessage.trim(),
+            message: messageToSend,
             context: { repositories: repositories }
           }
 
