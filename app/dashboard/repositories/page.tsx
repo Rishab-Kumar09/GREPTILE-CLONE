@@ -248,18 +248,26 @@ export default function Repositories() {
     try {
       setRefreshingGithub(true)
       
-      // 🔒 Get session token for OAuth
-      const sessionToken = localStorage.getItem('sessionToken')
-      if (!sessionToken) {
-        alert('Please log in first - no valid session found')
+      // 🔄 BACK TO SIMPLE: Get userId directly from localStorage (like before)
+      const currentUser = localStorage.getItem('currentUser')
+      if (!currentUser) {
+        alert('Please log in first - no user data found')
         return
       }
       
-      console.log('🔄 REFRESH: Starting GitHub OAuth to refresh tokens')
+      const userData = JSON.parse(currentUser)
+      const userId = userData.id
       
-      // Redirect to OAuth endpoint with session token to refresh GitHub tokens
-      console.log('🔄 REPOS: Redirecting to GitHub OAuth endpoint to refresh tokens')
-      window.location.href = `/api/github/oauth?session=${encodeURIComponent(sessionToken)}&returnTo=${encodeURIComponent('/dashboard/repositories')}`
+      if (!userId) {
+        alert('Please log in first - no user ID found')
+        return
+      }
+      
+      console.log('🔄 REPOS: Starting GitHub OAuth with direct userId (SIMPLE MODE)')
+      
+      // Direct redirect to OAuth endpoint with userId - NO SESSION VALIDATION
+      console.log('🔄 REPOS: Redirecting to GitHub OAuth with userId:', userId)
+      window.location.href = `/api/github/oauth?userId=${encodeURIComponent(userId)}&purpose=connect&returnTo=${encodeURIComponent('/dashboard/repositories')}`
       
     } catch (error) {
       console.error('❌ REFRESH: Error refreshing GitHub tokens:', error)
