@@ -412,6 +412,11 @@ async function performSemanticBugDetection(content, filePath, repoDir) {
     allIssues = allIssues.concat(checkImportIssues(content, filePath, repoDir));
   }
   
+  // 🆕 ENHANCED CODE CLEANUP CHECKS (Repository-aware)
+  allIssues = allIssues.concat(checkUnusedVariables(content, filePath, repoDir));
+  allIssues = allIssues.concat(checkUnusedHooks(content, filePath, repoDir));
+  allIssues = allIssues.concat(checkUnnecessaryFiles(content, filePath, repoDir));
+  
   // FILTER OUT LOW SEVERITY ISSUES - Focus on what matters
   var criticalIssues = allIssues.filter(issue => 
     issue.severity === 'critical' || issue.severity === 'high' || issue.severity === 'medium'
@@ -1479,9 +1484,507 @@ function checkUnusedImports(content, filePath) {
       new RegExp('\\b' + imp.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(line)
     );
     
-    // REMOVED: Unused imports detection
-    // This is informational noise - bundlers tree-shake unused imports
+    // 🆕 ENHANCED: Unused imports detection (re-enabled for code cleanup)
+    if (!isUsed && imp.name.length > 1) {
+      // Skip common patterns that might be used indirectly
+      var skipPatterns = [
+        /^React$/,  // React might be used implicitly in JSX
+        /^_/,       // Underscore prefix (intentionally unused)
+        /types?$/i, // Type imports
+        /interface$/i,
+        /^unused/i
+      ];
+      
+      var shouldSkip = skipPatterns.some(pattern => pattern.test(imp.name));
+      
+      if (!shouldSkip) {
+        issues.push({
+          type: 'import_cleanup',
+          name: 'unused_import',
+          message: `Unused import: '${imp.name}' is imported but never used`,
+          line: imp.line,
+          severity: 'medium',
+          code: imp.code,
+          description: `The import '${imp.name}' is declared but never referenced in the code. Unused imports increase bundle size and create unnecessary dependencies.`,
+          suggestion: `Remove the unused import '${imp.name}' to clean up the code and reduce bundle size.`
+        });
+      }
+    }
   });
+  
+  return issues;
+}
+
+// 🆕 21. UNUSED VARIABLES DETECTION (Enhanced & Repository-aware)
+function checkUnusedVariables(content, filePath, repoDir = null) {
+  var issues = [];
+  var lines = content.split('\n');
+  var ext = path.extname(filePath).toLowerCase();
+  
+  // Skip non-code files
+  if (!['.js', '.jsx', '.ts', '.tsx', '.py', '.java', '.cpp', '.c'].includes(ext)) {
+    return issues;
+  }
+  
+  var variables = [];
+  var usages = [];
+  
+  lines.forEach((line, index) => {
+    var trimmedLine = line.trim();
+    
+    // Skip comments and strings
+    if (trimmedLine.startsWith('//') || trimmedLine.startsWith('/*') || 
+        trimmedLine.startsWith('*') || trimmedLine.startsWith('#')) {
+      return;
+    }
+    
+    // JavaScript/TypeScript variable declarations
+    if (['.js', '.jsx', '.ts', '.tsx'].includes(ext)) {
+      // Variable declarations
+      var varMatches = [
+        ...Array.from(line.matchAll(/(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g)),
+        ...Array.from(line.matchAll(/(?:const|let|var)\s+\{([^}]+)\}/g)), // Destructuring
+        ...Array.from(line.matchAll(/function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g)),
+        ...Array.from(line.matchAll(/([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:function|async\s+function|\([^)]*\)\s*=>)/g))
+      ];
+      
+      varMatches.forEach(match => {
+        if (match[1]) {
+          if (match[1].includes(',')) {
+            // Handle destructuring
+            match[1].split(',').forEach(v => {
+              var varName = v.trim().replace(/[{}:\s]/g, '');
+              if (varName && varName.length > 1) {
+                variables.push({ name: varName, line: index + 1, type: 'variable' });
+              }
+            });
+          } else {
+            variables.push({ name: match[1], line: index + 1, type: 'variable' });
+          }
+        }
+      });
+      
+      // Function parameters
+      var funcParamMatches = Array.from(line.matchAll(/(?:function\s*\w*|=>\s*)\s*\(([^)]+)\)/g));
+      funcParamMatches.forEach(match => {
+        if (match[1]) {
+          match[1].split(',').forEach(param => {
+            var paramName = param.trim().split(/[=:]/)[0].trim();
+            if (paramName && paramName.length > 1 && !paramName.startsWith('_')) {
+              variables.push({ name: paramName, line: index + 1, type: 'parameter' });
+            }
+          });
+        }
+      });
+    }
+    
+    // Python variable declarations
+    if (ext === '.py') {
+      var pythonVarMatches = [
+        ...Array.from(line.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g)),
+        ...Array.from(line.matchAll(/def\s+([a-zA-Z_][a-zA-Z0-9_]*)/g)),
+        ...Array.from(line.matchAll(/for\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+in/g))
+      ];
+      
+      pythonVarMatches.forEach(match => {
+        if (match[1] && match[1] !== 'self') {
+          variables.push({ name: match[1], line: index + 1, type: 'variable' });
+        }
+      });
+    }
+    
+    // Collect all variable usages
+    var words = line.match(/[a-zA-Z_$][a-zA-Z0-9_$]*/g) || [];
+    words.forEach(word => {
+      if (word.length > 1) {
+        usages.push(word);
+      }
+    });
+  });
+  
+  // 🌍 REPOSITORY-AWARE: Check usage across entire repository
+  var repoWideUsages = [];
+  if (repoDir) {
+    try {
+      // Search for variable usage across all files in the repository
+      var searchCmd = `find "${repoDir}" -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | head -50`;
+      var repoFiles = require('child_process').execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f);
+      
+      variables.forEach(variable => {
+        var crossFileUsages = 0;
+        repoFiles.forEach(repoFile => {
+          if (repoFile !== path.join(repoDir, filePath)) {
+            try {
+              var repoFileContent = require('fs').readFileSync(repoFile, 'utf8');
+              var regex = new RegExp('\\b' + variable.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g');
+              var matches = (repoFileContent.match(regex) || []).length;
+              crossFileUsages += matches;
+            } catch (err) {
+              // Skip files that can't be read
+            }
+          }
+        });
+        repoWideUsages.push({ name: variable.name, crossFileUsages });
+      });
+    } catch (error) {
+      console.warn('Could not perform cross-repo analysis for unused variables:', error.message);
+    }
+  }
+
+  // Check for unused variables
+  variables.forEach(variable => {
+    var localUsages = usages.filter(usage => usage === variable.name).length;
+    var isUsedLocally = localUsages > 1; // More than declaration
+    
+    // Check cross-file usage
+    var repoUsage = repoWideUsages.find(ru => ru.name === variable.name);
+    var isUsedInRepo = repoUsage ? repoUsage.crossFileUsages > 0 : false;
+    
+    // Skip common patterns that are intentionally unused
+    var skipPatterns = [
+      /^_/, // Underscore prefix (intentionally unused)
+      /^unused/i,
+      /^temp/i,
+      /^props$/,
+      /^event$/,
+      /^e$/,
+      /^err$/,
+      /^error$/,
+      /^req$/,
+      /^res$/,
+      /^next$/
+    ];
+    
+    var shouldSkip = skipPatterns.some(pattern => pattern.test(variable.name));
+    
+    // Only report as unused if not used locally AND not used across repository
+    var isTrulyUnused = !isUsedLocally && !isUsedInRepo;
+    
+    if (isTrulyUnused && !shouldSkip && variable.name.length > 1) {
+      issues.push({
+        type: 'code_cleanup',
+        name: 'unused_variable',
+        message: `Unused ${variable.type}: '${variable.name}' is declared but never used${repoDir ? ' (checked across repository)' : ''}`,
+        line: variable.line,
+        severity: 'medium',
+        code: lines[variable.line - 1].trim(),
+        description: `The ${variable.type} '${variable.name}' is declared but never referenced in the code. This creates unnecessary clutter and may indicate dead code.`,
+        suggestion: `Remove the unused ${variable.type} '${variable.name}' or prefix with underscore if intentionally unused.`
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 🆕 22. UNUSED REACT HOOKS DETECTION (Repository-aware)
+function checkUnusedHooks(content, filePath, repoDir = null) {
+  var issues = [];
+  var ext = path.extname(filePath).toLowerCase();
+  
+  // Only check React files
+  if (!['.jsx', '.tsx'].includes(ext) && !content.includes('react')) {
+    return issues;
+  }
+  
+  var lines = content.split('\n');
+  var hooks = [];
+  var hookUsages = [];
+  
+  lines.forEach((line, index) => {
+    var trimmedLine = line.trim();
+    
+    // Skip comments
+    if (trimmedLine.startsWith('//') || trimmedLine.startsWith('/*')) {
+      return;
+    }
+    
+    // Detect hook declarations
+    var hookMatches = [
+      ...Array.from(line.matchAll(/const\s+\[([^,\]]+)(?:,\s*([^,\]]+))?\]\s*=\s*useState/g)),
+      ...Array.from(line.matchAll(/const\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*useRef/g)),
+      ...Array.from(line.matchAll(/const\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*useMemo/g)),
+      ...Array.from(line.matchAll(/const\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*useCallback/g)),
+      ...Array.from(line.matchAll(/const\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*useContext/g)),
+      ...Array.from(line.matchAll(/const\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*use[A-Z][a-zA-Z]*/g))
+    ];
+    
+    hookMatches.forEach(match => {
+      if (match[0].includes('useState')) {
+        // useState returns [value, setter]
+        if (match[1]) hooks.push({ name: match[1], line: index + 1, type: 'state_value' });
+        if (match[2]) hooks.push({ name: match[2], line: index + 1, type: 'state_setter' });
+      } else if (match[1]) {
+        var hookType = match[0].match(/use([A-Z][a-zA-Z]*)/);
+        hooks.push({ 
+          name: match[1], 
+          line: index + 1, 
+          type: hookType ? hookType[1].toLowerCase() : 'hook'
+        });
+      }
+    });
+    
+    // useEffect detection
+    if (line.includes('useEffect')) {
+      var effectMatch = line.match(/useEffect\s*\(/);
+      if (effectMatch) {
+        hooks.push({ name: 'useEffect', line: index + 1, type: 'effect' });
+      }
+    }
+    
+    // Collect hook usages
+    var words = line.match(/[a-zA-Z_$][a-zA-Z0-9_$]*/g) || [];
+    words.forEach(word => {
+      if (word.length > 1) {
+        hookUsages.push(word);
+      }
+    });
+  });
+  
+  // 🌍 REPOSITORY-AWARE: Check hook usage across component files
+  var repoWideHookUsages = [];
+  if (repoDir) {
+    try {
+      // Search for hook usage across React component files
+      var searchCmd = `find "${repoDir}" -name "*.jsx" -o -name "*.tsx" | head -30`;
+      var reactFiles = require('child_process').execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f);
+      
+      hooks.forEach(hook => {
+        var crossFileUsages = 0;
+        reactFiles.forEach(reactFile => {
+          if (reactFile !== path.join(repoDir, filePath)) {
+            try {
+              var reactFileContent = require('fs').readFileSync(reactFile, 'utf8');
+              // Check for hook usage (including as props)
+              var hookRegex = new RegExp('\\b' + hook.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g');
+              var propRegex = new RegExp(hook.name + '\\s*[=:]', 'g'); // Used as prop
+              var matches = (reactFileContent.match(hookRegex) || []).length + (reactFileContent.match(propRegex) || []).length;
+              crossFileUsages += matches;
+            } catch (err) {
+              // Skip files that can't be read
+            }
+          }
+        });
+        repoWideHookUsages.push({ name: hook.name, crossFileUsages });
+      });
+    } catch (error) {
+      console.warn('Could not perform cross-repo analysis for unused hooks:', error.message);
+    }
+  }
+
+  // Check for unused hooks
+  hooks.forEach(hook => {
+    if (hook.name === 'useEffect') return; // Skip useEffect (side effects)
+    
+    var localUsageCount = hookUsages.filter(usage => usage === hook.name).length;
+    var isUsedLocally = localUsageCount > 1; // More than just declaration
+    
+    // Check cross-file usage
+    var repoUsage = repoWideHookUsages.find(ru => ru.name === hook.name);
+    var isUsedInRepo = repoUsage ? repoUsage.crossFileUsages > 0 : false;
+    
+    // Skip intentionally unused patterns
+    if (hook.name.startsWith('_') || hook.name.includes('unused')) {
+      return;
+    }
+    
+    // Only report as unused if not used locally AND not used across repository
+    var isTrulyUnused = !isUsedLocally && !isUsedInRepo;
+    
+    if (isTrulyUnused) {
+      var hookTypeName = hook.type === 'state_setter' ? 'state setter' : 
+                        hook.type === 'state_value' ? 'state value' : 
+                        `${hook.type} hook`;
+      
+      issues.push({
+        type: 'react_cleanup',
+        name: 'unused_hook',
+        message: `Unused React hook: '${hook.name}' (${hookTypeName}) is declared but never used${repoDir ? ' (checked across repository)' : ''}`,
+        line: hook.line,
+        severity: 'medium',
+        code: lines[hook.line - 1].trim(),
+        description: `The React ${hookTypeName} '${hook.name}' is declared but never used in the component. This can cause unnecessary re-renders and memory usage.`,
+        suggestion: `Remove the unused ${hookTypeName} '${hook.name}' or implement its usage in the component logic.`
+      });
+    }
+  });
+  
+  return issues;
+}
+
+// 🆕 23. UNNECESSARY FILES DETECTION (Repository-aware)
+function checkUnnecessaryFiles(content, filePath, repoDir = null) {
+  var issues = [];
+  var fileName = path.basename(filePath).toLowerCase();
+  var ext = path.extname(filePath).toLowerCase();
+  var fileSize = content.length;
+  
+  // Check for empty or nearly empty files
+  var meaningfulLines = content.split('\n').filter(line => {
+    var trimmed = line.trim();
+    return trimmed && 
+           !trimmed.startsWith('//') && 
+           !trimmed.startsWith('/*') && 
+           !trimmed.startsWith('*') &&
+           !trimmed.startsWith('#') &&
+           trimmed !== '{' &&
+           trimmed !== '}' &&
+           trimmed !== ';';
+  });
+  
+  if (meaningfulLines.length === 0) {
+    issues.push({
+      type: 'file_cleanup',
+      name: 'empty_file',
+      message: 'Empty file: This file contains no meaningful code',
+      line: 1,
+      severity: 'medium',
+      code: '(empty file)',
+      description: 'This file is empty or contains only comments/whitespace. Empty files can clutter the codebase and confuse developers.',
+      suggestion: 'Remove this empty file if it serves no purpose, or add meaningful content if it\'s intended for future use.'
+    });
+    return issues;
+  }
+  
+  // Check for files with only imports/exports (potential barrel files)
+  var importExportLines = meaningfulLines.filter(line => {
+    var trimmed = line.trim();
+    return trimmed.startsWith('import ') || 
+           trimmed.startsWith('export ') || 
+           trimmed.startsWith('module.exports') ||
+           trimmed.startsWith('exports.');
+  });
+  
+  if (importExportLines.length === meaningfulLines.length && meaningfulLines.length > 5) {
+    issues.push({
+      type: 'file_cleanup',
+      name: 'barrel_file_overuse',
+      message: 'Potential barrel file overuse: File contains only imports/exports',
+      line: 1,
+      severity: 'low',
+      code: meaningfulLines[0],
+      description: 'This file appears to be a barrel file (only imports/exports). While barrel files can be useful, excessive use can impact build performance.',
+      suggestion: 'Consider if this barrel file is necessary or if direct imports would be more efficient.'
+    });
+  }
+  
+  // Check for duplicate or redundant test files
+  if (fileName.includes('test') || fileName.includes('spec')) {
+    var hasActualTests = content.includes('it(') || 
+                        content.includes('test(') || 
+                        content.includes('describe(') ||
+                        content.includes('expect(') ||
+                        content.includes('assert');
+    
+    if (!hasActualTests && meaningfulLines.length < 10) {
+      issues.push({
+        type: 'file_cleanup',
+        name: 'empty_test_file',
+        message: 'Empty test file: Test file contains no actual tests',
+        line: 1,
+        severity: 'medium',
+        code: meaningfulLines[0] || '(no tests found)',
+        description: 'This appears to be a test file but contains no actual test cases. Empty test files can give false confidence in test coverage.',
+        suggestion: 'Add test cases to this file or remove it if tests are not needed for this module.'
+      });
+    }
+  }
+  
+  // Check for old/deprecated files
+  var deprecatedPatterns = [
+    /\.old\./,
+    /\.backup\./,
+    /\.bak$/,
+    /\.tmp$/,
+    /deprecated/i,
+    /legacy/i,
+    /unused/i
+  ];
+  
+  if (deprecatedPatterns.some(pattern => pattern.test(fileName))) {
+    issues.push({
+      type: 'file_cleanup',
+      name: 'deprecated_file',
+      message: `Potentially deprecated file: Filename suggests this file may be outdated`,
+      line: 1,
+      severity: 'low',
+      code: `File: ${fileName}`,
+      description: 'The filename suggests this file may be deprecated, old, or unused. Such files can accumulate and clutter the codebase.',
+      suggestion: 'Review if this file is still needed. If deprecated, consider removing it or updating its purpose.'
+    });
+  }
+  
+  // 🌍 REPOSITORY-AWARE: Check for duplicate files and cross-references
+  if (repoDir) {
+    try {
+      // Check for duplicate or similar files
+      var baseNameWithoutExt = path.basename(filePath, ext);
+      var searchCmd = `find "${repoDir}" -name "*${baseNameWithoutExt}*" -type f | head -10`;
+      var similarFiles = require('child_process').execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f && f !== path.join(repoDir, filePath));
+      
+      if (similarFiles.length > 2) {
+        issues.push({
+          type: 'file_cleanup',
+          name: 'potential_duplicate_files',
+          message: `Potential duplicate files: Found ${similarFiles.length} files with similar names`,
+          line: 1,
+          severity: 'low',
+          code: `Similar to: ${similarFiles.slice(0, 3).map(f => path.basename(f)).join(', ')}`,
+          description: `Multiple files with similar names detected. This might indicate duplicate functionality or inconsistent naming.`,
+          suggestion: 'Review if these files serve different purposes or if they can be consolidated.'
+        });
+      }
+      
+      // Check if file is actually referenced/imported anywhere
+      var fileNameForSearch = path.basename(filePath, ext);
+      var importSearchCmd = `grep -r "from.*${fileNameForSearch}" "${repoDir}" --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" | head -5`;
+      try {
+        var importReferences = require('child_process').execSync(importSearchCmd, { encoding: 'utf8' }).trim();
+        if (!importReferences && meaningfulLines.length < 20 && !fileName.includes('index')) {
+          issues.push({
+            type: 'file_cleanup',
+            name: 'unreferenced_file',
+            message: 'Potentially unreferenced file: No imports found across repository',
+            line: 1,
+            severity: 'medium',
+            code: meaningfulLines[0] || '(empty)',
+            description: 'This file appears to not be imported or referenced anywhere in the repository. It might be dead code.',
+            suggestion: 'Verify if this file is still needed or if it can be safely removed.'
+          });
+        }
+      } catch (grepError) {
+        // grep command failed, skip this check
+      }
+    } catch (error) {
+      console.warn('Could not perform cross-repo analysis for unnecessary files:', error.message);
+    }
+  }
+
+  // Check for very small utility files that could be consolidated
+  if (meaningfulLines.length < 5 && 
+      (fileName.includes('util') || fileName.includes('helper') || fileName.includes('constant'))) {
+    
+    var hasOnlyConstants = meaningfulLines.every(line => {
+      var trimmed = line.trim();
+      return trimmed.startsWith('export const') || 
+             trimmed.startsWith('const ') ||
+             trimmed.startsWith('export {') ||
+             trimmed.startsWith('export default');
+    });
+    
+    if (hasOnlyConstants) {
+      issues.push({
+        type: 'file_cleanup',
+        name: 'small_utility_file',
+        message: 'Small utility file: Consider consolidating with related utilities',
+        line: 1,
+        severity: 'low',
+        code: meaningfulLines[0],
+        description: 'This utility file is very small and contains only constants or simple exports. Many small utility files can fragment the codebase.',
+        suggestion: 'Consider consolidating this with related utility files or a main constants file.'
+      });
+    }
+  }
   
   return issues;
 }
