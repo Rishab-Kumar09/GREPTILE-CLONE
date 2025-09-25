@@ -72,7 +72,7 @@ export default function FullScreenChat({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-white">
+    <div className="fixed inset-x-0 top-0 bottom-4 z-50 bg-white flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center space-x-3">
@@ -95,7 +95,7 @@ export default function FullScreenChat({
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-6" style={{ height: 'calc(100vh - 140px)' }}>
+      <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-6">
           {messages.length === 0 ? (
             <div className="text-center py-12">
@@ -218,7 +218,7 @@ export default function FullScreenChat({
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-gray-200 bg-white p-4 pb-8">
+      <div className="border-t border-gray-200 bg-white p-4 pb-16">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-end space-x-4">
             <div className="flex-1">
