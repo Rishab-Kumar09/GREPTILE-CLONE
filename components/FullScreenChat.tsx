@@ -218,7 +218,7 @@ export default function FullScreenChat({
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-gray-200 bg-white p-4">
+      <div className="border-t border-gray-200 bg-white p-4 pb-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-end space-x-4">
             <div className="flex-1">
