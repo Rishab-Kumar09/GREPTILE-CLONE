@@ -590,10 +590,12 @@ For each issue, determine if it's:
 - FALSE_POSITIVE: Static analysis mistake (e.g., test files, mock data, comments, legitimate patterns)
 - IGNORE: Too minor/context-dependent to be actionable
 
-IMPORTANT: For unused code issues (types: code_cleanup, react_cleanup, file_cleanup):
-- KEEP ALL unused code issues - they are already validated by cross-repository scanning
-- These have been verified as truly unused across the entire repository
-- Skip detailed analysis of unused code - trust the repository-aware detection
+🚨 CRITICAL INSTRUCTION: For unused code issues (types: code_cleanup, react_cleanup, file_cleanup):
+- ALWAYS KEEP 100% of unused code issues - NO EXCEPTIONS
+- DO NOT analyze or question unused code issues - they are pre-validated
+- If you see "unused_variable", "unused_import", "unused_function", "deprecated_file", "potential_duplicate_files" - ALWAYS KEEP THEM
+- These issues have already been verified across the entire repository
+- NEVER mark unused code issues as FALSE_POSITIVE or IGNORE
 
 Consider:
 1. Is this a genuine security/performance/logic issue?
@@ -601,7 +603,7 @@ Consider:
 3. Would a developer realistically need to fix this?
 4. Are there obvious false positives (test files, mock data, generated code)?
 5. Is this issue in a test file, config file, or documentation?
-6. For unused code issues: ALWAYS KEEP - they are pre-validated by repository-wide scanning
+6. For unused code issues: MANDATORY KEEP - never filter these out, they are repository-validated
 
 Return ONLY a JSON object with file indices and issue indices to KEEP:
 {
