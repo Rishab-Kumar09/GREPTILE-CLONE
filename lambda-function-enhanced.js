@@ -1606,9 +1606,30 @@ function checkUnusedVariables(content, filePath, repoDir = null) {
   var repoWideUsages = [];
   if (repoDir) {
     try {
-      // Search for variable usage across all files in the repository
-      var searchCmd = `find "${repoDir}" -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | head -50`;
-      var repoFiles = execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f);
+      // Search for variable usage across all files in the repository (Node.js native)
+      var repoFiles = [];
+      function findCodeFiles(dir, extensions = ['.js', '.jsx', '.ts', '.tsx']) {
+        try {
+          var items = fsSync.readdirSync(dir);
+          for (var item of items) {
+            var fullPath = path.join(dir, item);
+            try {
+              var stat = fsSync.statSync(fullPath);
+              if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
+                findCodeFiles(fullPath, extensions);
+              } else if (stat.isFile() && extensions.includes(path.extname(item))) {
+                repoFiles.push(fullPath);
+                if (repoFiles.length >= 50) break; // Limit to 50 files
+              }
+            } catch (err) {
+              // Skip files/dirs that can't be accessed
+            }
+          }
+        } catch (err) {
+          // Skip directories that can't be read
+        }
+      }
+      findCodeFiles(repoDir);
       
       variables.forEach(variable => {
         var crossFileUsages = 0;
@@ -1745,9 +1766,30 @@ function checkUnusedHooks(content, filePath, repoDir = null) {
   var repoWideHookUsages = [];
   if (repoDir) {
     try {
-      // Search for hook usage across React component files
-      var searchCmd = `find "${repoDir}" -name "*.jsx" -o -name "*.tsx" | head -30`;
-      var reactFiles = execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f);
+      // Search for hook usage across React component files (Node.js native)
+      var reactFiles = [];
+      function findReactFiles(dir) {
+        try {
+          var items = fsSync.readdirSync(dir);
+          for (var item of items) {
+            var fullPath = path.join(dir, item);
+            try {
+              var stat = fsSync.statSync(fullPath);
+              if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
+                findReactFiles(fullPath);
+              } else if (stat.isFile() && (item.endsWith('.jsx') || item.endsWith('.tsx'))) {
+                reactFiles.push(fullPath);
+                if (reactFiles.length >= 30) break; // Limit to 30 files
+              }
+            } catch (err) {
+              // Skip files/dirs that can't be accessed
+            }
+          }
+        } catch (err) {
+          // Skip directories that can't be read
+        }
+      }
+      findReactFiles(repoDir);
       
       hooks.forEach(hook => {
         var crossFileUsages = 0;
@@ -1917,10 +1959,31 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
   // 🌍 REPOSITORY-AWARE: Check for duplicate files and cross-references
   if (repoDir) {
     try {
-      // Check for duplicate or similar files
+      // Check for duplicate or similar files (Node.js native)
       var baseNameWithoutExt = path.basename(filePath, ext);
-      var searchCmd = `find "${repoDir}" -name "*${baseNameWithoutExt}*" -type f | head -10`;
-      var similarFiles = execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f && f !== path.join(repoDir, filePath));
+      var similarFiles = [];
+      function findSimilarFiles(dir) {
+        try {
+          var items = fsSync.readdirSync(dir);
+          for (var item of items) {
+            var fullPath = path.join(dir, item);
+            try {
+              var stat = fsSync.statSync(fullPath);
+              if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
+                findSimilarFiles(fullPath);
+              } else if (stat.isFile() && item.includes(baseNameWithoutExt) && fullPath !== path.join(repoDir, filePath)) {
+                similarFiles.push(fullPath);
+                if (similarFiles.length >= 10) break; // Limit to 10 files
+              }
+            } catch (err) {
+              // Skip files/dirs that can't be accessed
+            }
+          }
+        } catch (err) {
+          // Skip directories that can't be read
+        }
+      }
+      findSimilarFiles(repoDir);
       
       if (similarFiles.length > 2) {
         issues.push({
@@ -1935,11 +1998,39 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
         });
       }
       
-      // Check if file is actually referenced/imported anywhere
+      // Check if file is actually referenced/imported anywhere (Node.js native)
       var fileNameForSearch = path.basename(filePath, ext);
-      var importSearchCmd = `grep -r "from.*${fileNameForSearch}" "${repoDir}" --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" | head -5`;
+      var importReferences = '';
+      var foundReferences = 0;
+      function searchImportReferences(dir) {
+        if (foundReferences >= 5) return; // Limit to 5 references
+        try {
+          var items = fsSync.readdirSync(dir);
+          for (var item of items) {
+            if (foundReferences >= 5) break;
+            var fullPath = path.join(dir, item);
+            try {
+              var stat = fsSync.statSync(fullPath);
+              if (stat.isDirectory() && !item.startsWith('.') && item !== 'node_modules') {
+                searchImportReferences(fullPath);
+              } else if (stat.isFile() && ['.js', '.jsx', '.ts', '.tsx'].includes(path.extname(item))) {
+                var fileContent = fsSync.readFileSync(fullPath, 'utf8');
+                var importRegex = new RegExp(`from.*${fileNameForSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
+                if (importRegex.test(fileContent)) {
+                  importReferences += fullPath + '\n';
+                  foundReferences++;
+                }
+              }
+            } catch (err) {
+              // Skip files/dirs that can't be accessed
+            }
+          }
+        } catch (err) {
+          // Skip directories that can't be read
+        }
+      }
       try {
-        var importReferences = execSync(importSearchCmd, { encoding: 'utf8' }).trim();
+        searchImportReferences(repoDir);
         if (!importReferences && meaningfulLines.length < 20 && !fileName.includes('index')) {
           issues.push({
             type: 'file_cleanup',
@@ -1952,8 +2043,8 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
             suggestion: 'Verify if this file is still needed or if it can be safely removed.'
           });
         }
-      } catch (grepError) {
-        // grep command failed, skip this check
+      } catch (searchError) {
+        // Search failed, skip this check
       }
     } catch (error) {
       console.warn('Could not perform cross-repo analysis for unnecessary files:', error.message);
