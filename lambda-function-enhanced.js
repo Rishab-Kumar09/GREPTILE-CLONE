@@ -591,9 +591,9 @@ For each issue, determine if it's:
 - IGNORE: Too minor/context-dependent to be actionable
 
 IMPORTANT: For unused code issues (types: code_cleanup, react_cleanup, file_cleanup):
-- KEEP if the variable/function/file is genuinely unused and safe to remove
-- REMOVE if it's actually used elsewhere, part of an API, or intentionally unused (prefixed with _)
-- REMOVE if it's in test files, mock data, or configuration files where "unused" might be expected
+- KEEP ALL unused code issues - they are already validated by cross-repository scanning
+- These have been verified as truly unused across the entire repository
+- Skip detailed analysis of unused code - trust the repository-aware detection
 
 Consider:
 1. Is this a genuine security/performance/logic issue?
@@ -601,7 +601,7 @@ Consider:
 3. Would a developer realistically need to fix this?
 4. Are there obvious false positives (test files, mock data, generated code)?
 5. Is this issue in a test file, config file, or documentation?
-6. For unused code issues: validate if they're truly unused and not false positives from static analysis limitations
+6. For unused code issues: ALWAYS KEEP - they are pre-validated by repository-wide scanning
 
 Return ONLY a JSON object with file indices and issue indices to KEEP:
 {
@@ -5824,11 +5824,6 @@ export const handler = async (event) => {
         processedFiles++;
         
         if (issues.length > 0) {
-          // 🔍 DEBUG: Log what types of issues we're adding to results
-          var unusedCodeCount = issues.filter(i => i.type === 'code_cleanup' || i.type === 'react_cleanup' || i.type === 'file_cleanup').length;
-          var securityCount = issues.filter(i => i.type === 'security').length;
-          console.log(`🔍 DEBUG FINAL AGGREGATION for ${relativePath}: ${issues.length} total issues (${unusedCodeCount} unused code, ${securityCount} security)`);
-          
           results.push({
             file: relativePath,
             issues: issues
