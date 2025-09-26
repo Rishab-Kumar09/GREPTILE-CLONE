@@ -1652,6 +1652,9 @@ function checkUnusedVariables(content, filePath, repoDir = null) {
     }
   }
 
+  // 🔍 DEBUG: Log what we found
+  console.log(`🔍 DEBUG unused variables in ${filePath}: Found ${variables.length} variables, ${usages.length} total usages`);
+  
   // Check for unused variables
   variables.forEach(variable => {
     var localUsages = usages.filter(usage => usage === variable.name).length;
@@ -1682,6 +1685,7 @@ function checkUnusedVariables(content, filePath, repoDir = null) {
     var isTrulyUnused = !isUsedLocally && !isUsedInRepo;
     
     if (isTrulyUnused && !shouldSkip && variable.name.length > 1) {
+      console.log(`🔍 DEBUG: Found unused variable '${variable.name}' in ${filePath} at line ${variable.line}`);
       issues.push({
         type: 'code_cleanup',
         name: 'unused_variable',
@@ -1695,6 +1699,7 @@ function checkUnusedVariables(content, filePath, repoDir = null) {
     }
   });
   
+  console.log(`🔍 DEBUG unused variables result for ${filePath}: ${issues.length} unused variables found`);
   return issues;
 }
 
@@ -1814,6 +1819,9 @@ function checkUnusedHooks(content, filePath, repoDir = null) {
     }
   }
 
+  // 🔍 DEBUG: Log what we found
+  console.log(`🔍 DEBUG unused hooks in ${filePath}: Found ${hooks.length} hooks, ${hookUsages.length} total usages`);
+  
   // Check for unused hooks
   hooks.forEach(hook => {
     if (hook.name === 'useEffect') return; // Skip useEffect (side effects)
@@ -1838,6 +1846,7 @@ function checkUnusedHooks(content, filePath, repoDir = null) {
                         hook.type === 'state_value' ? 'state value' : 
                         `${hook.type} hook`;
       
+      console.log(`🔍 DEBUG: Found unused hook '${hook.name}' in ${filePath} at line ${hook.line}`);
       issues.push({
         type: 'react_cleanup',
         name: 'unused_hook',
@@ -1851,6 +1860,7 @@ function checkUnusedHooks(content, filePath, repoDir = null) {
     }
   });
   
+  console.log(`🔍 DEBUG unused hooks result for ${filePath}: ${issues.length} unused hooks found`);
   return issues;
 }
 
@@ -1860,6 +1870,9 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
   var fileName = path.basename(filePath).toLowerCase();
   var ext = path.extname(filePath).toLowerCase();
   var fileSize = content.length;
+  
+  // 🔍 DEBUG: Log what we're checking
+  console.log(`🔍 DEBUG unnecessary files in ${filePath}: fileName=${fileName}, ext=${ext}, size=${fileSize}`);
   
   // Check for empty or nearly empty files
   var meaningfulLines = content.split('\n').filter(line => {
@@ -1944,9 +1957,10 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
   ];
   
   if (deprecatedPatterns.some(pattern => pattern.test(fileName))) {
-    issues.push({
-      type: 'file_cleanup',
-      name: 'deprecated_file',
+      console.log(`🔍 DEBUG: Found deprecated file pattern in ${filePath}`);
+      issues.push({
+        type: 'file_cleanup',
+        name: 'deprecated_file',
       message: `Potentially deprecated file: Filename suggests this file may be outdated`,
       line: 1,
       severity: 'medium',
@@ -1986,6 +2000,7 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
       findSimilarFiles(repoDir);
       
       if (similarFiles.length > 2) {
+        console.log(`🔍 DEBUG: Found ${similarFiles.length} similar files to ${filePath}`);
         issues.push({
           type: 'file_cleanup',
           name: 'potential_duplicate_files',
@@ -2032,6 +2047,7 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
       try {
         searchImportReferences(repoDir);
         if (!importReferences && meaningfulLines.length < 20 && !fileName.includes('index')) {
+          console.log(`🔍 DEBUG: Found unreferenced file ${filePath} with ${meaningfulLines.length} meaningful lines`);
           issues.push({
             type: 'file_cleanup',
             name: 'unreferenced_file',
@@ -2077,6 +2093,7 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
     }
   }
   
+  console.log(`🔍 DEBUG unnecessary files result for ${filePath}: ${issues.length} issues found`);
   return issues;
 }
 
