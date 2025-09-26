@@ -424,6 +424,12 @@ async function performSemanticBugDetection(content, filePath, repoDir) {
   
   console.log(`🔍 Static analysis found ${criticalIssues.length} critical/high/medium issues in ${filePath} (filtered out ${allIssues.length - criticalIssues.length} low-priority/informational noise)`);
   
+  // 🔍 DEBUG: Log unused code issues specifically
+  var unusedCodeIssues = allIssues.filter(issue => 
+    issue.type === 'code_cleanup' || issue.type === 'react_cleanup' || issue.type === 'file_cleanup'
+  );
+  console.log(`🔍 DEBUG: Found ${unusedCodeIssues.length} unused code issues in ${filePath}:`, unusedCodeIssues.map(i => i.name));
+  
   // Note: AI filtering now happens at batch level for efficiency
   return criticalIssues;
 }
@@ -573,7 +579,7 @@ async function processBatchFiles(batch) {
 ${batch.map((fileResult, fileIndex) => 
 `FILE ${fileIndex}: ${fileResult.file}
 ${fileResult.issues.map((issue, issueIndex) => 
-`[${fileIndex}.${issueIndex}] ${issue.severity.toUpperCase()}: ${issue.message}
+`[${fileIndex}.${issueIndex}] ${issue.severity.toUpperCase()} (${issue.type || 'unknown'}): ${issue.message}
 Line ${issue.line}: ${issue.code}
 Context: ${getCodeContext(fileResult.content, issue.line)}
 `).join('\n')}
@@ -584,12 +590,18 @@ For each issue, determine if it's:
 - FALSE_POSITIVE: Static analysis mistake (e.g., test files, mock data, comments, legitimate patterns)
 - IGNORE: Too minor/context-dependent to be actionable
 
+IMPORTANT: For unused code issues (types: code_cleanup, react_cleanup, file_cleanup):
+- KEEP if the variable/function/file is genuinely unused and safe to remove
+- REMOVE if it's actually used elsewhere, part of an API, or intentionally unused (prefixed with _)
+- REMOVE if it's in test files, mock data, or configuration files where "unused" might be expected
+
 Consider:
 1. Is this a genuine security/performance/logic issue?
 2. Is the code pattern actually problematic in this context?
 3. Would a developer realistically need to fix this?
 4. Are there obvious false positives (test files, mock data, generated code)?
 5. Is this issue in a test file, config file, or documentation?
+6. For unused code issues: validate if they're truly unused and not false positives from static analysis limitations
 
 Return ONLY a JSON object with file indices and issue indices to KEEP:
 {
@@ -5812,6 +5824,11 @@ export const handler = async (event) => {
         processedFiles++;
         
         if (issues.length > 0) {
+          // 🔍 DEBUG: Log what types of issues we're adding to results
+          var unusedCodeCount = issues.filter(i => i.type === 'code_cleanup' || i.type === 'react_cleanup' || i.type === 'file_cleanup').length;
+          var securityCount = issues.filter(i => i.type === 'security').length;
+          console.log(`🔍 DEBUG FINAL AGGREGATION for ${relativePath}: ${issues.length} total issues (${unusedCodeCount} unused code, ${securityCount} security)`);
+          
           results.push({
             file: relativePath,
             issues: issues
