@@ -2589,25 +2589,25 @@ async function selectPatternsForBatchAI(fileBatch, analysisStrategy) {
 }
 
 // 🎯 PRIORITY-BASED ANALYSIS - Different analysis depth based on file importance
-async function analyzeFileByPriority(content, filePath, priority = 'medium', analysisStrategy = null) {
+async function analyzeFileByPriority(content, filePath, priority = 'medium', analysisStrategy = null, repoDir = null) {
   console.log(`🎯 ${priority.toUpperCase()} priority analysis for: ${filePath}`);
   
   switch (priority) {
     case 'critical':
-      return await analyzeCriticalFile(content, filePath);
+      return await analyzeCriticalFile(content, filePath, repoDir);
     case 'high':
-      return await analyzeHighPriorityFile(content, filePath);
+      return await analyzeHighPriorityFile(content, filePath, repoDir);
     case 'medium':
-      return await analyzeMediumPriorityFile(content, filePath);
+      return await analyzeMediumPriorityFile(content, filePath, repoDir);
     case 'light':
-      return await analyzeLightFile(content, filePath);
+      return await analyzeMediumPriorityFile(content, filePath, repoDir);
     default:
-      return await analyzeMediumPriorityFile(content, filePath);
+      return await analyzeMediumPriorityFile(content, filePath, repoDir);
   }
 }
 
 // 🔥 CRITICAL FILES - Full comprehensive analysis including medium issues
-async function analyzeCriticalFile(content, filePath) {
+async function analyzeCriticalFile(content, filePath, repoDir = null) {
   console.log(`🔥 CRITICAL analysis: ${filePath}`);
   var allIssues = [];
   
@@ -2633,7 +2633,7 @@ async function analyzeCriticalFile(content, filePath) {
 }
 
 // ⚡ HIGH PRIORITY FILES - Security + Logic focus + Medium Issues
-async function analyzeHighPriorityFile(content, filePath) {
+async function analyzeHighPriorityFile(content, filePath, repoDir = null) {
   console.log(`⚡ HIGH priority analysis: ${filePath}`);
   var allIssues = [];
   
@@ -2662,13 +2662,19 @@ async function analyzeHighPriorityFile(content, filePath) {
 }
 
 // 📋 MEDIUM PRIORITY FILES - Security + Basic Medium Issues
-async function analyzeMediumPriorityFile(content, filePath) {
+async function analyzeMediumPriorityFile(content, filePath, repoDir = null) {
   console.log(`📋 MEDIUM priority analysis: ${filePath}`);
   var allIssues = [];
   
   // Basic security checks
   allIssues = allIssues.concat(checkHardcodedSecretsEnhanced(content, filePath));
   allIssues = allIssues.concat(checkSQLInjectionEnhanced(content, filePath));
+  
+  // 🆕 ENHANCED CODE CLEANUP CHECKS (Repository-aware) - Added to Medium Priority
+  console.log(`🔍 Running repository-aware cleanup checks for: ${filePath}`);
+  allIssues = allIssues.concat(checkUnusedVariables(content, filePath, repoDir));
+  allIssues = allIssues.concat(checkUnusedHooks(content, filePath, repoDir));
+  allIssues = allIssues.concat(checkUnnecessaryFiles(content, filePath, repoDir));
   
   // 🎯 DISABLED: Medium priority detection for speed optimization
   // allIssues = allIssues.concat(checkLogicErrors(content, filePath));
@@ -5693,7 +5699,7 @@ export const handler = async (event) => {
             filePriority = 'critical'; // 🔥 More thorough analysis for key files only
           }
         }
-        var issues = await analyzeFileByPriority(content, relativePath, filePriority, analysisStrategy);
+        var issues = await analyzeFileByPriority(content, relativePath, filePriority, analysisStrategy, tempDir);
         
         processedFiles++;
         
