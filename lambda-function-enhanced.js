@@ -1903,7 +1903,7 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
       name: 'barrel_file_overuse',
       message: 'Potential barrel file overuse: File contains only imports/exports',
       line: 1,
-      severity: 'low',
+      severity: 'medium',
       code: meaningfulLines[0],
       description: 'This file appears to be a barrel file (only imports/exports). While barrel files can be useful, excessive use can impact build performance.',
       suggestion: 'Consider if this barrel file is necessary or if direct imports would be more efficient.'
@@ -1949,7 +1949,7 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
       name: 'deprecated_file',
       message: `Potentially deprecated file: Filename suggests this file may be outdated`,
       line: 1,
-      severity: 'low',
+      severity: 'medium',
       code: `File: ${fileName}`,
       description: 'The filename suggests this file may be deprecated, old, or unused. Such files can accumulate and clutter the codebase.',
       suggestion: 'Review if this file is still needed. If deprecated, consider removing it or updating its purpose.'
@@ -1991,7 +1991,7 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
           name: 'potential_duplicate_files',
           message: `Potential duplicate files: Found ${similarFiles.length} files with similar names`,
           line: 1,
-          severity: 'low',
+          severity: 'medium',
           code: `Similar to: ${similarFiles.slice(0, 3).map(f => path.basename(f)).join(', ')}`,
           description: `Multiple files with similar names detected. This might indicate duplicate functionality or inconsistent naming.`,
           suggestion: 'Review if these files serve different purposes or if they can be consolidated.'
@@ -2069,7 +2069,7 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
         name: 'small_utility_file',
         message: 'Small utility file: Consider consolidating with related utilities',
         line: 1,
-        severity: 'low',
+        severity: 'medium',
         code: meaningfulLines[0],
         description: 'This utility file is very small and contains only constants or simple exports. Many small utility files can fragment the codebase.',
         suggestion: 'Consider consolidating this with related utility files or a main constants file.'
@@ -4045,7 +4045,7 @@ function checkErrorHandlingEnhanced(content, filePath) {
         type: 'maintenance',
         message: 'Technical debt marker: Review and address this comment',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: line.trim(),
         pattern: 'technical_debt'
       });
@@ -4081,7 +4081,7 @@ function checkErrorHandlingEnhanced(content, filePath) {
         type: 'maintenance',
         message: 'Debug statement: Remove console logs from production code',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: line.trim(),
         pattern: 'debug_statement'
       });
@@ -4233,7 +4233,7 @@ function checkPerformanceIssuesEnhanced(content, filePath) {
         type: 'performance',
         message: 'Inefficient array search: Use .includes() instead of indexOf() !== -1',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: line.trim(),
         pattern: 'inefficient_array_search'
       });
@@ -5097,7 +5097,7 @@ function checkCodeQualityIssues(content, filePath) {
         type: 'quality',
         message: 'Magic number: Consider using named constants for better readability',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: line.trim(),
         pattern: 'magic_number'
       });
@@ -5208,7 +5208,7 @@ function checkAccessibilityIssues(content, filePath) {
         type: 'accessibility',
         message: 'Potential low contrast: Ensure sufficient color contrast for readability',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: line.trim(),
         pattern: 'low_contrast'
       });
@@ -5254,7 +5254,7 @@ function checkDataValidationIssues(content, filePath) {
         type: 'validation',
         message: 'String length validation: Consider max/min length limits',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: line.trim(),
         pattern: 'missing_length_validation'
       });
@@ -5352,7 +5352,7 @@ function checkConfigurationIssues(content, filePath) {
         type: 'configuration',
         message: 'Hardcoded port: Use environment variable for port configuration',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: line.trim(),
         pattern: 'hardcoded_port'
       });
@@ -5379,7 +5379,7 @@ function checkConfigurationIssues(content, filePath) {
         type: 'configuration',
         message: 'Development dependency: Avoid dev dependencies in production code',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: line.trim(),
         pattern: 'dev_dependency_in_prod'
       });
@@ -5420,7 +5420,7 @@ function checkStrictLowPriorityIssues(content, filePath) {
             type: 'maintenance',
             message: 'Unused variable: Variable declared but never used',
             line: index + 1,
-            severity: 'low',
+            severity: 'medium',
             code: line.trim(),
             pattern: 'unused_variable',
             strictPattern: true
@@ -5446,7 +5446,7 @@ function checkStrictLowPriorityIssues(content, filePath) {
           type: 'maintenance',
           message: 'Commented code block: Remove dead code instead of commenting',
           line: index + 1,
-          severity: 'low',
+          severity: 'medium',
           code: line.trim(),
           pattern: 'commented_code_block',
           strictPattern: true
@@ -5462,7 +5462,7 @@ function checkStrictLowPriorityIssues(content, filePath) {
           type: 'maintenance',
           message: 'Redundant type annotation: TypeScript can infer this type',
           line: index + 1,
-          severity: 'low',
+          severity: 'medium',
           code: line.trim(),
           pattern: 'redundant_type_annotation',
           strictPattern: true
@@ -5477,7 +5477,7 @@ function checkStrictLowPriorityIssues(content, filePath) {
         type: 'style',
         message: 'Unnecessary semicolon: Remove redundant semicolon',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: line.trim(),
         pattern: 'unnecessary_semicolon',
         strictPattern: true
@@ -5493,7 +5493,7 @@ function checkStrictLowPriorityIssues(content, filePath) {
           type: 'maintenance',
           message: 'Empty function: Implement function body or remove if not needed',
           line: index + 1,
-          severity: 'low',
+          severity: 'medium',
           code: line.trim(),
           pattern: 'empty_function',
           strictPattern: true
@@ -5508,7 +5508,7 @@ function checkStrictLowPriorityIssues(content, filePath) {
         type: 'style',
         message: 'Mixed indentation: Use consistent tabs or spaces',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: 'Mixed tabs and spaces detected',
         pattern: 'mixed_indentation',
         strictPattern: true
@@ -5522,7 +5522,7 @@ function checkStrictLowPriorityIssues(content, filePath) {
         type: 'style',
         message: 'Trailing whitespace: Remove unnecessary spaces at end of line',
         line: index + 1,
-        severity: 'low',
+        severity: 'medium',
         code: 'Trailing whitespace detected',
         pattern: 'trailing_whitespace',
         strictPattern: true
