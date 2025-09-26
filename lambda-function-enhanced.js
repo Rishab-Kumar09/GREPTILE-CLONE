@@ -1608,14 +1608,14 @@ function checkUnusedVariables(content, filePath, repoDir = null) {
     try {
       // Search for variable usage across all files in the repository
       var searchCmd = `find "${repoDir}" -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | head -50`;
-      var repoFiles = require('child_process').execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f);
+      var repoFiles = execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f);
       
       variables.forEach(variable => {
         var crossFileUsages = 0;
         repoFiles.forEach(repoFile => {
           if (repoFile !== path.join(repoDir, filePath)) {
             try {
-              var repoFileContent = require('fs').readFileSync(repoFile, 'utf8');
+              var repoFileContent = fsSync.readFileSync(repoFile, 'utf8');
               var regex = new RegExp('\\b' + variable.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g');
               var matches = (repoFileContent.match(regex) || []).length;
               crossFileUsages += matches;
@@ -1747,14 +1747,14 @@ function checkUnusedHooks(content, filePath, repoDir = null) {
     try {
       // Search for hook usage across React component files
       var searchCmd = `find "${repoDir}" -name "*.jsx" -o -name "*.tsx" | head -30`;
-      var reactFiles = require('child_process').execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f);
+      var reactFiles = execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f);
       
       hooks.forEach(hook => {
         var crossFileUsages = 0;
         reactFiles.forEach(reactFile => {
           if (reactFile !== path.join(repoDir, filePath)) {
             try {
-              var reactFileContent = require('fs').readFileSync(reactFile, 'utf8');
+              var reactFileContent = fsSync.readFileSync(reactFile, 'utf8');
               // Check for hook usage (including as props)
               var hookRegex = new RegExp('\\b' + hook.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g');
               var propRegex = new RegExp(hook.name + '\\s*[=:]', 'g'); // Used as prop
@@ -1920,7 +1920,7 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
       // Check for duplicate or similar files
       var baseNameWithoutExt = path.basename(filePath, ext);
       var searchCmd = `find "${repoDir}" -name "*${baseNameWithoutExt}*" -type f | head -10`;
-      var similarFiles = require('child_process').execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f && f !== path.join(repoDir, filePath));
+      var similarFiles = execSync(searchCmd, { encoding: 'utf8' }).trim().split('\n').filter(f => f && f !== path.join(repoDir, filePath));
       
       if (similarFiles.length > 2) {
         issues.push({
@@ -1939,7 +1939,7 @@ function checkUnnecessaryFiles(content, filePath, repoDir = null) {
       var fileNameForSearch = path.basename(filePath, ext);
       var importSearchCmd = `grep -r "from.*${fileNameForSearch}" "${repoDir}" --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" | head -5`;
       try {
-        var importReferences = require('child_process').execSync(importSearchCmd, { encoding: 'utf8' }).trim();
+        var importReferences = execSync(importSearchCmd, { encoding: 'utf8' }).trim();
         if (!importReferences && meaningfulLines.length < 20 && !fileName.includes('index')) {
           issues.push({
             type: 'file_cleanup',
