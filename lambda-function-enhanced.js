@@ -2743,6 +2743,12 @@ async function analyzeCriticalFile(content, filePath, repoDir = null) {
   allIssues = allIssues.concat(checkErrorHandlingEnhanced(content, filePath));
   allIssues = allIssues.concat(checkPerformanceIssuesEnhanced(content, filePath));
   
+  // 🆕 ENHANCED CODE CLEANUP CHECKS (Repository-aware) - Added to Critical Priority
+  console.log(`🔍 Running repository-aware cleanup checks for: ${filePath}`);
+  allIssues = allIssues.concat(checkUnusedVariables(content, filePath, repoDir));
+  allIssues = allIssues.concat(checkUnusedHooks(content, filePath, repoDir));
+  allIssues = allIssues.concat(checkUnnecessaryFiles(content, filePath, repoDir));
+  
   // 🎯 DISABLED: Medium priority detection for speed optimization
   // These patterns were causing 5-10x slowdown due to multiple line-by-line processing
   // TODO: Implement more efficient single-pass analysis
@@ -2771,6 +2777,12 @@ async function analyzeHighPriorityFile(content, filePath, repoDir = null) {
   allIssues = allIssues.concat(checkDataValidationIssues(content, filePath));
   allIssues = allIssues.concat(checkConcurrencyIssues(content, filePath));
   allIssues = allIssues.concat(checkConfigurationIssues(content, filePath));
+  
+  // 🆕 ENHANCED CODE CLEANUP CHECKS (Repository-aware) - Added to High Priority
+  console.log(`🔍 Running repository-aware cleanup checks for: ${filePath}`);
+  allIssues = allIssues.concat(checkUnusedVariables(content, filePath, repoDir));
+  allIssues = allIssues.concat(checkUnusedHooks(content, filePath, repoDir));
+  allIssues = allIssues.concat(checkUnnecessaryFiles(content, filePath, repoDir));
   
   // 🎯 DISABLED: Medium priority detection for speed optimization
   // allIssues = allIssues.concat(checkReactPerformanceIssues(content, filePath));
@@ -2801,10 +2813,12 @@ async function analyzeMediumPriorityFile(content, filePath, repoDir = null) {
   // 🎯 DISABLED: Medium priority detection for speed optimization
   // allIssues = allIssues.concat(checkLogicErrors(content, filePath));
   
-  // Return high+ severity issues + some medium
+  // Return high+ severity issues + some medium + ALL UNUSED CODE ISSUES
   return allIssues.filter(issue => 
     issue.severity === 'critical' || issue.severity === 'high' || 
-    (issue.severity === 'medium' && ['assignment_in_condition', 'nan_comparison', 'missing_await'].includes(issue.pattern))
+    (issue.severity === 'medium' && ['assignment_in_condition', 'nan_comparison', 'missing_await'].includes(issue.pattern)) ||
+    // 🚀 ALWAYS INCLUDE UNUSED CODE ISSUES - These are repository-validated
+    (issue.type === 'code_cleanup' || issue.type === 'react_cleanup' || issue.type === 'file_cleanup')
   );
 }
 
