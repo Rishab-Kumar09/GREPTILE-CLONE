@@ -68,7 +68,7 @@ export async function POST() {
     console.log('✅ Created admin_activity table')
     
     // Step 5: Find R.K.'s user ID from UserProfile table
-    const rkUser = await sql`
+    const rkUser = await prisma.$queryRaw<Array<{ id: string; email: string; name: string }>>`
       SELECT id, email, name FROM "UserProfile" 
       WHERE email = 'rk@company.com' 
       LIMIT 1
@@ -82,7 +82,7 @@ export async function POST() {
     console.log('✅ Found R.K. user:', userId)
     
     // Step 6: Make R.K. the first admin (SUPER ADMIN)
-    await sql`
+    await prisma.$executeRaw`
       INSERT INTO admins (user_id, user_email, user_name, is_active, created_by)
       VALUES (${userId}, 'rk@company.com', 'R.K.', true, 'SYSTEM_INIT')
       ON CONFLICT (user_id) DO NOTHING
@@ -90,7 +90,7 @@ export async function POST() {
     console.log('✅ R.K. is now an admin!')
     
     // Step 7: Log admin creation
-    await sql`
+    await prisma.$executeRaw`
       INSERT INTO admin_activity (admin_user_id, action, details)
       VALUES ('SYSTEM', 'INIT_ADMIN', 'R.K. made first admin')
     `
