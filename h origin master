@@ -2,3 +2,8 @@
 * [32mmaster[m
   [31mremotes/origin/feature/enterprise-fast-analysis[m
   [31mremotes/origin/master[m
+[33m7891ff6[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m IMPROVE: Enhanced unused variable detection - reduce false positives by checking immediate usage context and handling TypeScript optional parameters
+[33m3d61d75[m CRITICAL FIX: Lambda function filtering out unused code issues - add unused code types to all priority levels and fix medium priority filter
+[33m01462b0[m CRITICAL FIX: Completely bypass AI filtering for unused code issues - separate them from other issues and show directly
+[33m2e912a5[m CRITICAL FIX: Add unused code preservation instructions to frontend AI filter - this was filtering out unused code issues
+[33mf060071[m Make AI prompt more explicit about keeping unused code issues - add critical instructions
