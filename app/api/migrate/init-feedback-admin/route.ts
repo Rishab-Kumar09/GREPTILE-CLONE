@@ -68,23 +68,21 @@ export async function POST() {
     console.log('✅ Created admin_activity table')
     
     // Step 5: Find R.K.'s user ID from UserProfile table
-    const rkUser = await prisma.$queryRaw`
+    const rkUser = await sql`
       SELECT id, email, name FROM "UserProfile" 
       WHERE email = 'rk@company.com' 
       LIMIT 1
     `
     
-    const rkUserArray = rkUser as any[]
-    
-    if (rkUserArray.length === 0) {
+    if (rkUser.length === 0) {
       throw new Error('R.K. user not found in database')
     }
     
-    const userId = rkUserArray[0].id
+    const userId = rkUser[0].id
     console.log('✅ Found R.K. user:', userId)
     
     // Step 6: Make R.K. the first admin (SUPER ADMIN)
-    await prisma.$executeRaw`
+    await sql`
       INSERT INTO admins (user_id, user_email, user_name, is_active, created_by)
       VALUES (${userId}, 'rk@company.com', 'R.K.', true, 'SYSTEM_INIT')
       ON CONFLICT (user_id) DO NOTHING
@@ -92,7 +90,7 @@ export async function POST() {
     console.log('✅ R.K. is now an admin!')
     
     // Step 7: Log admin creation
-    await prisma.$executeRaw`
+    await sql`
       INSERT INTO admin_activity (admin_user_id, action, details)
       VALUES ('SYSTEM', 'INIT_ADMIN', 'R.K. made first admin')
     `

@@ -6,6 +6,7 @@ import { ArrowsPointingOutIcon } from '@heroicons/react/24/outline'
 import DashboardHeader from '@/components/DashboardHeader'
 import MarkdownRenderer from '../../../components/MarkdownRenderer'
 import FullScreenChat from '../../../components/FullScreenChat'
+import FeedbackModal from '../../../components/FeedbackModal'
 
 interface AnalysisResult {
   type: string
@@ -49,6 +50,30 @@ export default function EnterpriseAnalysisPage() {
     currentFile: '',
     results: []
   })
+  const [feedbackModal, setFeedbackModal] = useState<{
+    isOpen: boolean
+    issueId: string
+    issueTitle: string
+    issueDescription: string
+  }>({
+    isOpen: false,
+    issueId: '',
+    issueTitle: '',
+    issueDescription: ''
+  })
+  const [userSession, setUserSession] = useState<{ userId: string; userEmail: string } | null>(null)
+
+  // Get user session
+  useEffect(() => {
+    fetch('/api/auth/validate-session')
+      .then(res => res.json())
+      .then(data => {
+        if (data.valid && data.user) {
+          setUserSession({ userId: data.user.id, userEmail: data.user.email })
+        }
+      })
+      .catch(console.error)
+  }, [])
   const [expandedFiles, setExpandedFiles] = useState<{[key: string]: boolean}>({})
   const [resultsExpanded, setResultsExpanded] = useState(true) // New: overall results collapse/expand
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -1279,6 +1304,19 @@ export default function EnterpriseAnalysisPage() {
                                 <span>{bug.suggestion}</span>
                               </p>
                             )}
+                            {userSession && (
+                              <button
+                                onClick={() => setFeedbackModal({
+                                  isOpen: true,
+                                  issueId: `${fileResult.file}-${bug.line}-bug`,
+                                  issueTitle: `${bug.type} at line ${bug.line}`,
+                                  issueDescription: bug.description
+                                })}
+                                className="mt-2 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                              >
+                                🐛 Report Issue
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1306,6 +1344,19 @@ export default function EnterpriseAnalysisPage() {
                                 <span>{smell.suggestion}</span>
                               </p>
                             )}
+                            {userSession && (
+                              <button
+                                onClick={() => setFeedbackModal({
+                                  isOpen: true,
+                                  issueId: `${fileResult.file}-${smell.line}-smell`,
+                                  issueTitle: `${smell.type} at line ${smell.line}`,
+                                  issueDescription: smell.description
+                                })}
+                                className="mt-2 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                              >
+                                🐛 Report Issue
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1332,6 +1383,19 @@ export default function EnterpriseAnalysisPage() {
                                 <span className="mr-1">💡</span>
                                 <span>{suggestion.suggestion}</span>
                               </p>
+                            )}
+                            {userSession && (
+                              <button
+                                onClick={() => setFeedbackModal({
+                                  isOpen: true,
+                                  issueId: `${fileResult.file}-${suggestion.line}-suggestion`,
+                                  issueTitle: `${suggestion.type} at line ${suggestion.line}`,
+                                  issueDescription: suggestion.description
+                                })}
+                                className="mt-2 px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+                              >
+                                🐛 Report Issue
+                              </button>
                             )}
                           </div>
                         ))}
@@ -1495,6 +1559,19 @@ export default function EnterpriseAnalysisPage() {
         loading={chatLoading}
         repoName={repoUrl.split('/').slice(-2).join('/')}
       />
+
+      {/* Feedback Modal */}
+      {userSession && (
+        <FeedbackModal
+          isOpen={feedbackModal.isOpen}
+          onClose={() => setFeedbackModal({ ...feedbackModal, isOpen: false })}
+          issueId={feedbackModal.issueId}
+          issueTitle={feedbackModal.issueTitle}
+          issueDescription={feedbackModal.issueDescription}
+          userId={userSession.userId}
+          userEmail={userSession.userEmail}
+        />
+      )}
     </div>
   )
 }

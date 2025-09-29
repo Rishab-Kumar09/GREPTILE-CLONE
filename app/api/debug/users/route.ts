@@ -9,31 +9,18 @@ export async function GET() {
   try {
     console.log('🔍 DEBUG: Fetching all user profiles...')
     
-    // Get all user profiles
-    const users = await prisma.userProfile.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        githubConnected: true,
-        githubUsername: true,
-        createdAt: true
-      }
-    })
+    // Get all user profiles using raw query
+    const users = await prisma.$queryRaw`
+      SELECT id, name, email, "githubConnected", "githubUsername", "createdAt"
+      FROM "UserProfile"
+    ` as any[]
     
     console.log(`✅ DEBUG: Found ${users.length} user profiles`)
     
     return NextResponse.json({
       success: true,
       totalUsers: users.length,
-      users: users.map(user => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        githubConnected: user.githubConnected,
-        githubUsername: user.githubUsername,
-        createdAt: user.createdAt
-      }))
+      users
     })
     
   } catch (error) {
