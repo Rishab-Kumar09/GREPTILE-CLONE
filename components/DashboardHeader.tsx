@@ -83,18 +83,33 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
   // Check if user is admin
   const checkAdminStatus = async () => {
     try {
+      // Get session token from localStorage
+      const sessionToken = localStorage.getItem('sessionToken')
+      if (!sessionToken) {
+        console.log('No session token found')
+        return
+      }
+
       const sessionRes = await fetch('/api/auth/validate-session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionToken })
       })
+      
+      if (!sessionRes.ok) {
+        console.log('Session validation failed')
+        return
+      }
+      
       const sessionData = await sessionRes.json()
       
-      if (sessionData.valid && sessionData.user) {
-        const feedbackRes = await fetch(`/api/feedback?userId=${sessionData.user.id}&includeResolved=false`)
+      if (sessionData.success && sessionData.userId) {
+        const feedbackRes = await fetch(`/api/feedback?userId=${sessionData.userId}&includeResolved=false`)
         const feedbackData = await feedbackRes.json()
         
         if (feedbackData.success && feedbackData.isAdmin) {
           setIsAdmin(true)
+          console.log('✅ Admin status confirmed')
         }
       }
     } catch (error) {
