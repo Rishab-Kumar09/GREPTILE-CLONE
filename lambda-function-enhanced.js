@@ -1578,12 +1578,13 @@ function checkUnusedVariables(content, filePath, repoDir = null) {
         }
       });
       
-      // Function parameters
+      // Function parameters (improved to handle TypeScript optional params)
       var funcParamMatches = Array.from(line.matchAll(/(?:function\s*\w*|=>\s*)\s*\(([^)]+)\)/g));
       funcParamMatches.forEach(match => {
         if (match[1]) {
           match[1].split(',').forEach(param => {
-            var paramName = param.trim().split(/[=:]/)[0].trim();
+            // Remove optional markers and type annotations
+            var paramName = param.trim().split(/[=:]/)[0].trim().replace(/\?$/, '');
             if (paramName && paramName.length > 1 && !paramName.startsWith('_')) {
               variables.push({ name: paramName, line: index + 1, type: 'parameter' });
             }
@@ -1672,7 +1673,22 @@ function checkUnusedVariables(content, filePath, repoDir = null) {
   // Check for unused variables
   variables.forEach(variable => {
     var localUsages = usages.filter(usage => usage === variable.name).length;
-    var isUsedLocally = localUsages > 1; // More than declaration
+    
+    // 🎯 IMPROVED: Check if variable is used on the same line or within next 3 lines (immediate usage)
+    var declarationLine = variable.line - 1; // 0-based index
+    var immediateContext = lines.slice(declarationLine, declarationLine + 4).join(' ');
+    var hasImmediateUsage = false;
+    
+    // Check if variable appears in the immediate context (excluding the declaration itself)
+    var usagePattern = new RegExp('\\b' + variable.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[\\(\\.]', 'g');
+    var declarationPattern = new RegExp('(?:const|let|var|function)\\s+(?:\\{[^}]*)?\\b' + variable.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    
+    // Count non-declaration usages in immediate context
+    var immediateMatches = (immediateContext.match(usagePattern) || []).length;
+    hasImmediateUsage = immediateMatches > 0;
+    
+    // More lenient: if used more than once OR has immediate usage (like function calls), consider it used
+    var isUsedLocally = localUsages > 1 || hasImmediateUsage;
     
     // Check cross-file usage
     var repoUsage = repoWideUsages.find(ru => ru.name === variable.name);
@@ -1690,7 +1706,9 @@ function checkUnusedVariables(content, filePath, repoDir = null) {
       /^error$/,
       /^req$/,
       /^res$/,
-      /^next$/
+      /^next$/,
+      /^searchParams$/,  // Common Next.js pattern
+      /^params$/  // Common Next.js pattern
     ];
     
     var shouldSkip = skipPatterns.some(pattern => pattern.test(variable.name));
