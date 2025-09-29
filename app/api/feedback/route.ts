@@ -108,10 +108,22 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Feedback API error:', error)
+    
+    // If tables don't exist yet, inform user
+    if (error instanceof Error && error.message.includes('does not exist')) {
+      return NextResponse.json({
+        success: false,
+        error: 'Feedback system not initialized. Please run migration first.',
+        needsMigration: true
+      }, { status: 503 })
+    }
+    
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Operation failed'
     }, { status: 500 })
+  } finally {
+    await prisma.$disconnect()
   }
 }
 
@@ -163,9 +175,24 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Get reports error:', error)
+    
+    // If tables don't exist yet, return empty with isAdmin check
+    if (error instanceof Error && error.message.includes('does not exist')) {
+      console.log('⚠️ Feedback tables not initialized yet')
+      return NextResponse.json({
+        success: true,
+        reports: [],
+        isAdmin: false,
+        needsMigration: true
+      })
+    }
+    
     return NextResponse.json({
       success: false,
-      error: 'Failed to fetch reports'
+      error: 'Failed to fetch reports',
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
+  } finally {
+    await prisma.$disconnect()
   }
 }
