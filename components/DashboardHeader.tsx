@@ -83,7 +83,10 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
   // Check if user is admin
   const checkAdminStatus = async () => {
     try {
-      const sessionRes = await fetch('/api/auth/validate-session')
+      const sessionRes = await fetch('/api/auth/validate-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
       const sessionData = await sessionRes.json()
       
       if (sessionData.valid && sessionData.user) {
