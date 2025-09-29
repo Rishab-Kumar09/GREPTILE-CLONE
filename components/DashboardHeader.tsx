@@ -15,6 +15,7 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [userName, setUserName] = useState('User')
   const [userTitle, setUserTitle] = useState('Developer')
+  const [isAdmin, setIsAdmin] = useState(false)
 
   // Load profile settings from DATABASE (with localStorage fallback)
   const loadProfileSettings = async () => {
@@ -76,7 +77,27 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
 
   useEffect(() => {
     loadProfileSettings()
+    checkAdminStatus()
   }, [])
+
+  // Check if user is admin
+  const checkAdminStatus = async () => {
+    try {
+      const sessionRes = await fetch('/api/auth/validate-session')
+      const sessionData = await sessionRes.json()
+      
+      if (sessionData.valid && sessionData.user) {
+        const feedbackRes = await fetch(`/api/feedback?userId=${sessionData.user.id}&includeResolved=false`)
+        const feedbackData = await feedbackRes.json()
+        
+        if (feedbackData.success && feedbackData.isAdmin) {
+          setIsAdmin(true)
+        }
+      }
+    } catch (error) {
+      console.error('Admin check failed:', error)
+    }
+  }
 
   // Determine active page based on pathname
   const getActivePage = () => {
@@ -147,6 +168,16 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
             >
               Setup Bot
             </Link>
+            
+            {/* Admin Button - Only visible to admins */}
+            {isAdmin && (
+              <Link 
+                href="/dashboard/admin-feedback" 
+                className={pathname.startsWith('/dashboard/admin-feedback') ? 'bg-purple-700 text-white px-3 py-1.5 rounded-md text-sm font-medium' : 'bg-purple-600 text-white px-3 py-1.5 rounded-md text-sm font-medium hover:bg-purple-700 transition-colors'}
+              >
+                🛠️ Admin
+              </Link>
+            )}
           </nav>
 
           <div className="flex items-center space-x-4">
