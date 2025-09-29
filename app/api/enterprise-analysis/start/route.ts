@@ -215,28 +215,48 @@ export async function POST(request: NextRequest) {
         
         console.log(`🔄 Transformed to ${transformedResults.length} individual results`)
         
-        // 🤖 AI POST-ANALYSIS FILTERING - Remove false positives just before displaying
-        let finalResults = transformedResults
+        // 🚀 SEPARATE UNUSED CODE ISSUES FROM AI FILTERING
+        const unusedCodeIssues = transformedResults.filter(result => 
+          result.type === 'code_cleanup' || result.type === 'react_cleanup' || result.type === 'file_cleanup' ||
+          result.name?.includes('unused_variable') || result.name?.includes('unused_import') || 
+          result.name?.includes('unused_function') || result.name?.includes('deprecated_file') ||
+          result.name?.includes('potential_duplicate_files')
+        )
+        
+        const otherIssues = transformedResults.filter(result => 
+          result.type !== 'code_cleanup' && result.type !== 'react_cleanup' && result.type !== 'file_cleanup' &&
+          !result.name?.includes('unused_variable') && !result.name?.includes('unused_import') && 
+          !result.name?.includes('unused_function') && !result.name?.includes('deprecated_file') &&
+          !result.name?.includes('potential_duplicate_files')
+        )
+        
+        console.log(`🔄 Separated issues: ${unusedCodeIssues.length} unused code (skip AI), ${otherIssues.length} other issues (AI filter)`)
+        
+        // 🤖 AI POST-ANALYSIS FILTERING - Only for non-unused-code issues
+        let finalResults = [...unusedCodeIssues] // Start with unused code issues (no AI filtering)
         let aiFilterStats = { enabled: false, removed: 0 }
         
-        if (process.env.OPENAI_API_KEY && transformedResults.length > 0) {
-          console.log(`🤖 Running AI post-analysis filter on ${transformedResults.length} issues...`)
+        if (process.env.OPENAI_API_KEY && otherIssues.length > 0) {
+          console.log(`🤖 Running AI post-analysis filter on ${otherIssues.length} non-unused-code issues...`)
           
           try {
-            const aiFilteredResults = await performAIResultsFilter(data.results, transformedResults)
+            const aiFilteredResults = await performAIResultsFilter(data.results, otherIssues)
             aiFilterStats = {
               enabled: true,
-              removed: transformedResults.length - aiFilteredResults.length
+              removed: otherIssues.length - aiFilteredResults.length
             }
-            finalResults = aiFilteredResults
+            finalResults = [...unusedCodeIssues, ...aiFilteredResults] // Combine unused code + filtered other issues
             
-            console.log(`✅ AI filter complete: ${transformedResults.length} → ${finalResults.length} issues (removed ${aiFilterStats.removed} false positives)`)
+            console.log(`✅ AI filter complete: ${otherIssues.length} → ${aiFilteredResults.length} other issues (removed ${aiFilterStats.removed} false positives)`)
+            console.log(`🎯 Final results: ${unusedCodeIssues.length} unused code + ${aiFilteredResults.length} other = ${finalResults.length} total`)
           } catch (aiError) {
             console.error('❌ AI filtering failed:', aiError)
-            console.log('⚠️ Returning original results without AI filtering')
+            console.log('⚠️ Returning unused code + original other issues without AI filtering')
+            finalResults = transformedResults // Fallback to all original results
           }
         } else {
-          console.log('⚠️ Skipping AI filter: No API key or no results')
+          console.log(`⚠️ Skipping AI filter: ${!process.env.OPENAI_API_KEY ? 'No API key' : 'No other issues to filter'}`)
+          console.log(`🎯 Final results: ${unusedCodeIssues.length} unused code issues (AI filter bypassed)`)
         }
         
         return NextResponse.json({
