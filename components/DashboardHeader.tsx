@@ -97,7 +97,8 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
       })
       
       if (!sessionRes.ok) {
-        console.log('Session validation failed')
+        console.log('Session validation failed - clearing invalid token')
+        localStorage.removeItem('sessionToken')
         return
       }
       
