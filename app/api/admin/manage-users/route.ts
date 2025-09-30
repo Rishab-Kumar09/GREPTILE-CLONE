@@ -20,19 +20,25 @@ async function isAdmin(userId: string): Promise<boolean> {
 // GET: List all users
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 GET /api/admin/manage-users called')
     const { searchParams } = new URL(request.url)
     const requestingUserId = searchParams.get('userId')
+    console.log('📋 Requesting userId:', requestingUserId)
     
     if (!requestingUserId) {
+      console.log('❌ No userId provided')
       return NextResponse.json({
         success: false,
         error: 'User ID required'
       }, { status: 400 })
     }
 
+    console.log('🔐 Checking if user is admin...')
     const userIsAdmin = await isAdmin(requestingUserId)
+    console.log('✅ Is admin?', userIsAdmin)
     
     if (!userIsAdmin) {
+      console.log('❌ Access denied: Not an admin')
       return NextResponse.json({
         success: false,
         error: 'Access Denied: Not an admin'
@@ -40,6 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all users with report counts
+    console.log('📊 Fetching all users from database...')
     const users = await prisma.$queryRaw`
       SELECT 
         u.id,
@@ -56,6 +63,8 @@ export async function GET(request: NextRequest) {
       ORDER BY u."createdAt" DESC
     ` as any[]
 
+    console.log('✅ Fetched users:', users.length)
+
     return NextResponse.json({
       success: true,
       users
@@ -65,7 +74,9 @@ export async function GET(request: NextRequest) {
     console.error('Get users error:', error)
     return NextResponse.json({
       success: false,
-      error: 'Failed to fetch users'
+      error: 'Failed to fetch users',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
     }, { status: 500 })
   } finally {
     await prisma.$disconnect()
