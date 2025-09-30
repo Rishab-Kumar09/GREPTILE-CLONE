@@ -83,35 +83,36 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
   // Check if user is admin
   const checkAdminStatus = async () => {
     try {
-      // Get session token from localStorage
-      const sessionToken = localStorage.getItem('sessionToken')
-      if (!sessionToken) {
-        console.log('No session token found')
+      // Get current user from localStorage (set during login)
+      const currentUserStr = localStorage.getItem('currentUser')
+      if (!currentUserStr) {
+        console.log('No current user found')
         return
       }
 
-      const sessionRes = await fetch('/api/auth/validate-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionToken })
-      })
+      const currentUser = JSON.parse(currentUserStr)
+      const userId = currentUser.id
       
-      if (!sessionRes.ok) {
-        console.log('Session validation failed - clearing invalid token')
-        localStorage.removeItem('sessionToken')
+      if (!userId) {
+        console.log('No user ID found')
+        return
+      }
+
+      // Check admin status directly with user ID
+      const feedbackRes = await fetch(`/api/feedback?userId=${userId}&includeResolved=false`)
+      
+      if (!feedbackRes.ok) {
+        console.log('Admin check API failed:', feedbackRes.status)
         return
       }
       
-      const sessionData = await sessionRes.json()
+      const feedbackData = await feedbackRes.json()
       
-      if (sessionData.success && sessionData.userId) {
-        const feedbackRes = await fetch(`/api/feedback?userId=${sessionData.userId}&includeResolved=false`)
-        const feedbackData = await feedbackRes.json()
-        
-        if (feedbackData.success && feedbackData.isAdmin) {
-          setIsAdmin(true)
-          console.log('✅ Admin status confirmed')
-        }
+      if (feedbackData.success && feedbackData.isAdmin) {
+        setIsAdmin(true)
+        console.log('✅ Admin status confirmed for:', userId)
+      } else {
+        console.log('⚠️ Not an admin:', userId)
       }
     } catch (error) {
       console.error('Admin check failed:', error)
