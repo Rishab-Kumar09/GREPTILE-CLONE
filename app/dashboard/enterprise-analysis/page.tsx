@@ -84,6 +84,11 @@ export default function EnterpriseAnalysisPage() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const [showRestoreBanner, setShowRestoreBanner] = useState(false)
   const [savedAnalysisData, setSavedAnalysisData] = useState<any>(null)
+  const [savedAnalyses, setSavedAnalyses] = useState<any[]>([])
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [saveTitle, setSaveTitle] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [historyExpanded, setHistoryExpanded] = useState(false)
 
   // Check for saved analysis in localStorage on mount
   useEffect(() => {
@@ -135,6 +140,114 @@ export default function EnterpriseAnalysisPage() {
   const dismissRestoreBanner = () => {
     setShowRestoreBanner(false)
     localStorage.removeItem('quickAnalysis_latest')
+  }
+
+  // Load saved analyses history
+  const loadSavedAnalyses = async () => {
+    if (!userSession) return
+    
+    try {
+      const res = await fetch(`/api/saved-analyses?userId=${userSession.userId}`)
+      const data = await res.json()
+      
+      if (data.success) {
+        setSavedAnalyses(data.analyses || [])
+      }
+    } catch (error) {
+      console.error('Failed to load saved analyses:', error)
+    }
+  }
+
+  // Load saved analyses on mount
+  useEffect(() => {
+    if (userSession) {
+      loadSavedAnalyses()
+    }
+  }, [userSession])
+
+  // Save current analysis to database
+  const handleSaveAnalysis = async () => {
+    if (!userSession || !saveTitle.trim()) return
+    
+    setIsSaving(true)
+    try {
+      const res = await fetch('/api/saved-analyses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userSession.userId,
+          analysisId,
+          repoUrl,
+          title: saveTitle.trim(),
+          results: status.results,
+          chatMessages
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        setShowSaveModal(false)
+        setSaveTitle('')
+        loadSavedAnalyses() // Refresh history
+        alert('✅ Analysis saved to history!')
+      } else {
+        alert('❌ Failed to save: ' + data.error)
+      }
+    } catch (error) {
+      console.error('Save failed:', error)
+      alert('❌ Network error')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Load saved analysis from history
+  const loadSavedAnalysis = async (id: number) => {
+    if (!userSession) return
+    
+    try {
+      const res = await fetch(`/api/saved-analyses/load?id=${id}&userId=${userSession.userId}`)
+      const data = await res.json()
+      
+      if (data.success && data.analysis) {
+        const analysis = data.analysis
+        setRepoUrl(analysis.repo_url)
+        setAnalysisId(analysis.analysis_id)
+        setStatus({
+          isAnalyzing: false,
+          progress: 100,
+          currentFile: '',
+          results: analysis.results,
+          summary: '',
+          stats: null
+        })
+        setChatMessages(analysis.chat_messages || [])
+        console.log('✅ Loaded saved analysis:', analysis.title)
+      }
+    } catch (error) {
+      console.error('Failed to load analysis:', error)
+      alert('❌ Failed to load analysis')
+    }
+  }
+
+  // Delete saved analysis
+  const deleteSavedAnalysis = async (id: number) => {
+    if (!userSession || !confirm('Delete this saved analysis?')) return
+    
+    try {
+      const res = await fetch(`/api/saved-analyses?id=${id}&userId=${userSession.userId}`, {
+        method: 'DELETE'
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        loadSavedAnalyses() // Refresh list
+      }
+    } catch (error) {
+      console.error('Delete failed:', error)
+    }
   }
 
   const groupResultsByFile = (results: AnalysisResult[]) => {
@@ -1242,6 +1355,65 @@ export default function EnterpriseAnalysisPage() {
           </div>
         )}
 
+        {/* Saved Analyses History */}
+        {userSession && savedAnalyses.length > 0 && (
+          <div className="mb-6 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div 
+              className="p-4 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
+              onClick={() => setHistoryExpanded(!historyExpanded)}
+            >
+              <div className="flex items-center gap-3">
+                <svg 
+                  className={`w-5 h-5 transform transition-transform ${historyExpanded ? 'rotate-90' : ''}`} 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                >
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xl">📚</span>
+                <h3 className="font-semibold text-gray-900">My Saved Analyses</h3>
+                <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
+                  {savedAnalyses.length}
+                </span>
+              </div>
+            </div>
+            
+            {historyExpanded && (
+              <div className="border-t border-gray-200 p-4 space-y-2 max-h-64 overflow-y-auto">
+                {savedAnalyses.map((analysis) => (
+                  <div 
+                    key={analysis.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-md hover:bg-gray-100"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900 text-sm">{analysis.title}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {analysis.repo_url.split('/').slice(-2).join('/')} • 
+                        {' '}{analysis.total_issues} issues • 
+                        {' '}{new Date(analysis.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => loadSavedAnalysis(analysis.id)}
+                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                      >
+                        Load
+                      </button>
+                      <button
+                        onClick={() => deleteSavedAnalysis(analysis.id)}
+                        className="px-3 py-1 text-red-600 hover:bg-red-50 rounded text-xs"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Input Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
           <div className="flex gap-4 items-end">
@@ -1347,9 +1519,23 @@ export default function EnterpriseAnalysisPage() {
                     {status.results.length} issues found
                   </span>
                 </div>
-                <span className="text-sm text-gray-500">
-                  {resultsExpanded ? 'Click to collapse' : 'Click to expand'}
-                </span>
+                <div className="flex items-center gap-3">
+                  {userSession && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowSaveModal(true)
+                        setSaveTitle(`${repoUrl.split('/').slice(-2).join('/')} - ${new Date().toLocaleDateString()}`)
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium flex items-center gap-2"
+                    >
+                      💾 Save to History
+                    </button>
+                  )}
+                  <span className="text-sm text-gray-500">
+                    {resultsExpanded ? 'Click to collapse' : 'Click to expand'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -1658,6 +1844,55 @@ export default function EnterpriseAnalysisPage() {
           userId={userSession.userId}
           userEmail={userSession.userEmail}
         />
+      )}
+
+      {/* Save Analysis Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 m-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              💾 Save Analysis to History
+            </h2>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Title
+              </label>
+              <input
+                type="text"
+                value={saveTitle}
+                onChange={(e) => setSaveTitle(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="e.g., Production Bug Fix - Nov 2024"
+              />
+            </div>
+            
+            <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-700 rounded-md text-sm">
+              <p className="text-gray-700 dark:text-gray-300">
+                📊 {status.results.length} issues • 💬 {chatMessages.length} messages
+              </p>
+            </div>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowSaveModal(false)
+                  setSaveTitle('')
+                }}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAnalysis}
+                disabled={isSaving || !saveTitle.trim()}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
