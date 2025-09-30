@@ -82,8 +82,60 @@ export default function EnterpriseAnalysisPage() {
   const [chatLoading, setChatLoading] = useState(false)
   const [isFullScreenChatOpen, setIsFullScreenChatOpen] = useState(false)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const [showRestoreBanner, setShowRestoreBanner] = useState(false)
+  const [savedAnalysisData, setSavedAnalysisData] = useState<any>(null)
 
+  // Check for saved analysis in localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('quickAnalysis_latest')
+    if (saved) {
+      try {
+        const data = JSON.parse(saved)
+        const age = Date.now() - data.timestamp
+        const maxAge = 24 * 60 * 60 * 1000 // 24 hours
+        
+        if (age < maxAge && !status.results.length) {
+          setSavedAnalysisData(data)
+          setShowRestoreBanner(true)
+        } else if (age >= maxAge) {
+          localStorage.removeItem('quickAnalysis_latest')
+        }
+      } catch (error) {
+        console.error('Failed to parse saved analysis:', error)
+      }
+    }
+  }, [])
 
+  // Auto-save to localStorage when results or chat changes
+  useEffect(() => {
+    if (status.results.length > 0 || chatMessages.length > 0) {
+      const dataToSave = {
+        repoUrl,
+        analysisId,
+        status,
+        chatMessages,
+        timestamp: Date.now()
+      }
+      localStorage.setItem('quickAnalysis_latest', JSON.stringify(dataToSave))
+      console.log('💾 Auto-saved to localStorage')
+    }
+  }, [status.results, chatMessages])
+
+  const restoreSavedAnalysis = () => {
+    if (savedAnalysisData) {
+      setRepoUrl(savedAnalysisData.repoUrl)
+      setAnalysisId(savedAnalysisData.analysisId)
+      setStatus(savedAnalysisData.status)
+      setChatMessages(savedAnalysisData.chatMessages || [])
+      setShowRestoreBanner(false)
+      console.log('✅ Restored analysis from localStorage')
+    }
+  }
+
+  const dismissRestoreBanner = () => {
+    setShowRestoreBanner(false)
+    localStorage.removeItem('quickAnalysis_latest')
+  }
 
   const groupResultsByFile = (results: AnalysisResult[]) => {
     const grouped = results.reduce((acc, result) => {
@@ -1155,6 +1207,40 @@ export default function EnterpriseAnalysisPage() {
           </h1>
         </div>
 
+        {/* Restore Banner */}
+        {showRestoreBanner && savedAnalysisData && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">💾</span>
+                <div>
+                  <p className="font-medium text-blue-900">
+                    Restore Previous Analysis
+                  </p>
+                  <p className="text-sm text-blue-700">
+                    {savedAnalysisData.repoUrl.split('/').slice(-2).join('/')} • 
+                    {' '}{savedAnalysisData.status.results.length} issues • 
+                    {' '}{Math.round((Date.now() - savedAnalysisData.timestamp) / 60000)} min ago
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={restoreSavedAnalysis}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+                >
+                  Restore
+                </button>
+                <button
+                  onClick={dismissRestoreBanner}
+                  className="px-4 py-2 text-blue-600 hover:bg-blue-100 rounded-md text-sm"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Input Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
