@@ -214,13 +214,12 @@ export default function EnterpriseAnalysisPage() {
         const analysis = data.analysis
         setRepoUrl(analysis.repo_url)
         setAnalysisId(analysis.analysis_id)
+        setIsAnalyzing(false)
         setStatus({
-          isAnalyzing: false,
+          status: 'completed',
           progress: 100,
           currentFile: '',
-          results: analysis.results,
-          summary: '',
-          stats: null
+          results: analysis.results
         })
         setChatMessages(analysis.chat_messages || [])
         console.log('✅ Loaded saved analysis:', analysis.title)
