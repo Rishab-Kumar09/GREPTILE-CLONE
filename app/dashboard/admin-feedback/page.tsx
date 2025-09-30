@@ -38,26 +38,30 @@ export default function AdminFeedbackPage() {
 
   const loadData = async () => {
     try {
-      // Get session
-      const sessionRes = await fetch('/api/auth/validate-session')
-      const sessionData = await sessionRes.json()
+      // Get current user from localStorage
+      const currentUserStr = localStorage.getItem('currentUser')
       
-      if (!sessionData.valid || !sessionData.user) {
+      if (!currentUserStr) {
         window.location.href = '/signin'
         return
       }
 
-      setUserId(sessionData.user.id)
+      const currentUser = JSON.parse(currentUserStr)
+      const currentUserId = currentUser.id
+
+      setUserId(currentUserId)
 
       // Load reports
       const reportsRes = await fetch(
-        `/api/feedback?userId=${sessionData.user.id}&includeResolved=${includeResolved}`
+        `/api/feedback?userId=${currentUserId}&includeResolved=${includeResolved}`
       )
       const reportsData = await reportsRes.json()
 
       if (reportsData.success) {
         setReports(reportsData.reports)
         setIsAdmin(reportsData.isAdmin)
+      } else {
+        console.error('Failed to load reports:', reportsData.error)
       }
     } catch (error) {
       console.error('Failed to load data:', error)
