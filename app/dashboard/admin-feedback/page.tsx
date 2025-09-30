@@ -66,6 +66,9 @@ export default function AdminFeedbackPage() {
   const [admins, setAdmins] = useState<Admin[]>([])
   const [newAdminEmail, setNewAdminEmail] = useState('')
   const [isAddingAdmin, setIsAddingAdmin] = useState(false)
+  const [showUserPicker, setShowUserPicker] = useState(false)
+  const [allUsersForPicker, setAllUsersForPicker] = useState<User[]>([])
+  const [userSearchQuery, setUserSearchQuery] = useState('')
   
   // Users tab state
   const [users, setUsers] = useState<User[]>([])
@@ -166,6 +169,13 @@ export default function AdminFeedbackPage() {
       if (data.success) {
         setAdmins(data.admins)
       }
+      
+      // Also load users for the picker
+      const usersRes = await fetch(`/api/admin/manage-users?userId=${userId}`)
+      const usersData = await usersRes.json()
+      if (usersData.success) {
+        setAllUsersForPicker(usersData.users)
+      }
     } catch (error) {
       console.error('Failed to load admins:', error)
     }
@@ -222,12 +232,20 @@ export default function AdminFeedbackPage() {
 
   // ========== USERS TAB ==========
   const loadUsers = async () => {
-    if (!userId) return
+    if (!userId) {
+      console.log('⚠️ Cannot load users: No userId')
+      return
+    }
     try {
+      console.log('📡 Loading users for userId:', userId)
       const res = await fetch(`/api/admin/manage-users?userId=${userId}`)
       const data = await res.json()
+      console.log('📊 Users API response:', data)
       if (data.success) {
         setUsers(data.users)
+        console.log('✅ Loaded users:', data.users.length)
+      } else {
+        console.error('❌ Failed to load users:', data.error)
       }
     } catch (error) {
       console.error('Failed to load users:', error)
@@ -505,25 +523,119 @@ export default function AdminFeedbackPage() {
             {/* Add Admin Form */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
               <h2 className="text-xl font-bold text-gray-900 mb-4">➕ Add New Admin</h2>
-              <div className="flex gap-4">
-                <input
-                  type="email"
-                  value={newAdminEmail}
-                  onChange={(e) => setNewAdminEmail(e.target.value)}
-                  placeholder="user@company.com"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-                <button
-                  onClick={handleAddAdmin}
-                  disabled={isAddingAdmin || !newAdminEmail.trim()}
-                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isAddingAdmin ? 'Adding...' : 'Add Admin'}
-                </button>
+              
+              {/* User Picker or Email Input */}
+              <div className="mb-4">
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={() => setShowUserPicker(true)}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${
+                      showUserPicker 
+                        ? 'bg-primary-600 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    👥 Pick from Users ({allUsersForPicker.length})
+                  </button>
+                  <button
+                    onClick={() => setShowUserPicker(false)}
+                    className={`px-4 py-2 rounded-md text-sm font-medium ${
+                      !showUserPicker 
+                        ? 'bg-primary-600 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    ✉️ Enter Email
+                  </button>
+                </div>
+
+                {showUserPicker ? (
+                  <div>
+                    {/* Search */}
+                    <input
+                      type="text"
+                      value={userSearchQuery}
+                      onChange={(e) => setUserSearchQuery(e.target.value)}
+                      placeholder="Search users by name or email..."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md mb-3"
+                    />
+                    
+                    {/* User List */}
+                    <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">
+                      {allUsersForPicker
+                        .filter(user => 
+                          user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                          user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
+                        )
+                        .map(user => (
+                          <div
+                            key={user.id}
+                            onClick={() => {
+                              setNewAdminEmail(user.email)
+                              setShowUserPicker(false)
+                              setUserSearchQuery('')
+                            }}
+                            className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 flex items-center gap-3"
+                          >
+                            {user.profileImage ? (
+                              <img src={user.profileImage} alt="" className="w-8 h-8 rounded-full object-cover" />
+                            ) : (
+                              <span className="text-xl">{user.profileIcon || '👤'}</span>
+                            )}
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900 text-sm">{user.name}</p>
+                              <p className="text-xs text-gray-600">{user.email}</p>
+                            </div>
+                            <button className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                              Select
+                            </button>
+                          </div>
+                        ))}
+                      {allUsersForPicker.filter(user => 
+                        user.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                        user.email.toLowerCase().includes(userSearchQuery.toLowerCase())
+                      ).length === 0 && (
+                        <p className="p-4 text-center text-gray-500 text-sm">No users found</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-4">
+                    <input
+                      type="email"
+                      value={newAdminEmail}
+                      onChange={(e) => setNewAdminEmail(e.target.value)}
+                      placeholder="user@company.com"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                )}
               </div>
-              <p className="text-sm text-gray-500 mt-2">
-                Enter the email of an existing user to make them an admin
-              </p>
+
+              {/* Selected User Display */}
+              {newAdminEmail && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">Selected:</p>
+                    <p className="text-sm text-blue-700">{newAdminEmail}</p>
+                  </div>
+                  <button
+                    onClick={() => setNewAdminEmail('')}
+                    className="text-blue-600 hover:text-blue-800 text-sm"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+
+              {/* Add Button */}
+              <button
+                onClick={handleAddAdmin}
+                disabled={isAddingAdmin || !newAdminEmail.trim()}
+                className="w-full px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              >
+                {isAddingAdmin ? 'Adding Admin...' : '➕ Add as Admin'}
+              </button>
             </div>
 
             {/* Admins List */}
