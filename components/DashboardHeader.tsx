@@ -16,6 +16,8 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
   const [userName, setUserName] = useState('User')
   const [userTitle, setUserTitle] = useState('Developer')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [userRole, setUserRole] = useState('Developer')
 
   // Load profile settings from DATABASE (with localStorage fallback)
   const loadProfileSettings = async () => {
@@ -80,13 +82,14 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
     checkAdminStatus()
   }, [])
 
-  // Check if user is admin
+  // Check if user is admin and get role
   const checkAdminStatus = async () => {
     try {
       // Get current user from localStorage (set during login)
       const currentUserStr = localStorage.getItem('currentUser')
       if (!currentUserStr) {
         console.log('No current user found')
+        setUserRole(userTitle || 'Developer')
         return
       }
 
@@ -95,27 +98,50 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
       
       if (!userId) {
         console.log('No user ID found')
+        setUserRole(userTitle || 'Developer')
         return
       }
 
-      // Check admin status directly with user ID
-      const feedbackRes = await fetch(`/api/feedback?userId=${userId}&includeResolved=false`)
+      // Check admin status and get role
+      const adminRes = await fetch(`/api/admin/get-role?userId=${userId}`)
       
-      if (!feedbackRes.ok) {
-        console.log('Admin check API failed:', feedbackRes.status)
-        return
-      }
-      
-      const feedbackData = await feedbackRes.json()
-      
-      if (feedbackData.success && feedbackData.isAdmin) {
-        setIsAdmin(true)
-        console.log('✅ Admin status confirmed for:', userId)
+      if (adminRes.ok) {
+        const adminData = await adminRes.json()
+        
+        if (adminData.success) {
+          if (adminData.isSuperAdmin) {
+            setIsAdmin(true)
+            setIsSuperAdmin(true)
+            setUserRole('Super Admin')
+            console.log('✅ Super Admin confirmed:', userId)
+          } else if (adminData.isAdmin) {
+            setIsAdmin(true)
+            setIsSuperAdmin(false)
+            setUserRole('Admin')
+            console.log('✅ Admin status confirmed:', userId)
+          } else {
+            setIsAdmin(false)
+            setIsSuperAdmin(false)
+            setUserRole(userTitle || 'Developer')
+            console.log('⚠️ Not an admin:', userId)
+          }
+        }
       } else {
-        console.log('⚠️ Not an admin:', userId)
+        // Fallback to feedback API
+        const feedbackRes = await fetch(`/api/feedback?userId=${userId}&includeResolved=false`)
+        if (feedbackRes.ok) {
+          const feedbackData = await feedbackRes.json()
+          if (feedbackData.success && feedbackData.isAdmin) {
+            setIsAdmin(true)
+            setUserRole('Admin')
+          } else {
+            setUserRole(userTitle || 'Developer')
+          }
+        }
       }
     } catch (error) {
       console.error('Admin check failed:', error)
+      setUserRole(userTitle || 'Developer')
     }
   }
 
@@ -217,7 +243,13 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border">
                   <div className="px-4 py-2 border-b">
                     <p className="text-sm font-medium text-gray-900">{userName}</p>
-                    <p className="text-sm text-gray-500">{userTitle}</p>
+                    <p className={`text-sm ${
+                      isSuperAdmin ? 'text-purple-600 font-semibold' : 
+                      isAdmin ? 'text-blue-600 font-semibold' : 
+                      'text-gray-500'
+                    }`}>
+                      {userRole}
+                    </p>
                   </div>
                   <button
                     onClick={handleLogout}

@@ -25,8 +25,10 @@ interface Report {
 }
 
 export default function AdminFeedbackPage() {
+  const [activeTab, setActiveTab] = useState<'reports' | 'admins' | 'users'>('reports')
   const [reports, setReports] = useState<Report[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState('')
   const [selectedReport, setSelectedReport] = useState<Report | null>(null)
