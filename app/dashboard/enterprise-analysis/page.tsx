@@ -63,16 +63,17 @@ export default function EnterpriseAnalysisPage() {
   })
   const [userSession, setUserSession] = useState<{ userId: string; userEmail: string } | null>(null)
 
-  // Get user session
+  // Get user session from localStorage
   useEffect(() => {
-    fetch('/api/auth/validate-session')
-      .then(res => res.json())
-      .then(data => {
-        if (data.valid && data.user) {
-          setUserSession({ userId: data.user.id, userEmail: data.user.email })
-        }
-      })
-      .catch(console.error)
+    const currentUserStr = localStorage.getItem('currentUser')
+    if (currentUserStr) {
+      try {
+        const currentUser = JSON.parse(currentUserStr)
+        setUserSession({ userId: currentUser.id, userEmail: currentUser.email })
+      } catch (error) {
+        console.error('Failed to parse currentUser:', error)
+      }
+    }
   }, [])
   const [expandedFiles, setExpandedFiles] = useState<{[key: string]: boolean}>({})
   const [resultsExpanded, setResultsExpanded] = useState(true) // New: overall results collapse/expand
