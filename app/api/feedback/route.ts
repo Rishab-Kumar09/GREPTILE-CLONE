@@ -154,9 +154,12 @@ export async function GET(request: NextRequest) {
             r.*,
             s.signed_off_by,
             s.signed_off_at,
-            s.admin_notes
+            s.admin_notes,
+            a.user_name as admin_name,
+            a.user_email as admin_email
           FROM issue_reports r
           LEFT JOIN issue_signoffs s ON r.id = s.report_id
+          LEFT JOIN admins a ON s.signed_off_by = a.user_id
           ORDER BY r.created_at DESC
         ` as any[]
       } else {
@@ -165,9 +168,12 @@ export async function GET(request: NextRequest) {
             r.*,
             s.signed_off_by,
             s.signed_off_at,
-            s.admin_notes
+            s.admin_notes,
+            a.user_name as admin_name,
+            a.user_email as admin_email
           FROM issue_reports r
           LEFT JOIN issue_signoffs s ON r.id = s.report_id
+          LEFT JOIN admins a ON s.signed_off_by = a.user_id
           WHERE r.status != 'resolved'
           ORDER BY r.created_at DESC
         ` as any[]

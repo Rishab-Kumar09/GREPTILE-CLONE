@@ -19,6 +19,8 @@ interface Report {
   signed_off_by?: string
   signed_off_at?: string
   admin_notes?: string
+  admin_name?: string
+  admin_email?: string
   image_type?: string
   image_data?: string
   video_url?: string
@@ -474,7 +476,13 @@ export default function AdminFeedbackPage() {
                       {report.signed_off_by && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
                           <p className="text-sm text-gray-600">
-                            <span className="font-medium">Signed off by:</span> {report.signed_off_by}
+                            <span className="font-medium">Signed off by:</span>{' '}
+                            {report.admin_name || report.admin_email || report.signed_off_by}
+                            {report.signed_off_at && (
+                              <span className="text-gray-500 ml-2">
+                                • {new Date(report.signed_off_at).toLocaleString()}
+                              </span>
+                            )}
                           </p>
                           {report.admin_notes && (
                             <p className="text-sm text-gray-600 mt-2">
