@@ -146,25 +146,46 @@ export async function GET(request: NextRequest) {
     let reports
     if (userIsAdmin) {
       // Admins see ALL reports
-      reports = await prisma.$queryRaw`
-        SELECT 
-          r.*,
-          s.signed_off_by,
-          s.signed_off_at,
-          s.admin_notes
-        FROM issue_reports r
-        LEFT JOIN issue_signoffs s ON r.id = s.report_id
-        ${includeResolved ? prisma.$queryRaw`` : prisma.$queryRaw`WHERE r.status != 'resolved'`}
-        ORDER BY r.created_at DESC
-      ` as any[]
+      if (includeResolved) {
+        reports = await prisma.$queryRaw`
+          SELECT 
+            r.*,
+            s.signed_off_by,
+            s.signed_off_at,
+            s.admin_notes
+          FROM issue_reports r
+          LEFT JOIN issue_signoffs s ON r.id = s.report_id
+          ORDER BY r.created_at DESC
+        ` as any[]
+      } else {
+        reports = await prisma.$queryRaw`
+          SELECT 
+            r.*,
+            s.signed_off_by,
+            s.signed_off_at,
+            s.admin_notes
+          FROM issue_reports r
+          LEFT JOIN issue_signoffs s ON r.id = s.report_id
+          WHERE r.status != 'resolved'
+          ORDER BY r.created_at DESC
+        ` as any[]
+      }
     } else {
       // Users see only their own reports
-      reports = await prisma.$queryRaw`
-        SELECT * FROM issue_reports
-        WHERE reported_by_user_id = ${userId}
-        ${includeResolved ? prisma.$queryRaw`` : prisma.$queryRaw`AND status != 'resolved'`}
-        ORDER BY created_at DESC
-      ` as any[]
+      if (includeResolved) {
+        reports = await prisma.$queryRaw`
+          SELECT * FROM issue_reports
+          WHERE reported_by_user_id = ${userId}
+          ORDER BY created_at DESC
+        ` as any[]
+      } else {
+        reports = await prisma.$queryRaw`
+          SELECT * FROM issue_reports
+          WHERE reported_by_user_id = ${userId}
+          AND status != 'resolved'
+          ORDER BY created_at DESC
+        ` as any[]
+      }
     }
 
     return NextResponse.json({
