@@ -28,8 +28,69 @@ export default function FeedbackModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [videoUrl, setVideoUrl] = useState('')
+  const [uploadStatus, setUploadStatus] = useState('')
 
   if (!isOpen) return null
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Check file size (1MB = 1,048,576 bytes)
+    if (file.size > 1048576) {
+      setError('Image must be less than 1MB')
+      return
+    }
+
+    // Check file type
+    if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
+      setError('Only JPG, PNG, and GIF images are allowed')
+      return
+    }
+
+    setImageFile(file)
+    setError('')
+
+    // Create preview
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const uploadToImgur = async (file: File): Promise<string | null> => {
+    const formData = new FormData()
+    formData.append('image', file)
+
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
+      const response = await fetch('https://api.imgur.com/3/image', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Client-ID 546c25a59c58ad7', // Public anonymous Imgur client ID
+        },
+        body: formData,
+        signal: controller.signal
+      })
+
+      clearTimeout(timeoutId)
+
+      if (response.ok) {
+        const data = await response.json()
+        return data.data.link // Returns https://i.imgur.com/xyz.png
+      }
+      return null
+    } catch (error) {
+      console.log('Imgur upload failed:', error)
+      return null
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,6 +98,29 @@ export default function FeedbackModal({
     setError('')
 
     try {
+      let imageType = null
+      let imageData = null
+
+      // Handle image upload if present
+      if (imageFile) {
+        setUploadStatus('Uploading to Imgur...')
+        
+        // Try Imgur first (15 second timeout)
+        const imgurUrl = await uploadToImgur(imageFile)
+        
+        if (imgurUrl) {
+          imageType = 'url'
+          imageData = imgurUrl
+          setUploadStatus('Image uploaded to Imgur!')
+        } else {
+          // Fallback to base64
+          setUploadStatus('Storing image locally...')
+          imageType = 'base64'
+          imageData = imagePreview?.split(',')[1] // Remove "data:image/png;base64," prefix
+          setUploadStatus('Image stored!')
+        }
+      }
+
       const response = await fetch('/api/feedback?action=report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -46,7 +130,10 @@ export default function FeedbackModal({
           description: `${description}\n\n---\nOriginal Issue: ${issueDescription}`,
           category,
           userId,
-          userEmail
+          userEmail,
+          imageType,
+          imageData,
+          videoUrl: videoUrl || null
         })
       })
 
@@ -58,6 +145,10 @@ export default function FeedbackModal({
           onClose()
           setSuccess(false)
           setDescription('')
+          setImageFile(null)
+          setImagePreview(null)
+          setVideoUrl('')
+          setUploadStatus('')
         }, 2000)
       } else {
         setError(data.error || 'Failed to submit report')
@@ -151,6 +242,51 @@ export default function FeedbackModal({
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
                 placeholder="Please describe the issue in detail..."
                 required
+              />
+            </div>
+
+            {/* Image Upload */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                📷 Screenshot (optional, max 1MB)
+              </label>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif"
+                onChange={handleImageChange}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+              />
+              {imagePreview && (
+                <div className="mt-2">
+                  <img src={imagePreview} alt="Preview" className="max-h-32 rounded border border-gray-300" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImageFile(null)
+                      setImagePreview(null)
+                    }}
+                    className="mt-1 text-xs text-red-600 hover:text-red-800"
+                  >
+                    Remove image
+                  </button>
+                </div>
+              )}
+              {uploadStatus && (
+                <p className="mt-1 text-xs text-blue-600">{uploadStatus}</p>
+              )}
+            </div>
+
+            {/* Video URL */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                🎥 Video URL (optional)
+              </label>
+              <input
+                type="url"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://youtube.com/watch?v=... or https://loom.com/..."
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
 

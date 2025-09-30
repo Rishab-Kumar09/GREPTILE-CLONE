@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     
     if (action === 'report') {
       // Submit bug report
-      const { issueId, title, description, category, userId, userEmail } = await request.json()
+      const { issueId, title, description, category, userId, userEmail, imageType, imageData, videoUrl } = await request.json()
       
       if (!issueId || !title || !description || !userId) {
         return NextResponse.json({
@@ -38,10 +38,12 @@ export async function POST(request: NextRequest) {
       await prisma.$executeRaw`
         INSERT INTO issue_reports (
           issue_id, title, description, category,
-          reported_by_user_id, reported_by_email, status, created_at
+          reported_by_user_id, reported_by_email, status, created_at,
+          image_type, image_data, video_url
         ) VALUES (
           ${issueId}, ${title}, ${description}, ${category || 'bug'},
-          ${userId}, ${userEmail || null}, 'open', NOW()
+          ${userId}, ${userEmail || null}, 'open', NOW(),
+          ${imageType || null}, ${imageData || null}, ${videoUrl || null}
         )
       `
 

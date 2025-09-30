@@ -19,6 +19,9 @@ interface Report {
   signed_off_by?: string
   signed_off_at?: string
   admin_notes?: string
+  image_type?: string
+  image_data?: string
+  video_url?: string
 }
 
 export default function AdminFeedbackPage() {
@@ -241,6 +244,45 @@ export default function AdminFeedbackPage() {
                     {report.description}
                   </p>
                 </div>
+
+                {/* Image Display */}
+                {report.image_data && (
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">📷 Screenshot:</p>
+                    <img 
+                      src={report.image_type === 'url' 
+                        ? report.image_data 
+                        : `data:image/png;base64,${report.image_data}`
+                      }
+                      alt="Screenshot"
+                      className="max-h-64 rounded border border-gray-300 cursor-pointer hover:opacity-90"
+                      onClick={() => window.open(
+                        report.image_type === 'url' 
+                          ? report.image_data 
+                          : `data:image/png;base64,${report.image_data}`,
+                        '_blank'
+                      )}
+                    />
+                    {report.image_type === 'base64' && (
+                      <p className="text-xs text-gray-500 mt-1">Stored locally</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Video URL */}
+                {report.video_url && (
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">🎥 Video:</p>
+                    <a 
+                      href={report.video_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline text-sm"
+                    >
+                      Watch Video →
+                    </a>
+                  </div>
+                )}
 
                 {report.signed_off_by && (
                   <div className="bg-blue-50 rounded-md p-3 mb-4">
