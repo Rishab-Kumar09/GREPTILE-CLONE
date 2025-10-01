@@ -111,8 +111,16 @@ export default function AdminFeedbackPage() {
         setIsSuperAdmin(roleData.isSuperAdmin)
       }
 
-      // Load initial tab data
-      await loadReports()
+      // Load initial reports directly with userId
+      try {
+        const res = await fetch(`/api/feedback?userId=${currentUserId}&includeResolved=${includeResolved}`)
+        const data = await res.json()
+        if (data.success) {
+          setReports(data.reports)
+        }
+      } catch (error) {
+        console.error('Failed to load reports:', error)
+      }
     } catch (error) {
       console.error('Failed to load initial data:', error)
     } finally {
