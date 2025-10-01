@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { PrismaClient } from '@prisma/client'
 
 const GITHUB_API = 'https://api.github.com'
+const prisma = new PrismaClient()
 
 // Lazy import to avoid build issues if key missing at build time
 let openai: any = null
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
     }
 
-    const { repoFullName, question, batchLimit = 8, maxFileBytes = 40_000, analysisResults } = await req.json()
+    const { repoFullName, question, batchLimit = 8, maxFileBytes = 40_000, analysisResults, userId } = await req.json()
     if (!repoFullName || !question) {
       return NextResponse.json({ error: 'repoFullName and question are required' }, { status: 400 })
     }
@@ -30,6 +32,37 @@ export async function POST(req: NextRequest) {
     const [owner, repo] = String(repoFullName).split('/')
     if (!owner || !repo) {
       return NextResponse.json({ error: 'Invalid repoFullName. Use owner/repo' }, { status: 400 })
+    }
+
+    // Get user's GitHub token for authenticated requests (avoids rate limits)
+    let githubToken: string | null = null
+    if (userId) {
+      try {
+        const result = await prisma.$queryRaw`
+          SELECT "githubTokenRef" 
+          FROM "UserProfile" 
+          WHERE id = ${userId} AND "githubConnected" = true 
+          LIMIT 1
+        ` as any[]
+        
+        if (result.length > 0 && result[0].githubTokenRef) {
+          githubToken = result[0].githubTokenRef
+          console.log('✅ Using authenticated GitHub token for user:', userId)
+        }
+      } catch (error) {
+        console.log('⚠️ Could not fetch GitHub token, falling back to unauthenticated:', error)
+      } finally {
+        await prisma.$disconnect()
+      }
+    }
+
+    // Build headers for GitHub API calls
+    const githubHeaders: Record<string, string> = {
+      'User-Agent': 'Greptile-Clone',
+      'Accept': 'application/vnd.github.v3+json'
+    }
+    if (githubToken) {
+      githubHeaders['Authorization'] = `Bearer ${githubToken}`
     }
 
     // Detect default branch with timeout and proper headers
@@ -41,10 +74,7 @@ export async function POST(req: NextRequest) {
     try {
       repoRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}`, {
         signal: controller.signal,
-        headers: {
-          'User-Agent': 'Greptile-Clone',
-          'Accept': 'application/vnd.github.v3+json'
-        }
+        headers: githubHeaders
       })
       clearTimeout(timeoutId)
       
@@ -63,10 +93,7 @@ export async function POST(req: NextRequest) {
       
       treeRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/git/trees/${defaultBranch}?recursive=1`, {
         signal: treeController.signal,
-        headers: {
-          'User-Agent': 'Greptile-Clone',
-          'Accept': 'application/vnd.github.v3+json'
-        }
+        headers: githubHeaders
       })
       clearTimeout(treeTimeoutId)
       
@@ -121,7 +148,9 @@ export async function POST(req: NextRequest) {
     const filesWithContent: { path: string; content: string; score: number }[] = []
     for (const item of topPaths) {
       try {
-        const blobRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/contents/${encodeURIComponent(item.path)}?ref=${defaultBranch}`)
+        const blobRes = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/contents/${encodeURIComponent(item.path)}?ref=${defaultBranch}`, {
+          headers: githubHeaders
+        })
         if (!blobRes.ok) continue
         const blob = await blobRes.json()
         if (!blob.content) continue

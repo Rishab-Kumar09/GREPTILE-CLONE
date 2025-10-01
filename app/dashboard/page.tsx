@@ -381,12 +381,18 @@ export default function Dashboard() {
     setIsLoading(true)
 
     try {
+      // Get userId for authenticated API calls
+      const currentUserStr = localStorage.getItem('currentUser')
+      const currentUser = currentUserStr ? JSON.parse(currentUserStr) : null
+      const userId = currentUser?.id
+      
       // Call repository-specific AI API if a repo is selected, otherwise general AI
       const apiEndpoint = selectedRepo ? '/api/github/chat' : '/api/ai/chat'
       const requestBody = selectedRepo 
         ? {
             repoFullName: selectedRepo.fullName,
-            question: messageToSend
+            question: messageToSend,
+            userId: userId // Add userId for authenticated GitHub API calls
           }
         : {
             message: messageToSend,
