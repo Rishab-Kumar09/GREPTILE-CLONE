@@ -68,32 +68,44 @@ export default function FeedbackModal({
     reader.readAsDataURL(file)
   }
 
-  const uploadToImgur = async (file: File): Promise<string | null> => {
-    const formData = new FormData()
-    formData.append('image', file)
-
+  // 🚀 PRODUCTION: Upload to AWS S3
+  const storeImageDirectly = async (file: File): Promise<{ type: string; data: string } | null> => {
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
-
-      const response = await fetch('https://api.imgur.com/3/image', {
+      // Step 1: Get presigned URL from your API
+      const presignedResponse = await fetch('/api/upload/presigned-url', {
         method: 'POST',
-        headers: {
-          Authorization: 'Client-ID 546c25a59c58ad7', // Public anonymous Imgur client ID
-        },
-        body: formData,
-        signal: controller.signal
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type
+        })
       })
 
-      clearTimeout(timeoutId)
+      if (!presignedResponse.ok) {
+        console.error('Failed to get presigned URL')
+        return null
+      }
 
-      if (response.ok) {
-        const data = await response.json()
-        return data.data.link // Returns https://i.imgur.com/xyz.png
+      const { uploadUrl, publicUrl } = await presignedResponse.json()
+
+      // Step 2: Upload directly to S3 using presigned URL
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type
+        }
+      })
+
+      if (uploadResponse.ok) {
+        return {
+          type: 'url',
+          data: publicUrl // S3 public URL
+        }
       }
       return null
     } catch (error) {
-      console.log('Imgur upload failed:', error)
+      console.error('S3 upload failed:', error)
       return null
     }
   }
@@ -118,21 +130,19 @@ export default function FeedbackModal({
           return
         }
         
-        setUploadStatus('Uploading to Imgur...')
+        setUploadStatus('Uploading to S3...')
         
-        // Try Imgur first (15 second timeout)
-        const imgurUrl = await uploadToImgur(imageFile)
+        // 🚀 PRODUCTION: Upload to AWS S3
+        const s3Result = await storeImageDirectly(imageFile)
         
-        if (imgurUrl) {
-          imageType = 'url'
-          imageData = imgurUrl
-          setUploadStatus('Image uploaded to Imgur!')
+        if (s3Result) {
+          imageType = s3Result.type
+          imageData = s3Result.data
+          setUploadStatus('Image uploaded successfully!')
         } else {
-          // Fallback to base64
-          setUploadStatus('Storing image locally...')
-          imageType = 'base64'
-          imageData = imagePreview?.split(',')[1] // Remove "data:image/png;base64," prefix
-          setUploadStatus('Image stored!')
+          setError('❌ Image upload failed. Please try again.')
+          setIsSubmitting(false)
+          return
         }
       }
 

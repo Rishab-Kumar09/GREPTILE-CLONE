@@ -421,30 +421,20 @@ export default function AdminFeedbackPage() {
               ) : (
                 reports.map((report) => (
                   <div key={report.id} className="bg-white shadow-sm rounded-lg border border-gray-200">
-                    <div className="p-4 border-b border-gray-200 flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xl">{categoryEmoji(report.category)}</span>
-                          <h3 className="text-lg font-semibold text-gray-900">{report.title}</h3>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor(report.status)}`}>
-                            {report.status}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Reported by: {report.reported_by_email || 'Unknown'}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {new Date(report.created_at).toLocaleString()}
-                        </p>
+                    <div className="p-4 border-b border-gray-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xl">{categoryEmoji(report.category)}</span>
+                        <h3 className="text-lg font-semibold text-gray-900">{report.title}</h3>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor(report.status)}`}>
+                          {report.status}
+                        </span>
                       </div>
-                      {report.status === 'open' && (
-                        <button
-                          onClick={() => setSelectedReport(report)}
-                          className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm"
-                        >
-                          Review
-                        </button>
-                      )}
+                      <p className="text-sm text-gray-600 mb-2">
+                        Reported by: {report.reported_by_email || 'Unknown'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(report.created_at).toLocaleString()}
+                      </p>
                     </div>
 
                     <div className="p-4">
@@ -493,23 +483,36 @@ export default function AdminFeedbackPage() {
                         </div>
                       )}
 
-                      {/* Sign-off info */}
-                      {report.signed_off_by && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <p className="text-sm text-gray-600">
-                            <span className="font-medium">Signed off by:</span>{' '}
+                      {/* Sign-off info or Sign-off button */}
+                      {report.signed_off_by ? (
+                        <div className="mt-4 pt-4 border-t border-gray-200 bg-green-50 p-3 rounded-md">
+                          <p className="text-sm text-green-800">
+                            ✅ <span className="font-medium">Signed off by:</span>{' '}
                             {report.admin_name || report.admin_email || report.signed_off_by}
                             {report.signed_off_at && (
-                              <span className="text-gray-500 ml-2">
+                              <span className="text-green-600 ml-2">
                                 • {new Date(report.signed_off_at).toLocaleString()}
                               </span>
                             )}
                           </p>
                           {report.admin_notes && (
-                            <p className="text-sm text-gray-600 mt-2">
+                            <p className="text-sm text-green-800 mt-2">
                               <span className="font-medium">Notes:</span> {report.admin_notes}
                             </p>
                           )}
+                        </div>
+                      ) : (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <button
+                            onClick={() => {
+                              setSelectedReport(report)
+                              setSignoffNotes('')
+                              setSignoffStatus('reviewed')
+                            }}
+                            className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium flex items-center justify-center gap-2"
+                          >
+                            📝 Sign Off
+                          </button>
                         </div>
                       )}
                     </div>
