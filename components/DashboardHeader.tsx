@@ -170,12 +170,12 @@ export default function DashboardHeader({ currentPage }: DashboardHeaderProps) {
     <header className="bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <div className="flex items-center">
+          <Link href="/dashboard" className="flex items-center hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg">✅</span>
             </div>
             <span className="ml-2 text-xl font-bold text-gray-900">RepCheck</span>
-          </div>
+          </Link>
           
           <nav className="flex items-center space-x-8">
             <Link 
