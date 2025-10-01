@@ -41,13 +41,19 @@ export default function FeedbackModal({
 
     // Check file size (1MB = 1,048,576 bytes)
     if (file.size > 1048576) {
-      setError('Image must be less than 1MB')
+      setError('❌ Image must be less than 1MB (selected: ' + Math.round(file.size / 1024) + ' KB)')
+      e.target.value = '' // Clear the file input
+      setImageFile(null)
+      setImagePreview(null)
       return
     }
 
     // Check file type
     if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
-      setError('Only JPG, PNG, and GIF images are allowed')
+      setError('❌ Only JPG, PNG, and GIF images are allowed')
+      e.target.value = '' // Clear the file input
+      setImageFile(null)
+      setImagePreview(null)
       return
     }
 
@@ -103,6 +109,15 @@ export default function FeedbackModal({
 
       // Handle image upload if present
       if (imageFile) {
+        // 🛡️ DOUBLE-CHECK FILE SIZE (just in case)
+        if (imageFile.size > 1048576) {
+          setError('❌ Image is too large (' + Math.round(imageFile.size / 1024) + ' KB). Maximum is 1 MB (1024 KB).')
+          setIsSubmitting(false)
+          setImageFile(null)
+          setImagePreview(null)
+          return
+        }
+        
         setUploadStatus('Uploading to Imgur...')
         
         // Try Imgur first (15 second timeout)
