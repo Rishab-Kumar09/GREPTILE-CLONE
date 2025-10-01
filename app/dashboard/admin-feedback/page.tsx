@@ -798,12 +798,86 @@ export default function AdminFeedbackPage() {
                 </button>
               </div>
 
-              <div className="mb-4 p-3 bg-gray-100 rounded-md">
-                <p className="font-semibold text-gray-900 mb-1">{selectedReport.title}</p>
-                <p className="text-sm text-gray-600">{selectedReport.description}</p>
+              {/* Report Details */}
+              <div className="mb-6 space-y-4">
+                {/* Title & Category */}
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">{categoryEmoji(selectedReport.category)}</span>
+                    <h3 className="text-lg font-bold text-gray-900">{selectedReport.title}</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    <span className="font-medium">Category:</span> {selectedReport.category}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    <span className="font-medium">Reported by:</span> {selectedReport.reported_by_email || 'Unknown'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(selectedReport.created_at).toLocaleString()}
+                  </p>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">📝 Description:</p>
+                  <div className="p-4 bg-gray-50 rounded-md">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedReport.description}</p>
+                  </div>
+                </div>
+
+                {/* Original Issue Info */}
+                {selectedReport.issue_id && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-sm text-blue-900">
+                      <span className="font-medium">Original Issue:</span> {selectedReport.issue_id}
+                    </p>
+                    {selectedReport.file_path && (
+                      <p className="text-xs text-blue-700 mt-1">
+                        📄 {selectedReport.file_path}
+                        {selectedReport.line_number && ` (Line ${selectedReport.line_number})`}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Screenshot */}
+                {selectedReport.image_data && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">📷 Screenshot:</p>
+                    <img 
+                      src={selectedReport.image_type === 'url' 
+                        ? selectedReport.image_data 
+                        : `data:image/png;base64,${selectedReport.image_data}`
+                      }
+                      alt="Screenshot"
+                      className="max-h-64 rounded border border-gray-300 cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                      onClick={() => setLightboxImage(
+                        selectedReport.image_type === 'url' 
+                          ? (selectedReport.image_data || null)
+                          : (selectedReport.image_data ? `data:image/png;base64,${selectedReport.image_data}` : null)
+                      )}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Click to enlarge</p>
+                  </div>
+                )}
+
+                {/* Video */}
+                {selectedReport.video_url && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">🎥 Video:</p>
+                    <a 
+                      href={selectedReport.video_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline text-sm"
+                    >
+                      Watch Video →
+                    </a>
+                  </div>
+                )}
               </div>
 
-              <div className="mb-4">
+              <div className="border-t border-gray-200 pt-4 mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Status
                 </label>
