@@ -467,8 +467,8 @@ export default function AdminFeedbackPage() {
                             className="max-h-64 rounded border border-gray-300 cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
                             onClick={() => setLightboxImage(
                               report.image_type === 'url' 
-                                ? report.image_data 
-                                : `data:image/png;base64,${report.image_data}`
+                                ? (report.image_data || null)
+                                : (report.image_data ? `data:image/png;base64,${report.image_data}` : null)
                             )}
                           />
                           <p className="text-xs text-gray-500 mt-1">
