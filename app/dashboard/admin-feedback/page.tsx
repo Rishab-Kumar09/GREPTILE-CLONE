@@ -835,17 +835,34 @@ export default function AdminFeedbackPage() {
               />
 
               {/* Download button */}
-              <a
-                href={lightboxImage}
-                download="screenshot.png"
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // Fetch image and trigger download
+                  fetch(lightboxImage)
+                    .then(res => res.blob())
+                    .then(blob => {
+                      const url = window.URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `screenshot-${Date.now()}.png`
+                      document.body.appendChild(a)
+                      a.click()
+                      window.URL.revokeObjectURL(url)
+                      document.body.removeChild(a)
+                    })
+                    .catch(err => {
+                      console.error('Download failed:', err)
+                      alert('Download failed. Image may be on a different domain.')
+                    })
+                }}
                 className="absolute bottom-4 right-4 px-4 py-2 bg-white text-gray-900 rounded-md hover:bg-gray-100 transition-colors font-medium flex items-center gap-2"
-                onClick={(e) => e.stopPropagation()}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
                 Download
-              </a>
+              </button>
 
               {/* Helper text */}
               <p className="absolute bottom-4 left-4 text-white text-sm bg-black/50 px-3 py-2 rounded-md">
