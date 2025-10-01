@@ -58,7 +58,7 @@ export default function Features() {
             Your second pair of eyes
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Greptile automatically reviews PRs in GitHub and GitLab with full context of your codebase
+            RepCheck automatically reviews PRs in GitHub and GitLab with full context of your codebase
           </p>
         </div>
 

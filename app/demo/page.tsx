@@ -130,7 +130,7 @@ export default function Demo() {
                 <div className="w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center mr-2">
                   <span className="text-white text-xs">🤖</span>
                 </div>
-                <span className="font-medium text-sm">Greptile AI</span>
+                <span className="font-medium text-sm">RepCheck AI</span>
                 <span className="text-xs text-gray-500 ml-auto">2 minutes ago</span>
               </div>
               <div className="bg-red-50 border border-red-200 rounded p-3 mb-2">
@@ -234,9 +234,9 @@ export default function Demo() {
           <div className="flex justify-between items-center h-16">
             <Link href="/" className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">🦎</span>
+                <span className="text-white font-bold text-lg">✅</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">Greptile Clone</span>
+              <span className="text-xl font-bold text-gray-900">RepCheck</span>
             </Link>
             
             <div className="flex items-center space-x-4">
@@ -255,7 +255,7 @@ export default function Demo() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            See Greptile Clone in Action
+            See RepCheck in Action
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Experience how our AI-powered code review platform analyzes your codebase, 

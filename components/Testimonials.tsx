@@ -1,7 +1,7 @@
 export default function Testimonials() {
   const testimonials = [
     {
-      quote: "Greptile Clone has transformed our code review process. We're catching 3X more bugs and shipping faster than ever.",
+      quote: "RepCheck has transformed our code review process. We're catching 3X more bugs and shipping faster than ever.",
       author: "Sarah Chen",
       role: "Senior Engineering Manager",
       company: "TechCorp"
