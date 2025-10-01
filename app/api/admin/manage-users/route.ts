@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         u.id,
         u.email,
         u.name,
-        u."profileIcon",
+        u."selectedIcon" as "profileIcon",
         u."profileImage",
         u."createdAt",
         COALESCE(
