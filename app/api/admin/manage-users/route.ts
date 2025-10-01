@@ -55,19 +55,25 @@ export async function GET(request: NextRequest) {
         u."selectedIcon" as "profileIcon",
         u."profileImage",
         u."createdAt",
-        COALESCE(
+        CAST(COALESCE(
           (SELECT COUNT(*) FROM issue_reports WHERE reported_by_user_id = u.id),
           0
-        ) as report_count
+        ) AS INTEGER) as report_count
       FROM "UserProfile" u
       ORDER BY u."createdAt" DESC
     ` as any[]
 
     console.log('✅ Fetched users:', users.length)
 
+    // Convert BigInt fields to strings for JSON serialization
+    const serializedUsers = users.map(user => ({
+      ...user,
+      report_count: Number(user.report_count)
+    }))
+
     return NextResponse.json({
       success: true,
-      users
+      users: serializedUsers
     })
 
   } catch (error) {
