@@ -119,7 +119,7 @@ export default function FeedbackModal({
           return
         }
         
-        setUploadStatus('Uploading to Imgur...')
+        setUploadStatus('Uploading image...')
         
         // Try Imgur first
         const imgurUrl = await uploadToImgur(imageFile)
@@ -127,13 +127,12 @@ export default function FeedbackModal({
         if (imgurUrl) {
           imageType = 'url'
           imageData = imgurUrl
-          setUploadStatus('Image uploaded!')
+          setUploadStatus('✓ Image uploaded!')
         } else {
           // Fallback to base64
-          setUploadStatus('Storing image locally...')
           imageType = 'base64'
           imageData = imagePreview?.split(',')[1]
-          setUploadStatus('Image stored!')
+          setUploadStatus('✓ Image attached!')
         }
       }
 
