@@ -11,7 +11,7 @@ export default function Footer() {
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">🦎</span>
               </div>
-              <span className="text-xl font-bold">Greptile Clone</span>
+              <span className="text-xl font-bold">RepCheck</span>
             </div>
             <p className="text-gray-400 max-w-md mb-6">
               AI-powered code review and codebase intelligence platform. 
@@ -64,7 +64,7 @@ export default function Footer() {
 
         <div className="border-t border-gray-800 pt-8 mt-8 text-center">
           <p className="text-gray-400">
-            © 2025 Greptile Clone. All rights reserved. Built with ❤️ by developers, for developers.
+            © 2025 RepCheck. All rights reserved. Built with ❤️ by developers, for developers.
           </p>
         </div>
       </div>

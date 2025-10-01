@@ -1,4 +1,4 @@
-# Greptile Clone - Database Restored
+# RepCheck - Database Restored
 
 ## Recent Updates
 
