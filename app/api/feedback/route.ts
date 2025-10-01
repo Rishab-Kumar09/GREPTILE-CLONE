@@ -18,6 +18,19 @@ async function isAdmin(userId: string): Promise<boolean> {
   }
 }
 
+// Check if user is super admin or admin
+async function isAdminOrSuperAdmin(userId: string): Promise<boolean> {
+  try {
+    const result = await prisma.$queryRaw`
+      SELECT id, is_super_admin FROM admins WHERE user_id = ${userId} AND is_active = true LIMIT 1
+    ` as any[]
+    return result.length > 0
+  } catch (error) {
+    console.error('Admin check error:', error)
+    return false
+  }
+}
+
 // POST: Submit report or sign off
 export async function POST(request: NextRequest) {
   try {
@@ -220,6 +233,61 @@ export async function GET(request: NextRequest) {
       success: false,
       error: 'Failed to fetch reports',
       details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+// DELETE: Delete a report (Admin/Super Admin only)
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const reportId = searchParams.get('reportId')
+    const userId = searchParams.get('userId')
+    
+    if (!reportId || !userId) {
+      return NextResponse.json({
+        success: false,
+        error: 'Missing reportId or userId'
+      }, { status: 400 })
+    }
+
+    // Check admin authorization
+    const userIsAdmin = await isAdminOrSuperAdmin(userId)
+    if (!userIsAdmin) {
+      return NextResponse.json({
+        success: false,
+        error: 'Unauthorized: Admin access required'
+      }, { status: 403 })
+    }
+
+    // Delete signoff first (foreign key constraint)
+    await prisma.$executeRaw`
+      DELETE FROM issue_signoffs WHERE report_id = ${parseInt(reportId)}
+    `
+
+    // Delete the report
+    await prisma.$executeRaw`
+      DELETE FROM issue_reports WHERE id = ${parseInt(reportId)}
+    `
+
+    // Log action
+    await prisma.$executeRaw`
+      INSERT INTO admin_activity (admin_user_id, action, target_id, details)
+      VALUES (${userId}, 'DELETE_REPORT', ${reportId}, 'Deleted issue report')
+    `
+
+    return NextResponse.json({
+      success: true,
+      message: 'Report deleted successfully'
+    })
+
+  } catch (error) {
+    console.error('Delete report error:', error)
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete report'
     }, { status: 500 })
   } finally {
     await prisma.$disconnect()

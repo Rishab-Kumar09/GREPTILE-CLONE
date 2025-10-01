@@ -171,6 +171,28 @@ export default function AdminFeedbackPage() {
     }
   }
 
+  const handleDeleteReport = async (reportId: number, reportTitle: string) => {
+    if (!confirm(`🗑️ Delete report "${reportTitle}"?\n\nThis action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/feedback?action=delete&reportId=${reportId}&userId=${userId}`, {
+        method: 'DELETE'
+      })
+
+      const data = await res.json()
+      if (data.success) {
+        alert('✅ Report deleted successfully')
+        loadReports()
+      } else {
+        alert('❌ Failed to delete: ' + data.error)
+      }
+    } catch (error) {
+      alert('❌ Network error')
+    }
+  }
+
   // ========== ADMINS TAB ==========
   const loadAdmins = async () => {
     if (!userId) return
@@ -445,14 +467,25 @@ export default function AdminFeedbackPage() {
                           {new Date(report.created_at).toLocaleString()}
                         </p>
                       </div>
-                      {report.status === 'open' && (
-                        <button
-                          onClick={() => setSelectedReport(report)}
-                          className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm"
-                        >
-                          Review
-                        </button>
-                      )}
+                      <div className="flex gap-2">
+                        {report.status === 'open' && (
+                          <button
+                            onClick={() => setSelectedReport(report)}
+                            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 text-sm"
+                          >
+                            Review
+                          </button>
+                        )}
+                        {(isAdmin || isSuperAdmin) && (
+                          <button
+                            onClick={() => handleDeleteReport(report.id, report.title)}
+                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                            title="Delete this report"
+                          >
+                            🗑️
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="p-4">
