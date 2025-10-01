@@ -72,6 +72,9 @@ export default function AdminFeedbackPage() {
   
   // Users tab state
   const [users, setUsers] = useState<User[]>([])
+  
+  // Image lightbox state
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
 
   useEffect(() => {
     loadInitialData()
@@ -461,17 +464,17 @@ export default function AdminFeedbackPage() {
                               : `data:image/png;base64,${report.image_data}`
                             }
                             alt="Screenshot"
-                            className="max-h-64 rounded border border-gray-300 cursor-pointer hover:opacity-90"
-                            onClick={() => window.open(
+                            className="max-h-64 rounded border border-gray-300 cursor-pointer hover:opacity-90 hover:shadow-lg transition-all"
+                            onClick={() => setLightboxImage(
                               report.image_type === 'url' 
                                 ? report.image_data 
-                                : `data:image/png;base64,${report.image_data}`,
-                              '_blank'
+                                : `data:image/png;base64,${report.image_data}`
                             )}
                           />
-                          {report.image_type === 'base64' && (
-                            <p className="text-xs text-gray-500 mt-1">Stored locally</p>
-                          )}
+                          <p className="text-xs text-gray-500 mt-1">
+                            Click to enlarge
+                            {report.image_type === 'base64' && ' • Stored locally'}
+                          </p>
                         </div>
                       )}
 
@@ -802,6 +805,52 @@ export default function AdminFeedbackPage() {
                   {isSubmitting ? 'Submitting...' : 'Submit Review'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Image Lightbox Modal */}
+        {lightboxImage && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+            onClick={() => setLightboxImage(null)}
+          >
+            <div className="relative w-full h-full flex items-center justify-center p-4">
+              {/* Close button */}
+              <button
+                onClick={() => setLightboxImage(null)}
+                className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/70 rounded-full p-3 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              {/* Image */}
+              <img 
+                src={lightboxImage}
+                alt="Full size screenshot"
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+
+              {/* Download button */}
+              <a
+                href={lightboxImage}
+                download="screenshot.png"
+                className="absolute bottom-4 right-4 px-4 py-2 bg-white text-gray-900 rounded-md hover:bg-gray-100 transition-colors font-medium flex items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </a>
+
+              {/* Helper text */}
+              <p className="absolute bottom-4 left-4 text-white text-sm bg-black/50 px-3 py-2 rounded-md">
+                Click outside to close
+              </p>
             </div>
           </div>
         )}
